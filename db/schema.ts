@@ -29,6 +29,12 @@ import {
 /* ------------------------------------------------------------------ enums -- */
 
 export const cardIssuer = pgEnum("card_issuer", ["capital_one", "amex"]);
+/** Cardholder-registered cards start `pending` until an admin approves them. */
+export const cardApprovalStatus = pgEnum("card_approval_status", [
+  "approved",
+  "pending",
+  "rejected",
+]);
 export const importProfile = pgEnum("import_profile", ["capital_one", "amex", "teller"]);
 export const userRole = pgEnum("user_role", ["cardholder", "accounting", "approver", "admin"]);
 export const unitType = pgEnum("unit_type", ["truck", "tractor", "trailer", "equipment", "other"]);
@@ -241,7 +247,11 @@ export const cardAccounts = pgTable("card_accounts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Individual plastic. `userId` null until an admin assigns the cardholder. */
+/**
+ * Individual plastic. `userId` null until assigned. Admin-created cards are
+ * `approved`; a cardholder can self-register a card (`pending`) which an admin
+ * then approves — only `approved` + `active` cards auto-assign imported charges.
+ */
 export const cards = pgTable(
   "cards",
   {
@@ -252,6 +262,8 @@ export const cards = pgTable(
     userId: uuid("user_id").references(() => users.id),
     last4: text("last4").notNull(),
     displayName: text("display_name"),
+    approvalStatus: cardApprovalStatus("approval_status").notNull().default("approved"),
+    requestedById: uuid("requested_by_id").references(() => users.id),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

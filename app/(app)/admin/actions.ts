@@ -175,6 +175,22 @@ export async function upsertCard(fd: FormData) {
   await done("/admin/cards");
 }
 
+/** Approve / reject a card a cardholder self-registered. */
+export async function setCardApproval(fd: FormData) {
+  await requireRole("admin");
+  const id = str(fd, "id");
+  const decision = str(fd, "decision");
+  const status =
+    decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
+  if (!status) return;
+  const patch: { approvalStatus: "approved" | "rejected"; userId?: null } = {
+    approvalStatus: status,
+  };
+  if (status === "rejected") patch.userId = null;
+  await db.update(cards).set(patch).where(eq(cards.id, id));
+  await done("/admin/cards");
+}
+
 /* ------------------------------------------------------------------ mileage */
 
 export async function upsertMileageRate(fd: FormData) {

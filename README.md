@@ -110,6 +110,10 @@ any Microsoft account can sign in.
 | `approver` | set manually on `/admin/users` | `/review` |
 | `cardholder` | default | own transactions + weekly report |
 
+Cardholders self-register their cards at **`/cards`** (program + last 4); the card
+stays `pending` until an admin approves it under **IT Admin → Cards**. Only
+`approved` + `active` cards auto-assign imported charges.
+
 Role sync runs on **every request** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
 are set. Membership is read from the token's `groups` claim, falling back to
 **app-only Microsoft Graph** (`GroupMember.Read.All` application permission +
@@ -227,7 +231,8 @@ app/
   (app)/           authed shell
     page.tsx           dashboard
     transactions/      list + coding wizard
-    receipts/          Receipt Bank
+    receipts/          "Log a Purchase" (Receipt Bank)
+    cards/             cardholder self-registers a card (admin approves)
     report/            weekly report + submit
     review/            accounting review queue
     admin/             CSV import + setup overview

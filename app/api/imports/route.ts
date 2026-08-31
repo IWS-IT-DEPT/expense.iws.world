@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { cardAccounts, cards, transactions } from "@/db/schema";
@@ -40,8 +40,14 @@ export async function POST(req: Request) {
   const source = getTransactionSource(account.importProfile);
   const { transactions: parsed, skipped } = source.parseCsv(await file.text());
 
+  // Only approved, active cards auto-assign a cardholder. Charges on a
+  // self-registered card that's still pending import as "unassigned".
   const knownCards = await db.query.cards.findMany({
-    where: eq(cards.cardAccountId, cardAccountId),
+    where: and(
+      eq(cards.cardAccountId, cardAccountId),
+      eq(cards.approvalStatus, "approved"),
+      eq(cards.active, true),
+    ),
   });
   const cardByLast4 = new Map(knownCards.map((c) => [c.last4, c]));
 
