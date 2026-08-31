@@ -22,9 +22,14 @@ function dowInTz(): number {
 }
 
 /**
- * Hobby plan → daily crons only, so `vercel.json` runs two daily jobs
- * (`?window=am` ≈ 13:00 UTC, `?window=pm` ≈ 20:00 UTC) and the day of week
- * picks the actual slot.
+ * Vercel cron is UTC-only, and the Hobby plan allows only 2 daily jobs — so
+ * `vercel.json` runs two daily jobs and the **day of week in APP_TZ** picks the
+ * slot (the exact minute doesn't matter for a reminder). The two UTC schedules
+ * are set for US Central:
+ *   ?window=am  13:00 UTC → 8:00 AM CDT / 7:00 AM CST
+ *   ?window=pm  20:00 UTC → 3:00 PM CDT / 2:00 PM CST
+ * i.e. exact during daylight time (Mar–Nov) and one hour earlier during standard
+ * time. Hobby cron firing can also slip up to ~1h. Good enough for a nudge.
  */
 function slotForWindow(window: string | null): Slot | null {
   const dow = dowInTz();
