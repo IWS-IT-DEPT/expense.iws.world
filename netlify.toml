@@ -1,0 +1,19 @@
+# Netlify auto-detects Next.js and applies its Next runtime — no plugin block needed.
+
+[build]
+  command = "npm run db:migrate && npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Receipt blobs use Netlify Blobs in production (see lib/storage.ts).
+  STORAGE_DRIVER = "netlify"
+
+# Set the rest in the Netlify UI (Site config -> Environment variables):
+#   DATABASE_URL              Neon pooled connection string
+#   AUTH_SECRET               npx auth secret
+#   AUTH_TRUST_HOST           true   (required off-Vercel)
+#   APP_URL                   https://expense.iws.world
+#   AUTH_MICROSOFT_ENTRA_ID_ID / _SECRET / _ISSUER
+#   ALLOWED_EMAIL_DOMAINS     iws.world
+#   RESEND_API_KEY, MAIL_FROM
+#   QBO_* (phase 2)

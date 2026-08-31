@@ -7,3 +7,24 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# IWS Expense — project notes
+
+Internal expense tracking for the 6-company IWS group. See `README.md` for the
+full picture. Key facts an agent needs:
+
+- **Next.js 16** (App Router, Turbopack). `middleware` is now `proxy.ts`.
+- **6 entities**, each with its own QuickBooks Online file. Entity on a charge is
+  chosen per-transaction, never derived from the card.
+- **Coding** = `allocations` rows (entity, location, unit|job, category, purpose).
+  Which of unit/job is required comes from `entities.costingMode`. Logic lives in
+  `lib/coding.ts`; keep validation there, not in components.
+- **Money is integer cents** everywhere (`amountCents`). Rates/miles use `numeric`.
+- DB is **Neon Postgres via the `neon-http` driver** — no interactive
+  transactions; write sequential statements.
+- Auth: **Auth.js v5 + Entra**. `lib/auth.config.ts` is edge-safe (no DB);
+  `lib/current-user.ts` does the session→`users` lookup and role checks.
+- Run `npm run typecheck` (includes `next typegen`) and `npm run lint` before finishing.
+- Don't run `npm run db:migrate` / `db:seed` against the production Neon DB
+  without the user's say-so.
+- QuickBooks integration is **stubbed** (`lib/qbo/`). Don't assume it works.

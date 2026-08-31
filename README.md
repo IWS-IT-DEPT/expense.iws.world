@@ -1,36 +1,182 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# IWS Expense
 
-## Getting Started
+Internal expense tracking and reporting for the IWS group of companies — an
+Expensify-style tool for employees with company credit cards, plus out-of-pocket
+and mileage reimbursement.
 
-First, run the development server:
+Hosted at **expense.iws.world**.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## The group
+
+Six sister companies, each with its **own QuickBooks Online company file**:
+
+| Code   | Company                                        | Costing dimension |
+| ------ | ---------------------------------------------- | ----------------- |
+| `IWS`  | International Warehousing & Shipping, LLC      | none (entity + location) |
+| `PRE`  | Precision Construction Repair                  | **job**           |
+| `PORT` | Port City Repair                               | **unit**          |
+| `RGT`  | Rolling Green Transportation                   | **unit** (trucks) |
+| `RGL`  | Rolling Green Logistics                        | none              |
+| `GGB`  | Gravel Grabbers, LLC                           | **unit** (trucks) |
+
+Three card programs (the entity on a charge is chosen per-transaction, **not**
+derived from the card):
+
+- Capital One — IWS
+- Capital One — Precision Construction Repair
+- American Express — Rolling Green Transportation
+
+## The coding model
+
+Every card charge gets one or more **allocations**. Each allocation carries the
+full cost coding, collected by a guided wizard:
+
+1. **Who is this for?** → entity
+2. **Which site?** → location (the entity's own sites listed first; any site is selectable)
+3. **Which truck / job?** → unit or job, shown only when the entity requires it
+4. **What kind of expense?** → category
+5. **Why?** → business purpose
+
+Display tag: `RGT · Main Office · Truck 07 · Fuel`
+
+### Workflow
+
+```
+import CSV → assign to cardholder → cardholder codes (weekly, mandatory)
+          → accounting reviews → approve-by-exception → push to QuickBooks
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Reimbursements (out-of-pocket + IRS-rate mileage) collect into a batch and export
+to **payroll**. Intercompany charges (bought for an entity other than the card
+owner) are flagged for accounting; no due-to/due-from automation yet.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Approve-by-exception
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`lib/exceptions.ts` scores each item. Clean items (coded, receipt present,
+under threshold, known merchant, splits balance) can be **batch-approved**;
+anything flagged surfaces individually in `/review`.
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+| Concern    | Choice                                              |
+| ---------- | -------------------------------------------------- |
+| Framework  | Next.js 16 (App Router) + TypeScript + Tailwind    |
+| Hosting    | Netlify (free tier, commercial use allowed)        |
+| DB         | Neon Postgres + Drizzle ORM                        |
+| Auth       | Auth.js v5 + Microsoft Entra ID (M365 SSO)         |
+| Receipts   | Netlify Blobs (prod) / local disk (dev)            |
+| Accounting | QuickBooks Online API — one connection per entity  |
+| Email      | Resend                                             |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Local setup
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+cp .env.example .env.local      # fill in DATABASE_URL + AUTH_SECRET at minimum
+npm run db:migrate              # create tables
+npm run db:seed                 # entities, locations, categories, mileage rate
+npm run dev
+```
 
-## Deploy on Vercel
+`AUTH_SECRET`: `npx auth secret`. In dev, leave `ALLOWED_EMAIL_DOMAINS` blank so
+any Microsoft account can sign in.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The first person to sign in is auto-provisioned as a `cardholder`. Promote
+yourself in the DB to see the review/admin screens:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```sql
+update users set role = 'admin' where email = 'you@iws.world';
+```
+
+### Scripts
+
+| Command              | What                                          |
+| -------------------- | --------------------------------------------- |
+| `npm run dev`        | dev server                                    |
+| `npm run db:generate`| generate a migration from schema changes      |
+| `npm run db:migrate` | apply migrations                              |
+| `npm run db:seed`    | (idempotent) reference data                   |
+| `npm run db:studio`  | Drizzle Studio — browse/edit data             |
+| `npm run typecheck`  | `next typegen && tsc --noEmit`                |
+| `npm run lint`       | ESLint                                        |
+
+## Microsoft Entra ID (M365 SSO)
+
+1. **Entra admin center → App registrations → New registration.**
+   Redirect URI: `https://expense.iws.world/api/auth/callback/microsoft-entra-id`
+   (and `http://localhost:3000/...` for dev).
+2. Create a **client secret**. Note the client ID, secret, and **tenant ID**.
+3. **API permissions:** `openid`, `profile`, `email`, `User.Read` → grant admin consent.
+4. Set env:
+   - `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`
+   - `AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/<TENANT_ID>/v2.0`
+     (tenant-locked issuer — **not** `common` — is what restricts login to the org)
+   - `ALLOWED_EMAIL_DOMAINS=iws.world`
+
+Needs someone with **Application Administrator** rights in the tenant.
+
+## Deploy (Netlify)
+
+1. Connect the GitHub repo to a new Netlify site.
+2. Set env vars (see `netlify.toml` comments).
+3. Point `expense.iws.world` at Netlify: in **GoDaddy DNS** add a `CNAME`,
+   host `expense`, value `<site>.netlify.app`. TLS is automatic.
+4. Add the production redirect URI to the Entra app registration.
+
+`AUTH_TRUST_HOST=true` is required (Netlify is not Vercel).
+
+## QuickBooks Online — Phase 2
+
+Not wired yet. `lib/qbo/` has the types, dimension-mapping helpers and a stubbed
+client. To finish:
+
+1. Create an Intuit app; run the OAuth flow **6 times** (one grant per entity),
+   store `realmId` + encrypted tokens in `qbo_connections`.
+2. Sync Account / Class / Location / Customer / Vendor lists into `qbo_dimensions`.
+3. Build the "map our dimensions to QBO" admin screen (`dimension_mappings`).
+4. Dimension mapping: entity→company file, location→Location, unit→Class,
+   job→Project, category→Account, cardholder→PrivateNote.
+5. Export approved charges as **Purchase** objects; reimbursements as **Bill**s.
+   Record every attempt in `qbo_exports`.
+
+QBO has **no CSV import for Purchases** — the API is the only real path.
+
+## Roadmap
+
+- [ ] Split allocations UI (schema already supports it)
+- [ ] Receipt upload + mobile capture (PWA), receipt viewer in `/review`
+- [ ] Out-of-pocket + mileage entry on the weekly report
+- [ ] Reimbursement batches → payroll CSV export
+- [ ] Admin CRUD for locations / units / jobs / categories / card assignments
+- [ ] Teller integration (replace/augment CSV import) behind `TransactionSource`
+- [ ] Email digests for Allie (approve links) + missing-receipt nags
+- [ ] QuickBooks Online integration (Phase 2 above)
+- [ ] Structured multi-approver routing (pending managing-partner decision)
+- [ ] Statement reconciliation view (charges vs. statement total per period)
+
+## Layout
+
+```
+db/            schema.ts, migrations, seed
+lib/
+  auth*.ts         Auth.js + Entra, edge-safe config split
+  current-user.ts  session → users row, role helpers
+  coding.ts        wizard rules, validation, display tag
+  exceptions.ts    approve-by-exception flag rules
+  txn-flags.ts     recompute a transaction's flags
+  transactions/    CSV parsers behind TransactionSource (Capital One, Amex)
+  qbo/             QuickBooks types + stubbed client (Phase 2)
+  storage.ts       receipt blob store (Netlify Blobs / local)
+  mileage.ts       IRS rate lookup
+app/
+  signin/          M365 sign-in
+  (app)/           authed shell
+    page.tsx           dashboard
+    transactions/      list + coding wizard
+    report/            weekly report + submit
+    review/            accounting review queue
+    admin/             CSV import + setup overview
+  api/imports/     statement CSV upload
+```
