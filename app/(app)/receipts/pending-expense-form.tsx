@@ -56,12 +56,13 @@ export function PendingExpenseForm(props: PendingExpenseFormProps) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
-          Saved to your Receipt Bank.
+          Purchase saved.{" "}
+          {editing ? "" : "Now add the receipt — scan it here or send it from your phone."}
         </p>
         <ReceiptUploadButton
           purpose="pending"
           targetId={state.id}
-          label="Add the receipt now"
+          label={editing ? "Add another receipt" : "Add the receipt"}
           onDone={() => {
             router.refresh();
             props.onClose?.();

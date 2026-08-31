@@ -15,7 +15,7 @@ const ME_ZONE: Zone = {
   nav: [
     { href: "/", label: "Dashboard" },
     { href: "/transactions", label: "My Transactions" },
-    { href: "/receipts", label: "Receipts" },
+    { href: "/receipts", label: "Log a Purchase" },
     { href: "/report", label: "Weekly Report" },
   ],
 };

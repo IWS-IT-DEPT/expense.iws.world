@@ -97,10 +97,11 @@ export default async function ReceiptBankPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Receipt Bank</h1>
+          <h1 className="text-lg font-semibold">Log a Purchase</h1>
           <p className="max-w-prose text-sm opacity-70">
-            Snap a receipt and code the purchase the moment you buy something. When the charge lands
-            on the card statement it&apos;s matched automatically and your coding is applied.
+            Bought something on a company card? Log it here now — merchant, amount, coding, and a
+            photo of the receipt. When the charge shows up on the statement it&apos;s matched to
+            this entry automatically and your coding is applied, so you never chase a lost receipt.
           </p>
         </div>
         <AddToBankButton {...codingOptions} />
@@ -108,11 +109,12 @@ export default async function ReceiptBankPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-          Waiting for a charge ({openRows.length})
+          Waiting for the charge ({openRows.length})
         </h2>
         {openRows.length === 0 ? (
           <p className="text-sm opacity-60">
-            Nothing here yet. Use <strong>Add to Receipt Bank</strong> above.
+            Nothing logged yet. Hit <strong>Log a Purchase</strong> above right after you buy
+            something.
           </p>
         ) : (
           <div className="space-y-3">

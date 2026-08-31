@@ -43,7 +43,15 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-lg font-semibold">Your week</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-semibold">Your week</h1>
+          <Link
+            href="/receipts"
+            className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
+          >
+            + Log a purchase
+          </Link>
+        </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <Stat label="Needs coding" value={mine.uncoded} href="/transactions?status=uncoded" alert={mine.uncoded > 0} />
           <Stat label="Coded, not submitted" value={mine.coded} href="/transactions?status=coded" />

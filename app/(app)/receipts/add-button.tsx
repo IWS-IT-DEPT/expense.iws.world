@@ -16,7 +16,7 @@ export function AddToBankButton(props: Omit<PendingExpenseFormProps, "onClose">)
         onClick={() => setOpen(true)}
         className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
       >
-        Add to Receipt Bank
+        Log a Purchase
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Log a purchase">
         <PendingExpenseForm {...props} onClose={() => setOpen(false)} />
