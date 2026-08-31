@@ -55,7 +55,6 @@ export default async function AdminOverviewPage() {
         <Card href="/admin/units" label="Units" value={nUnit} />
         <Card href="/admin/jobs" label="Jobs" value={nJob} />
         <Card href="/admin/categories" label="Categories" value={nCat} />
-        <Card href="/imports" label="Statement import" value="→" />
       </section>
 
       <section>

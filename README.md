@@ -43,38 +43,49 @@ Display tag: `RGT · Main Office · Truck 07 · Fuel`
 
 ### Workflow
 
+Cardholders **enter every expense themselves** — there is no statement import.
+
 ```
-import CSV → assign to cardholder → cardholder codes (weekly, mandatory)
-          → accounting reviews → approve-by-exception → push to QuickBooks
+cardholder logs each expense (card / out-of-pocket / mileage) + coding + receipt
+  → files a weekly report (review, verify, submit — due EOD Friday; locks the week)
+  → accounting reconciles each card line vs. the real statement (confirm / correct)
+  → approver locks the reconciled report  → ready for the books / QBO
 ```
 
-### Receipt Bank (`/receipts`)
+- **Cards** (`/cards`): a cardholder self-registers each card — network + last 4 +
+  nickname. No admin approval, no link to a card program.
+- **Expenses** (`/expenses`): `/expenses/new` (card purchase — pick which card),
+  `/expenses/out-of-pocket`, `/expenses/mileage` (IRS rate via `lib/mileage.ts`,
+  amount computed server-side). Card lines can be drafted uncoded; coding +
+  receipt are required to submit. `lib/expense-checks.ts` is the readiness rule
+  set (replaces the old `exception_flags`).
+- **Weekly report** (`/report`): shows everything logged in the ISO week (plus
+  stragglers from earlier weeks not yet on a report), flags anything that isn't
+  ready, and submits it all in one action → `expense_reports` row + status
+  `submitted` on every line. Email reminders (Wed 8am / Fri 8am / Fri 3pm, Central)
+  go to anyone who hasn't filed — `app/api/cron/report-reminders` + Resend.
+- **Reconcile** (`/reconcile`, accounting): submitted card lines grouped by
+  cardholder + card. Confirm each (recording `actualAmountCents` /
+  `actualPurchaseDate` if the statement differs) or send it back. When a report's
+  last submitted card line is confirmed it auto-advances to `reconciled`.
+- **Approvals** (`/approvals`, approver/admin): approve a reconciled report →
+  every line `approved` and locked. Books total uses `COALESCE(actual, entered)`.
 
-Cardholders lose paper receipts before the statement lands. The Receipt Bank lets
-them scan + pre-code a purchase the moment they buy it: a `pending_expenses` row
-holds the merchant/amount/date, the full coding, and the receipt file. When the
-statement imports, `lib/receipt-match.ts` scores each new charge against the
-user's open bank entries (amount ± tip, date ± few days, merchant tokens) and, on
-a confident unambiguous match, applies the coding as an `allocations` row and
-moves the receipt onto the charge. Weaker matches show as a suggestion on the
-transaction page and the bank page for a one-click confirm.
+Data model: the cardholder card expense is the `pending_expenses` table (name is
+historical — the receipt-upload plumbing keys off it); out-of-pocket + mileage are
+`expense_items`. Every workflow transition writes an `approvals` audit row.
 
-Capture: an in-browser scanner (`app/components/receipt-scanner.tsx` +
-`lib/scan-warp.ts`) — camera → drag 4 corners → perspective de-skew → multi-page
-PDF via `pdf-lib`, no OpenCV. Desktop can hand off to a phone via a QR code
-carrying a short-lived HMAC token (`lib/upload-token.ts`); the phone posts to the
-public `/api/receipt-upload` and the desktop polls for the result. Receipt bytes
-are only ever served through the authenticated `/api/receipts/[id]` route.
+### Receipt capture
 
-Reimbursements (out-of-pocket + IRS-rate mileage) collect into a batch and export
-to **payroll**. Intercompany charges (bought for an entity other than the card
-owner) are flagged for accounting; no due-to/due-from automation yet.
+An in-browser scanner (`app/components/receipt-scanner.tsx` + `lib/scan-warp.ts`)
+— camera → drag 4 corners → perspective de-skew → multi-page PDF via `pdf-lib`, no
+OpenCV. Desktop can hand off to a phone via a QR code carrying a short-lived HMAC
+token (`lib/upload-token.ts`); the phone posts to the public `/api/receipt-upload`
+and the desktop polls for the result. Receipt bytes are only ever served through
+the authenticated `/api/receipts/[id]` route.
 
-### Approve-by-exception
-
-`lib/exceptions.ts` scores each item. Clean items (coded, receipt present,
-under threshold, known merchant, splits balance) can be **batch-approved**;
-anything flagged surfaces individually in `/review`.
+The Capital One / Amex CSV parsers (`lib/transactions/`) are kept in the tree for
+a future reconciliation feature but are not wired to anything.
 
 ## Stack
 
@@ -105,14 +116,14 @@ any Microsoft account can sign in.
 
 | Role | Source | Access |
 | ---- | ------ | ------ |
-| `admin` | Entra group `IT@iws.world` | everything, incl. `/admin/*` backend management |
-| `accounting` | Entra group `IWS-Finance@iws.world` | `/review`, `/imports`, exports |
-| `approver` | set manually on `/admin/users` | `/review` |
-| `cardholder` | default | own transactions + weekly report |
+| `admin` | Entra group `IT@iws.world` | everything, incl. `/admin/*` and approvals |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/approvals` |
+| `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
+| `cardholder` | default | own expenses + weekly report + `/cards` |
 
-Cardholders self-register their cards at **`/cards`** (program + last 4); the card
-stays `pending` until an admin approves it under **IT Admin → Cards**. Only
-`approved` + `active` cards auto-assign imported charges.
+Cardholders self-register their cards at **`/cards`** (network + last 4 +
+nickname) — no approval step. Admins can view/edit all cards under **IT Admin →
+Cards**.
 
 Role sync runs on **every request** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
 are set. Membership is read from the token's `groups` claim, falling back to
@@ -165,10 +176,13 @@ Privileged Role Administrator / Global Admin to grant admin consent in step 3).
 ## Deploy (Vercel)
 
 1. Import the GitHub repo as a new Vercel project (framework auto-detected;
-   `vercel.json` runs `db:migrate` before the build).
-2. Create a **Blob store** for the project and set `STORAGE_DRIVER=vercel`
-   (`BLOB_READ_WRITE_TOKEN` is injected automatically).
-3. Set the other env vars (see `.env.example`) for Production + Preview.
+   `vercel.json` runs `db:migrate` before the build and registers the reminder
+   cron).
+2. Create a **Blob store** for the project (`BLOB_READ_WRITE_TOKEN` is injected
+   automatically; the app uses Vercel Blob whenever that token is present).
+3. Set the other env vars (see `.env.example`) for Production + Preview —
+   including `RESEND_API_KEY`, `MAIL_FROM`, `CRON_SECRET`, `APP_TZ` for the
+   weekly-report reminder emails.
 4. Add `expense.iws.world` as a domain: in **GoDaddy DNS** add a `CNAME`,
    host `expense`, value `cname.vercel-dns.com`. TLS is automatic.
 5. Add the production redirect URI to the Entra app registration.
@@ -193,17 +207,15 @@ QBO has **no CSV import for Purchases** — the API is the only real path.
 
 ## Roadmap
 
+- [x] Cardholder-entered expenses (card / out-of-pocket / mileage)
+- [x] Weekly report → reconcile → approve, with reminder emails
+- [x] Receipt scanner + QR phone handoff
 - [ ] Split allocations UI (schema already supports it)
-- [x] Receipt upload + mobile capture (scanner + QR phone handoff), Receipt Bank
-- [ ] Receipt viewer/thumbnails in `/review`; receipts on expense items (UI)
-- [ ] Out-of-pocket + mileage entry on the weekly report
-- [ ] Reimbursement batches → payroll CSV export
-- [ ] Admin CRUD for locations / units / jobs / categories / card assignments
-- [ ] Teller integration (replace/augment CSV import) behind `TransactionSource`
-- [ ] Email digests for Allie (approve links) + missing-receipt nags
+- [ ] Reimbursement batches → payroll CSV export (`reimbursement_batches`)
 - [ ] QuickBooks Online integration (Phase 2 above)
-- [ ] Structured multi-approver routing (pending managing-partner decision)
-- [ ] Statement reconciliation view (charges vs. statement total per period)
+- [ ] Statement reconciliation view — link cardholder expenses to imported lines
+- [ ] Timezone-correct week boundaries (`weekBounds` is currently UTC)
+- [ ] Drop the dead `transactions` / `allocations` / `exception_flags` tables
 
 ## Layout
 
@@ -212,31 +224,30 @@ db/            schema.ts, migrations, seed
 lib/
   auth*.ts         Auth.js + Entra, edge-safe config split
   current-user.ts  session → users row, role helpers
-  coding.ts        wizard rules, validation, display tag
-  exceptions.ts    approve-by-exception flag rules
-  txn-flags.ts     recompute a transaction's flags
-  transactions/    CSV parsers behind TransactionSource (Capital One, Amex)
-  qbo/             QuickBooks types + stubbed client (Phase 2)
+  coding.ts        coding rules, validation, display tag
+  expense-checks.ts  "is this line ready to submit / clean" rule set
+  mileage.ts       IRS rate lookup + amount
   storage.ts       receipt blob store (Vercel Blob / local)
   receipt-store.ts validate + store a receipt file (shared by both upload routes)
-  receipt-match.ts Receipt Bank ↔ transaction matching + apply
   upload-token.ts  HMAC signed one-time links for the phone handoff
   scan-warp.ts     perspective de-skew for the scanner (no deps)
   pdf-assemble.ts  multi-page image/PDF → single PDF (pdf-lib)
-  mileage.ts       IRS rate lookup
+  email.ts         Resend wrapper
+  transactions/    Capital One / Amex CSV parsers — kept, not wired to anything
+  qbo/             QuickBooks types + stubbed client (Phase 2)
 app/
   signin/          M365 sign-in
   r/[token]/       public phone upload page (token-auth, no login)
   components/      modal, coding-fields, receipt-scanner, receipt-upload-button
   (app)/           authed shell
-    page.tsx           dashboard
-    transactions/      list + coding wizard
-    receipts/          "Log a Purchase" (Receipt Bank)
-    cards/             cardholder self-registers a card (admin approves)
-    report/            weekly report + submit
-    review/            accounting review queue
-    admin/             CSV import + setup overview
-  api/imports/     statement CSV upload
+    page.tsx           dashboard (cardholder / accounting / approver tiles)
+    expenses/          unified list + Log a Purchase / Out of Pocket / Mileage
+    cards/             cardholder self-registers a card
+    report/            weekly review-and-confirm + submit
+    reconcile/         accounting: confirm each card line vs. the statement
+    approvals/         approver: lock a reconciled report
+    admin/             reference-data setup
   api/receipts/    authed receipt upload + streaming (/[id])
   api/receipt-upload/  public token-auth upload + status poll
+  api/cron/report-reminders/  weekly-report reminder emails (hourly cron)
 ```

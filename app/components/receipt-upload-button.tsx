@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { startReceiptUpload, type UploadLink } from "@/app/(app)/receipts/actions";
+import { startReceiptUpload, type UploadLink } from "@/app/(app)/expenses/actions";
 import { Modal } from "@/app/components/modal";
 import { ReceiptScanner } from "@/app/components/receipt-scanner";
 import type { UploadPurpose } from "@/lib/upload-token";

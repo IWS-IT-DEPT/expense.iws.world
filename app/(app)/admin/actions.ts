@@ -160,34 +160,24 @@ export async function updateCardAccount(fd: FormData) {
   await done("/admin/cards");
 }
 
+const CARD_NETWORKS = ["visa", "mastercard", "amex", "discover", "other"] as const;
+
 export async function upsertCard(fd: FormData) {
   await requireRole("admin");
   const id = opt(fd, "id");
+  const net = str(fd, "network");
   const values = {
-    cardAccountId: str(fd, "cardAccountId"),
+    cardAccountId: opt(fd, "cardAccountId"),
     userId: opt(fd, "userId"),
+    network: CARD_NETWORKS.includes(net as (typeof CARD_NETWORKS)[number])
+      ? (net as (typeof CARD_NETWORKS)[number])
+      : null,
     last4: str(fd, "last4"),
     displayName: opt(fd, "displayName"),
     active: bool(fd, "active"),
   };
   if (id) await db.update(cards).set(values).where(eq(cards.id, id));
   else await db.insert(cards).values(values);
-  await done("/admin/cards");
-}
-
-/** Approve / reject a card a cardholder self-registered. */
-export async function setCardApproval(fd: FormData) {
-  await requireRole("admin");
-  const id = str(fd, "id");
-  const decision = str(fd, "decision");
-  const status =
-    decision === "approve" ? "approved" : decision === "reject" ? "rejected" : null;
-  if (!status) return;
-  const patch: { approvalStatus: "approved" | "rejected"; userId?: null } = {
-    approvalStatus: status,
-  };
-  if (status === "rejected") patch.userId = null;
-  await db.update(cards).set(patch).where(eq(cards.id, id));
   await done("/admin/cards");
 }
 

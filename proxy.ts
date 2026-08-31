@@ -15,6 +15,6 @@ export const config = {
   matcher: [
     // `r/` (phone upload page) and `api/receipt-upload` authenticate with a
     // signed token, not a session — keep them out of the auth proxy.
-    "/((?!api/auth|api/receipt-upload|r/|signin|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/auth|api/receipt-upload|api/cron|r/|signin|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
