@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { cardAccounts, cards } from "@/db/schema";
+import { cardNetwork, cards, pendingExpenses } from "@/db/schema";
 import { requireUser } from "@/lib/current-user";
 
 export interface RegisterCardState {
@@ -12,82 +12,63 @@ export interface RegisterCardState {
   error?: string;
 }
 
-function revalidate() {
-  revalidatePath("/cards");
-  revalidatePath("/admin/cards");
-  revalidatePath("/admin");
-}
+const NETWORKS = cardNetwork.enumValues as readonly string[];
 
-/** A cardholder registers (or claims) a card. It stays `pending` until an admin approves. */
+/** A cardholder registers one of their company cards. Takes effect immediately. */
 export async function registerCard(
   _prev: RegisterCardState,
   fd: FormData,
 ): Promise<RegisterCardState> {
   const user = await requireUser();
 
-  const cardAccountId = String(fd.get("cardAccountId") || "");
   const last4 = String(fd.get("last4") || "").trim();
+  const network = String(fd.get("network") || "");
   const displayName = String(fd.get("displayName") || "").trim() || null;
 
   if (!/^\d{4}$/.test(last4)) return { error: "Enter the last 4 digits of the card." };
-
-  const account = await db.query.cardAccounts.findFirst({
-    where: and(eq(cardAccounts.id, cardAccountId), eq(cardAccounts.active, true)),
-  });
-  if (!account) return { error: "Pick a card program." };
+  if (!NETWORKS.includes(network)) return { error: "Pick the card network." };
 
   const existing = await db.query.cards.findFirst({
-    where: and(eq(cards.cardAccountId, cardAccountId), eq(cards.last4, last4)),
+    where: and(eq(cards.userId, user.id), eq(cards.last4, last4)),
   });
-
-  if (!existing) {
-    await db.insert(cards).values({
-      cardAccountId,
-      last4,
-      displayName,
-      userId: user.id,
-      approvalStatus: "pending",
-      requestedById: user.id,
-      active: true,
-    });
-  } else if (existing.userId && existing.userId !== user.id) {
-    return { error: "That card is already registered to someone else — ask IT if that's wrong." };
-  } else if (existing.userId === user.id && existing.approvalStatus === "approved") {
-    return { error: "You've already registered that card." };
-  } else {
+  if (existing) {
+    if (existing.active) return { error: "You've already registered a card ending " + last4 + "." };
     await db
       .update(cards)
-      .set({
-        userId: user.id,
-        approvalStatus: "pending",
-        requestedById: user.id,
-        displayName: displayName ?? existing.displayName,
-      })
+      .set({ active: true, network: network as (typeof cardNetwork.enumValues)[number], displayName })
       .where(eq(cards.id, existing.id));
+    revalidatePath("/cards");
+    return { ok: true };
   }
 
-  revalidate();
+  await db.insert(cards).values({
+    userId: user.id,
+    last4,
+    network: network as (typeof cardNetwork.enumValues)[number],
+    displayName,
+    active: true,
+  });
+  revalidatePath("/cards");
+  revalidatePath("/expenses/new");
   return { ok: true };
 }
 
-/** Remove a card the current user registered (only while not yet approved). */
+/** Deactivate a card. Kept (not deleted) if any expense references it. */
 export async function removeMyCard(fd: FormData): Promise<void> {
   const user = await requireUser();
   const id = String(fd.get("id") || "");
 
   const card = await db.query.cards.findFirst({ where: eq(cards.id, id) });
-  if (!card || card.userId !== user.id || card.approvalStatus === "approved") return;
+  if (!card || card.userId !== user.id) return;
 
-  if (card.requestedById === user.id) {
-    // self-created row — remove it entirely
-    await db.delete(cards).where(eq(cards.id, id));
+  const used = await db.query.pendingExpenses.findFirst({
+    where: eq(pendingExpenses.cardId, id),
+    columns: { id: true },
+  });
+  if (used) {
+    await db.update(cards).set({ active: false }).where(eq(cards.id, id));
   } else {
-    // an admin-created card the user had claimed — just release it
-    await db
-      .update(cards)
-      .set({ userId: null, approvalStatus: "approved", requestedById: null })
-      .where(eq(cards.id, id));
+    await db.delete(cards).where(eq(cards.id, id));
   }
-
-  revalidate();
+  revalidatePath("/cards");
 }

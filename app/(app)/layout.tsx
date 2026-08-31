@@ -7,28 +7,32 @@ import { canReview, getCurrentUser, isAdmin } from "@/lib/current-user";
 
 import { AppNav, type Zone } from "./app-nav";
 
-const ME_ZONE: Zone = {
-  key: "me",
-  label: "My Expenses",
-  href: "/",
-  matches: ["/", "/transactions", "/receipts", "/cards", "/report"],
-  nav: [
-    { href: "/", label: "Dashboard" },
-    { href: "/transactions", label: "My Transactions" },
-    { href: "/receipts", label: "Log a Purchase" },
-    { href: "/report", label: "Weekly Report" },
-    { href: "/cards", label: "My Cards" },
-  ],
-};
+function meZone(mileageEligible: boolean): Zone {
+  return {
+    key: "me",
+    label: "My Expenses",
+    href: "/",
+    matches: ["/", "/expenses", "/receipts", "/cards", "/report"],
+    nav: [
+      { href: "/", label: "Dashboard" },
+      { href: "/expenses", label: "My Expenses" },
+      { href: "/expenses/new", label: "Log a Purchase" },
+      { href: "/expenses/out-of-pocket", label: "Out of Pocket" },
+      ...(mileageEligible ? [{ href: "/expenses/mileage", label: "Mileage" }] : []),
+      { href: "/report", label: "Weekly Report" },
+      { href: "/cards", label: "My Cards" },
+    ],
+  };
+}
 
 const ACCOUNTING_ZONE: Zone = {
   key: "accounting",
   label: "Accounting",
-  href: "/review",
-  matches: ["/review", "/imports"],
+  href: "/reconcile",
+  matches: ["/reconcile", "/approvals"],
   nav: [
-    { href: "/review", label: "Review Queue" },
-    { href: "/imports", label: "Imports" },
+    { href: "/reconcile", label: "Reconcile" },
+    { href: "/approvals", label: "Approvals" },
   ],
 };
 
@@ -44,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
 
-  const zones: Zone[] = [ME_ZONE];
+  const zones: Zone[] = [meZone(user.mileageEligible)];
   if (canReview(user)) zones.push(ACCOUNTING_ZONE);
   if (isAdmin(user)) zones.push(ADMIN_ZONE);
 

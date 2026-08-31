@@ -29,11 +29,20 @@ import {
 /* ------------------------------------------------------------------ enums -- */
 
 export const cardIssuer = pgEnum("card_issuer", ["capital_one", "amex"]);
-/** Cardholder-registered cards start `pending` until an admin approves them. */
+/** @deprecated card self-registration no longer needs approval. Kept so the DB
+ *  type isn't dropped mid-migration; remove in a later cleanup. */
 export const cardApprovalStatus = pgEnum("card_approval_status", [
   "approved",
   "pending",
   "rejected",
+]);
+/** Card network a cardholder-registered card runs on. */
+export const cardNetwork = pgEnum("card_network", [
+  "visa",
+  "mastercard",
+  "amex",
+  "discover",
+  "other",
 ]);
 export const importProfile = pgEnum("import_profile", ["capital_one", "amex", "teller"]);
 export const userRole = pgEnum("user_role", ["cardholder", "accounting", "approver", "admin"]);
@@ -61,12 +70,15 @@ export const reportStatus = pgEnum("report_status", [
   "approved",
   "rejected",
   "exported",
+  "reconciled", // accounting has cross-checked every card line against the statement
 ]);
 export const batchStatus = pgEnum("batch_status", ["open", "exported", "paid"]);
 export const approvalSubject = pgEnum("approval_subject", [
   "transaction",
   "expense_report",
   "reimbursement_batch",
+  "card_expense",
+  "expense_item",
 ]);
 export const approvalAction = pgEnum("approval_action", [
   "submit",
@@ -102,11 +114,21 @@ export const qboConnectionStatus = pgEnum("qbo_connection_status", [
   "error",
 ]);
 
-/** Receipt Bank lifecycle: a pre-coded purchase awaiting its card transaction. */
+/**
+ * Card-expense lifecycle:
+ *   draft → submitted → reconciled → approved   (or → rejected → draft again)
+ * `open`/`matched` are dead (from the old import-matching model); `cancelled`
+ * means a submitted line the cardholder later voided.
+ */
 export const pendingExpenseStatus = pgEnum("pending_expense_status", [
-  "open", // in the bank, not yet matched to a charge
-  "matched", // linked to a real transaction; coding + receipt applied
-  "cancelled", // user gave up on it (duplicate, personal, etc.)
+  "open",
+  "matched",
+  "cancelled",
+  "draft",
+  "submitted",
+  "reconciled",
+  "approved",
+  "rejected",
 ]);
 /** What a receipt-upload link/session is attaching to. */
 export const receiptUploadPurpose = pgEnum("receipt_upload_purpose", [
@@ -248,26 +270,30 @@ export const cardAccounts = pgTable("card_accounts", {
 });
 
 /**
- * Individual plastic. `userId` null until assigned. Admin-created cards are
- * `approved`; a cardholder can self-register a card (`pending`) which an admin
- * then approves — only `approved` + `active` cards auto-assign imported charges.
+ * A card a cardholder carries. They self-register it (`network` + `last4` +
+ * `displayName` nickname); no admin approval. `cardAccountId` is an optional
+ * back-reference to a real card program (admin-managed, feeds QBO later).
  */
 export const cards = pgTable(
   "cards",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    cardAccountId: uuid("card_account_id")
-      .notNull()
-      .references(() => cardAccounts.id),
+    cardAccountId: uuid("card_account_id").references(() => cardAccounts.id),
     userId: uuid("user_id").references(() => users.id),
+    network: cardNetwork("network"),
     last4: text("last4").notNull(),
-    displayName: text("display_name"),
+    displayName: text("display_name"), // cardholder's nickname for the card
+    /** @deprecated removed in the cleanup migration */
     approvalStatus: cardApprovalStatus("approval_status").notNull().default("approved"),
+    /** @deprecated removed in the cleanup migration */
     requestedById: uuid("requested_by_id").references(() => users.id),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique().on(t.cardAccountId, t.last4)],
+  (t) => [
+    unique("cards_card_account_id_last4_unique").on(t.cardAccountId, t.last4),
+    unique("cards_user_id_last4_unique").on(t.userId, t.last4),
+  ],
 );
 
 export const statementPeriods = pgTable(
@@ -499,17 +525,17 @@ export const receipts = pgTable(
   ],
 );
 
-/* ------------------------------------------------------- receipt bank ------- */
+/* --------------------------------------------------------- card expenses --- */
 
 /**
- * A purchase a cardholder logs the moment they buy something — merchant, amount,
- * date, and the full cost coding — with the receipt attached, *before* the card
- * charge posts. When accounting imports the statement, `lib/receipt-match.ts`
- * links this row to the real transaction: the coding becomes an `allocations`
- * row and the receipt(s) move onto the charge.
+ * A card purchase a cardholder enters themselves — merchant, amount, date, which
+ * of their `cards` it was on, the full cost coding, and a receipt. Flows
+ *   draft → submitted (in a weekly report) → reconciled (accounting confirmed it
+ *   against the real statement, optionally correcting the amount/date) →
+ *   approved (approver locked the report).
  *
- * Coding columns mirror `allocations` and are nullable so the bank can also hold
- * a "scan now, code later" receipt; `coded` gates matching.
+ * Table name is historical ("pending_expenses"); the receipt-upload plumbing
+ * keys off it. Coding columns mirror `allocations`, nullable until submit.
  */
 export const pendingExpenses = pgTable(
   "pending_expenses",
@@ -519,16 +545,17 @@ export const pendingExpenses = pgTable(
       .notNull()
       .references(() => users.id),
 
-    // expected charge — the matching key
     merchant: text("merchant").notNull(),
     merchantNormalized: text("merchant_normalized").notNull(),
-    amountCents: integer("amount_cents").notNull(), // positive = expected charge
+    amountCents: integer("amount_cents").notNull(), // what the cardholder entered
     purchaseDate: date("purchase_date").notNull(),
-    cardAccountId: uuid("card_account_id").references(() => cardAccounts.id), // optional hint
+    cardId: uuid("card_id").references(() => cards.id), // required at submit
     notes: text("notes"),
-
-    // pre-coding (nullable until `coded`)
+    /** @deprecated dead columns from the old import-matching model; unused */
+    cardAccountId: uuid("card_account_id").references(() => cardAccounts.id),
     coded: boolean("coded").notNull().default(false),
+
+    // coding (nullable until submit; completeness is a computed check)
     entityId: uuid("entity_id").references(() => entities.id),
     locationId: uuid("location_id").references(() => locations.id),
     unitId: uuid("unit_id").references(() => units.id),
@@ -537,8 +564,22 @@ export const pendingExpenses = pgTable(
     businessPurpose: text("business_purpose"),
     isIntercompany: boolean("is_intercompany").notNull().default(false),
 
-    // matching outcome
     status: pendingExpenseStatus("status").notNull().default("open"),
+    reportId: uuid("report_id").references(() => expenseReports.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+
+    // accounting reconciliation (nulls until reconciled)
+    actualAmountCents: integer("actual_amount_cents"),
+    actualPurchaseDate: date("actual_purchase_date"),
+    reconciledById: uuid("reconciled_by_id").references(() => users.id),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    reconcileNote: text("reconcile_note"),
+
+    approvedById: uuid("approved_by_id").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+
+    /** @deprecated dead columns from the old import-matching model; unused */
     matchedTransactionId: uuid("matched_transaction_id").references(() => transactions.id, {
       onDelete: "set null",
     }),
@@ -553,6 +594,7 @@ export const pendingExpenses = pgTable(
   (t) => [
     index("pending_user_status_idx").on(t.userId, t.status),
     index("pending_match_idx").on(t.userId, t.amountCents, t.purchaseDate),
+    index("pending_report_idx").on(t.reportId),
   ],
 );
 
@@ -580,6 +622,21 @@ export const receiptUploadSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("upload_session_user_idx").on(t.userId, t.status)],
+);
+
+/** Idempotency ledger for the weekly-report email reminder cron. */
+export const reminderSends = pgTable(
+  "reminder_sends",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    periodStart: date("period_start").notNull(),
+    slot: text("slot").notNull(), // 'wed_am' | 'fri_am' | 'fri_pm'
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.userId, t.periodStart, t.slot)],
 );
 
 /* --------------------------------------------------- workflow + exceptions -- */
@@ -774,6 +831,7 @@ export const cardsRelations = relations(cards, ({ one, many }) => ({
   cardAccount: one(cardAccounts, { fields: [cards.cardAccountId], references: [cardAccounts.id] }),
   user: one(users, { fields: [cards.userId], references: [users.id] }),
   transactions: many(transactions),
+  cardExpenses: many(pendingExpenses),
 }));
 
 export const transactionsRelations = relations(transactions, ({ one, many }) => ({
@@ -805,6 +863,7 @@ export const expenseReportsRelations = relations(expenseReports, ({ one, many })
   user: one(users, { fields: [expenseReports.userId], references: [users.id] }),
   transactions: many(transactions),
   items: many(expenseItems),
+  cardExpenses: many(pendingExpenses),
 }));
 
 export const expenseItemsRelations = relations(expenseItems, ({ one, many }) => ({
@@ -844,19 +903,16 @@ export const receiptsRelations = relations(receipts, ({ one }) => ({
 
 export const pendingExpensesRelations = relations(pendingExpenses, ({ one, many }) => ({
   user: one(users, { fields: [pendingExpenses.userId], references: [users.id] }),
-  cardAccount: one(cardAccounts, {
-    fields: [pendingExpenses.cardAccountId],
-    references: [cardAccounts.id],
+  card: one(cards, { fields: [pendingExpenses.cardId], references: [cards.id] }),
+  report: one(expenseReports, {
+    fields: [pendingExpenses.reportId],
+    references: [expenseReports.id],
   }),
   entity: one(entities, { fields: [pendingExpenses.entityId], references: [entities.id] }),
   location: one(locations, { fields: [pendingExpenses.locationId], references: [locations.id] }),
   unit: one(units, { fields: [pendingExpenses.unitId], references: [units.id] }),
   job: one(jobs, { fields: [pendingExpenses.jobId], references: [jobs.id] }),
   category: one(categories, { fields: [pendingExpenses.categoryId], references: [categories.id] }),
-  matchedTransaction: one(transactions, {
-    fields: [pendingExpenses.matchedTransactionId],
-    references: [transactions.id],
-  }),
   receipts: many(receipts),
 }));
 
@@ -866,4 +922,8 @@ export const receiptUploadSessionsRelations = relations(receiptUploadSessions, (
     fields: [receiptUploadSessions.createdPendingExpenseId],
     references: [pendingExpenses.id],
   }),
+}));
+
+export const reminderSendsRelations = relations(reminderSends, ({ one }) => ({
+  user: one(users, { fields: [reminderSends.userId], references: [users.id] }),
 }));

@@ -8,11 +8,15 @@ import { registerCard, type RegisterCardState } from "./actions";
 const inputClass =
   "rounded-md border border-black/15 bg-transparent px-2.5 py-1.5 text-sm dark:border-white/20";
 
-export function RegisterCardForm({
-  cardAccounts,
-}: {
-  cardAccounts: { id: string; name: string }[];
-}) {
+const NETWORKS = [
+  ["visa", "Visa"],
+  ["mastercard", "Mastercard"],
+  ["amex", "Amex"],
+  ["discover", "Discover"],
+  ["other", "Other"],
+] as const;
+
+export function RegisterCardForm() {
   const router = useRouter();
   const [state, action, pending] = useActionState<RegisterCardState, FormData>(
     async (prev, fd) => {
@@ -25,16 +29,19 @@ export function RegisterCardForm({
 
   return (
     <form action={action} className="flex flex-wrap items-end gap-2">
-      <select name="cardAccountId" required defaultValue="" className={inputClass}>
-        <option value="" disabled>
-          Card program…
-        </option>
-        {cardAccounts.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.name}
+      <label className="text-sm">
+        <span className="mb-1 block text-xs opacity-60">Network</span>
+        <select name="network" required defaultValue="" className={inputClass}>
+          <option value="" disabled>
+            Select…
           </option>
-        ))}
-      </select>
+          {NETWORKS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="text-sm">
         <span className="mb-1 block text-xs opacity-60">Last 4 digits</span>
         <input
@@ -46,18 +53,19 @@ export function RegisterCardForm({
           className={`${inputClass} w-20`}
         />
       </label>
-      <input name="displayName" placeholder="label (optional)" className={inputClass} />
+      <label className="text-sm">
+        <span className="mb-1 block text-xs opacity-60">Nickname (optional)</span>
+        <input name="displayName" placeholder="Truck card" className={inputClass} />
+      </label>
       <button
         type="submit"
         disabled={pending}
         className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
       >
-        {pending ? "Sending…" : "Register card"}
+        {pending ? "Adding…" : "Add card"}
       </button>
       {state.error ? <p className="w-full text-sm text-red-600">{state.error}</p> : null}
-      {state.ok ? (
-        <p className="w-full text-sm text-emerald-600">Sent to IT for approval.</p>
-      ) : null}
+      {state.ok ? <p className="w-full text-sm text-emerald-600">Card added.</p> : null}
     </form>
   );
 }

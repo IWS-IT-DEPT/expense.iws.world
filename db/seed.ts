@@ -105,6 +105,7 @@ async function seed() {
     { code: "TRAINING", name: "Training & Certifications", sortOrder: 150 },
     { code: "DUES", name: "Dues & Memberships", sortOrder: 160 },
     { code: "UTIL", name: "Utilities", sortOrder: 170 },
+    { code: "MILEAGE", name: "Mileage", sortOrder: 200 },
     { code: "MISC", name: "Other (explain in purpose)", sortOrder: 999 },
   ];
   await db.insert(categories).values(categoryRows).onConflictDoNothing({ target: categories.code });

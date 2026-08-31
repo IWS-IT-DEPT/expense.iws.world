@@ -121,31 +121,32 @@ export async function storeReceipts(input: StoreReceiptsInput): Promise<StoreRes
     targetId = item.id;
     target = "expenseItem";
   } else if (purpose === "pending") {
-    if (!input.targetId) return { ok: false, status: 400, error: "Missing bank entry id." };
+    if (!input.targetId) return { ok: false, status: 400, error: "Missing expense id." };
     const pending = await db.query.pendingExpenses.findFirst({
       where: eq(pendingExpenses.id, input.targetId),
       columns: { id: true, userId: true, status: true },
     });
-    if (!pending) return { ok: false, status: 404, error: "Bank entry not found." };
+    if (!pending) return { ok: false, status: 404, error: "Expense not found." };
     if (pending.userId !== userId) {
-      return { ok: false, status: 403, error: "This bank entry belongs to someone else." };
+      return { ok: false, status: 403, error: "This expense belongs to someone else." };
     }
-    if (pending.status !== "open") {
-      return { ok: false, status: 409, error: "This bank entry is already matched." };
+    if (pending.status !== "draft" && pending.status !== "rejected") {
+      return { ok: false, status: 409, error: "This expense is already submitted." };
     }
     scope = "pending";
     targetId = pending.id;
     target = "pending";
   } else {
-    // "bank": create the holding pending-expense row, code it later
+    // "bank": receipt-first — create a draft card expense to fill in later
     const [created] = await db
       .insert(pendingExpenses)
       .values({
         userId,
-        merchant: "Untitled receipt",
+        merchant: "Untitled purchase",
         merchantNormalized: "",
         amountCents: 0,
         purchaseDate: new Date().toISOString().slice(0, 10),
+        status: "draft",
         createdById: userId,
       })
       .returning({ id: pendingExpenses.id });
