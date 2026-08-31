@@ -29,7 +29,7 @@ export default async function DashboardPage() {
       toSubmit: sql<number>`count(*) filter (where ${expenseItems.status} in ('draft','rejected') and ${expenseItems.reportId} is null and ${expenseItems.itemDate} <= ${end})`,
       submitted: sql<number>`count(*) filter (where ${expenseItems.status} = 'submitted')`,
       rejected: sql<number>`count(*) filter (where ${expenseItems.status} = 'rejected')`,
-      weekTotal: sql<number>`coalesce(sum(${expenseItems.amountCents}) filter (where ${expenseItems.status} <> 'cancelled' and ${expenseItems.itemDate} between ${start} and ${end}), 0)`,
+      weekTotal: sql<number>`coalesce(sum(${expenseItems.amountCents}) filter (where ${expenseItems.status} <> 'rejected' and ${expenseItems.itemDate} between ${start} and ${end}), 0)`,
     })
     .from(expenseItems)
     .where(eq(expenseItems.userId, user.id));
