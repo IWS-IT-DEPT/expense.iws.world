@@ -13,25 +13,26 @@ type Slot = "wed_am" | "fri_am" | "fri_pm";
 
 const APP_TZ = process.env.APP_TZ ?? "America/Chicago";
 
-/** Current weekday (0=Sun) + hour in APP_TZ. */
-function nowInTz(): { dow: number; hour: number } {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: APP_TZ,
-    weekday: "short",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(new Date());
-  const wd = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
-  const hourStr = parts.find((p) => p.type === "hour")?.value ?? "0";
-  const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd);
-  return { dow, hour: Number(hourStr) % 24 };
+/** Current weekday (0=Sun) in APP_TZ. */
+function dowInTz(): number {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, weekday: "short" }).format(
+    new Date(),
+  );
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd);
 }
 
-function slotForNow(): Slot | null {
-  const { dow, hour } = nowInTz();
-  if (dow === 3 && hour === 8) return "wed_am";
-  if (dow === 5 && hour === 8) return "fri_am";
-  if (dow === 5 && hour === 15) return "fri_pm";
+/**
+ * Hobby plan → daily crons only, so `vercel.json` runs two daily jobs
+ * (`?window=am` ≈ 13:00 UTC, `?window=pm` ≈ 20:00 UTC) and the day of week
+ * picks the actual slot.
+ */
+function slotForWindow(window: string | null): Slot | null {
+  const dow = dowInTz();
+  if (window === "am") {
+    if (dow === 3) return "wed_am";
+    if (dow === 5) return "fri_am";
+  }
+  if (window === "pm" && dow === 5) return "fri_pm";
   return null;
 }
 
@@ -58,8 +59,11 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const dry = url.searchParams.has("dry");
-  const slot = (url.searchParams.get("slot") as Slot | null) ?? slotForNow();
-  if (!slot) return NextResponse.json({ skipped: "no slot", tz: APP_TZ, ...nowInTz() });
+  const slot =
+    (url.searchParams.get("slot") as Slot | null) ?? slotForWindow(url.searchParams.get("window"));
+  if (!slot) {
+    return NextResponse.json({ skipped: "no slot", tz: APP_TZ, dow: dowInTz() });
+  }
 
   const { start } = weekBounds(new Date());
   const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");
