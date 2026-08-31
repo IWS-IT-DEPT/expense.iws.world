@@ -36,6 +36,13 @@
       "when": 1788216812053,
       "tag": "0004_expense_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788220085390,
+      "tag": "0005_seed_mileage_category",
+      "breakpoints": true
     }
   ]
 }
