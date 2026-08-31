@@ -91,8 +91,20 @@ class VercelBlobStore implements BlobStore {
   }
 }
 
-export const blobStore: BlobStore =
-  process.env.STORAGE_DRIVER === "vercel" ? new VercelBlobStore() : new LocalBlobStore();
+/**
+ * Use Vercel Blob when explicitly asked, OR whenever a Blob token is present and
+ * local storage wasn't explicitly forced. This means simply creating a Blob
+ * store for the project (which injects BLOB_READ_WRITE_TOKEN) is enough — no
+ * second env var to remember. The local disk store only works with a writable
+ * filesystem, i.e. dev.
+ */
+const useVercelBlob =
+  process.env.STORAGE_DRIVER === "vercel" ||
+  (process.env.STORAGE_DRIVER !== "local" && !!process.env.BLOB_READ_WRITE_TOKEN);
+
+export const blobStore: BlobStore = useVercelBlob
+  ? new VercelBlobStore()
+  : new LocalBlobStore();
 
 export function receiptKey(
   scope: "txn" | "item" | "pending",
