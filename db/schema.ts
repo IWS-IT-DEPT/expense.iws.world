@@ -599,6 +599,34 @@ export const entitiesRelations = relations(entities, ({ many, one }) => ({
   qboConnection: one(qboConnections),
 }));
 
+export const locationsRelations = relations(locations, ({ one }) => ({
+  homeEntity: one(entities, { fields: [locations.homeEntityId], references: [entities.id] }),
+}));
+
+export const unitsRelations = relations(units, ({ one }) => ({
+  entity: one(entities, { fields: [units.entityId], references: [entities.id] }),
+}));
+
+export const jobsRelations = relations(jobs, ({ one }) => ({
+  entity: one(entities, { fields: [jobs.entityId], references: [entities.id] }),
+}));
+
+export const qboConnectionsRelations = relations(qboConnections, ({ one }) => ({
+  entity: one(entities, { fields: [qboConnections.entityId], references: [entities.id] }),
+}));
+
+export const exceptionFlagsRelations = relations(exceptionFlags, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [exceptionFlags.transactionId],
+    references: [transactions.id],
+  }),
+  expenseItem: one(expenseItems, {
+    fields: [exceptionFlags.expenseItemId],
+    references: [expenseItems.id],
+  }),
+  resolvedBy: one(users, { fields: [exceptionFlags.resolvedById], references: [users.id] }),
+}));
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   homeEntity: one(entities, { fields: [users.homeEntityId], references: [entities.id] }),
   homeLocation: one(locations, { fields: [users.homeLocationId], references: [locations.id] }),

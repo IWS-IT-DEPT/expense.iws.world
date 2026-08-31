@@ -122,14 +122,23 @@ groups, then remove yourself from the bootstrap list.
    Redirect URI: `https://expense.iws.world/api/auth/callback/microsoft-entra-id`
    (and `http://localhost:3000/...` for dev).
 2. Create a **client secret**. Note the client ID, secret, and **tenant ID**.
-3. **API permissions:** `openid`, `profile`, `email`, `User.Read` → grant admin consent.
-4. Set env:
+3. **API permissions** → grant admin consent for the tenant:
+   - Delegated: `openid`, `profile`, `email`, `User.Read`.
+   - **Application: `GroupMember.Read.All`** — required for the group→role sync's
+     Graph fallback. Without admin consent the Graph call returns
+     `403 Authorization_RequestDenied` and everyone stays `cardholder`.
+4. **Token configuration → Add groups claim → Security groups**, with the **ID**
+   token box checked. This is the primary path for group membership; the Graph
+   permission above only covers overage / a missing claim. Skipping this leaves
+   "Groups in token: none" on `/account`.
+5. Set env:
    - `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET`
    - `AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/<TENANT_ID>/v2.0`
      (tenant-locked issuer — **not** `common` — is what restricts login to the org)
    - `ALLOWED_EMAIL_DOMAINS=iws.world`
 
-Needs someone with **Application Administrator** rights in the tenant.
+Needs someone with **Application Administrator** rights in the tenant (and a
+Privileged Role Administrator / Global Admin to grant admin consent in step 3).
 
 ## Deploy (Vercel)
 
