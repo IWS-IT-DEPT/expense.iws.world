@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { transactions, type txnStatus } from "@/db/schema";
+import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
 
@@ -26,7 +27,11 @@ export default async function TransactionsPage({
       ? and(eq(transactions.assignedUserId, user.id), eq(transactions.status, filter))
       : eq(transactions.assignedUserId, user.id),
     orderBy: [desc(transactions.txnDate)],
-    with: { cardAccount: true, allocations: { with: { category: true, entity: true } } },
+    with: {
+      cardAccount: true,
+      allocations: { with: { category: true, entity: true } },
+      receipts: { columns: { id: true } },
+    },
     limit: 200,
   });
 
@@ -53,6 +58,7 @@ export default async function TransactionsPage({
               <th>Card</th>
               <th className="text-right">Amount</th>
               <th>Coding</th>
+              <th>Receipt</th>
               <th />
             </tr>
           </thead>
@@ -75,6 +81,15 @@ export default async function TransactionsPage({
                         </span>
                       ))}
                     </span>
+                  )}
+                </td>
+                <td>
+                  {t.receipts.length > 0 ? (
+                    <span className="opacity-70" title={`${t.receipts.length} receipt(s)`}>
+                      📎 {t.receipts.length}
+                    </span>
+                  ) : (
+                    <ReceiptUploadButton purpose="txn" targetId={t.id} label="Add" compact />
                   )}
                 </td>
                 <td className="text-right">

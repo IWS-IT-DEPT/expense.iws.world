@@ -94,7 +94,11 @@ class VercelBlobStore implements BlobStore {
 export const blobStore: BlobStore =
   process.env.STORAGE_DRIVER === "vercel" ? new VercelBlobStore() : new LocalBlobStore();
 
-export function receiptKey(scope: "txn" | "item", id: string, filename: string): string {
+export function receiptKey(
+  scope: "txn" | "item" | "pending",
+  id: string,
+  filename: string,
+): string {
   const ext = path.extname(filename).toLowerCase() || ".bin";
   return `${scope}/${id}/${crypto.randomUUID()}${ext}`;
 }

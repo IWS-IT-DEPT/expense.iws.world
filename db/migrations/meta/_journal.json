@@ -15,6 +15,13 @@
       "when": 1788191591852,
       "tag": "0001_serious_meggan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788210661258,
+      "tag": "0002_warm_lily_hollister",
+      "breakpoints": true
     }
   ]
 }

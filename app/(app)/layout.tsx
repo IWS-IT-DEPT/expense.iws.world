@@ -11,10 +11,11 @@ const ME_ZONE: Zone = {
   key: "me",
   label: "My Expenses",
   href: "/",
-  matches: ["/", "/transactions", "/report"],
+  matches: ["/", "/transactions", "/receipts", "/report"],
   nav: [
     { href: "/", label: "Dashboard" },
     { href: "/transactions", label: "My Transactions" },
+    { href: "/receipts", label: "Receipts" },
     { href: "/report", label: "Weekly Report" },
   ],
 };

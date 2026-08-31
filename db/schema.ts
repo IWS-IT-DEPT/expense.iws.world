@@ -9,9 +9,10 @@
  * category, business purpose. The card the charge landed on does NOT determine
  * the entity; a cardholder on the IWS Capital One card can buy for Rolling Green.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -93,6 +94,25 @@ export const qboConnectionStatus = pgEnum("qbo_connection_status", [
   "disconnected",
   "connected",
   "error",
+]);
+
+/** Receipt Bank lifecycle: a pre-coded purchase awaiting its card transaction. */
+export const pendingExpenseStatus = pgEnum("pending_expense_status", [
+  "open", // in the bank, not yet matched to a charge
+  "matched", // linked to a real transaction; coding + receipt applied
+  "cancelled", // user gave up on it (duplicate, personal, etc.)
+]);
+/** What a receipt-upload link/session is attaching to. */
+export const receiptUploadPurpose = pgEnum("receipt_upload_purpose", [
+  "txn",
+  "pending",
+  "bank",
+  "item",
+]);
+export const receiptUploadSessionStatus = pgEnum("receipt_upload_session_status", [
+  "pending",
+  "uploaded",
+  "expired",
 ]);
 
 /* ---------------------------------------------------------- dimension data -- */
@@ -438,9 +458,14 @@ export const receipts = pgTable(
   "receipts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // exactly one of these is set (enforced in app layer)
+    // At most one of these is set. A receipt with all three null lives in the
+    // user's Receipt Bank via `pendingExpenseId`; a bare bank receipt always has
+    // a `pendingExpenses` row, so in practice one is always set.
     transactionId: uuid("transaction_id").references(() => transactions.id, { onDelete: "cascade" }),
     expenseItemId: uuid("expense_item_id").references(() => expenseItems.id, { onDelete: "cascade" }),
+    pendingExpenseId: uuid("pending_expense_id").references(() => pendingExpenses.id, {
+      onDelete: "cascade",
+    }),
     blobKey: text("blob_key").notNull(),
     filename: text("filename").notNull(),
     contentType: text("content_type").notNull(),
@@ -454,7 +479,95 @@ export const receipts = pgTable(
   (t) => [
     index("receipt_txn_idx").on(t.transactionId),
     index("receipt_item_idx").on(t.expenseItemId),
+    index("receipt_pending_idx").on(t.pendingExpenseId),
+    check(
+      "receipt_single_target",
+      sql`num_nonnulls(${t.transactionId}, ${t.expenseItemId}, ${t.pendingExpenseId}) <= 1`,
+    ),
   ],
+);
+
+/* ------------------------------------------------------- receipt bank ------- */
+
+/**
+ * A purchase a cardholder logs the moment they buy something — merchant, amount,
+ * date, and the full cost coding — with the receipt attached, *before* the card
+ * charge posts. When accounting imports the statement, `lib/receipt-match.ts`
+ * links this row to the real transaction: the coding becomes an `allocations`
+ * row and the receipt(s) move onto the charge.
+ *
+ * Coding columns mirror `allocations` and are nullable so the bank can also hold
+ * a "scan now, code later" receipt; `coded` gates matching.
+ */
+export const pendingExpenses = pgTable(
+  "pending_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+
+    // expected charge — the matching key
+    merchant: text("merchant").notNull(),
+    merchantNormalized: text("merchant_normalized").notNull(),
+    amountCents: integer("amount_cents").notNull(), // positive = expected charge
+    purchaseDate: date("purchase_date").notNull(),
+    cardAccountId: uuid("card_account_id").references(() => cardAccounts.id), // optional hint
+    notes: text("notes"),
+
+    // pre-coding (nullable until `coded`)
+    coded: boolean("coded").notNull().default(false),
+    entityId: uuid("entity_id").references(() => entities.id),
+    locationId: uuid("location_id").references(() => locations.id),
+    unitId: uuid("unit_id").references(() => units.id),
+    jobId: uuid("job_id").references(() => jobs.id),
+    categoryId: uuid("category_id").references(() => categories.id),
+    businessPurpose: text("business_purpose"),
+    isIntercompany: boolean("is_intercompany").notNull().default(false),
+
+    // matching outcome
+    status: pendingExpenseStatus("status").notNull().default("open"),
+    matchedTransactionId: uuid("matched_transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    matchedById: uuid("matched_by_id").references(() => users.id),
+    matchedAt: timestamp("matched_at", { withTimezone: true }),
+    autoMatched: boolean("auto_matched").notNull().default(false),
+
+    createdById: uuid("created_by_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("pending_user_status_idx").on(t.userId, t.status),
+    index("pending_match_idx").on(t.userId, t.amountCents, t.purchaseDate),
+  ],
+);
+
+/**
+ * One row per "Upload Receipt" dialog opened on a desktop. Backs the QR
+ * desktop→phone handoff: `id` is the token nonce, and the desktop polls this
+ * row's `status` while the phone uploads.
+ */
+export const receiptUploadSessions = pgTable(
+  "receipt_upload_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(), // == token nonce
+    purpose: receiptUploadPurpose("purpose").notNull(),
+    targetId: uuid("target_id"), // null for "bank"
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    status: receiptUploadSessionStatus("status").notNull().default("pending"),
+    receiptCount: integer("receipt_count").notNull().default(0),
+    createdPendingExpenseId: uuid("created_pending_expense_id").references(
+      () => pendingExpenses.id,
+      { onDelete: "set null" },
+    ),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("upload_session_user_idx").on(t.userId, t.status)],
 );
 
 /* --------------------------------------------------- workflow + exceptions -- */
@@ -633,6 +746,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   cards: many(cards),
   assignedTransactions: many(transactions),
   reports: many(expenseReports),
+  pendingExpenses: many(pendingExpenses),
 }));
 
 export const cardAccountsRelations = relations(cardAccounts, ({ many, one }) => ({
@@ -661,6 +775,10 @@ export const transactionsRelations = relations(transactions, ({ one, many }) => 
   allocations: many(allocations),
   receipts: many(receipts),
   flags: many(exceptionFlags),
+  matchedPendingExpense: one(pendingExpenses, {
+    fields: [transactions.id],
+    references: [pendingExpenses.matchedTransactionId],
+  }),
 }));
 
 export const allocationsRelations = relations(allocations, ({ one }) => ({
@@ -709,5 +827,35 @@ export const receiptsRelations = relations(receipts, ({ one }) => ({
   expenseItem: one(expenseItems, {
     fields: [receipts.expenseItemId],
     references: [expenseItems.id],
+  }),
+  pendingExpense: one(pendingExpenses, {
+    fields: [receipts.pendingExpenseId],
+    references: [pendingExpenses.id],
+  }),
+}));
+
+export const pendingExpensesRelations = relations(pendingExpenses, ({ one, many }) => ({
+  user: one(users, { fields: [pendingExpenses.userId], references: [users.id] }),
+  cardAccount: one(cardAccounts, {
+    fields: [pendingExpenses.cardAccountId],
+    references: [cardAccounts.id],
+  }),
+  entity: one(entities, { fields: [pendingExpenses.entityId], references: [entities.id] }),
+  location: one(locations, { fields: [pendingExpenses.locationId], references: [locations.id] }),
+  unit: one(units, { fields: [pendingExpenses.unitId], references: [units.id] }),
+  job: one(jobs, { fields: [pendingExpenses.jobId], references: [jobs.id] }),
+  category: one(categories, { fields: [pendingExpenses.categoryId], references: [categories.id] }),
+  matchedTransaction: one(transactions, {
+    fields: [pendingExpenses.matchedTransactionId],
+    references: [transactions.id],
+  }),
+  receipts: many(receipts),
+}));
+
+export const receiptUploadSessionsRelations = relations(receiptUploadSessions, ({ one }) => ({
+  user: one(users, { fields: [receiptUploadSessions.userId], references: [users.id] }),
+  createdPendingExpense: one(pendingExpenses, {
+    fields: [receiptUploadSessions.createdPendingExpenseId],
+    references: [pendingExpenses.id],
   }),
 }));
