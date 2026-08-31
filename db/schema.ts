@@ -775,10 +775,6 @@ export const transactionsRelations = relations(transactions, ({ one, many }) => 
   allocations: many(allocations),
   receipts: many(receipts),
   flags: many(exceptionFlags),
-  matchedPendingExpense: one(pendingExpenses, {
-    fields: [transactions.id],
-    references: [pendingExpenses.matchedTransactionId],
-  }),
 }));
 
 export const allocationsRelations = relations(allocations, ({ one }) => ({

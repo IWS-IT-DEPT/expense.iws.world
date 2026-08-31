@@ -2,7 +2,15 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { categories, entities, jobs, locations, transactions, units } from "@/db/schema";
+import {
+  categories,
+  entities,
+  jobs,
+  locations,
+  pendingExpenses,
+  transactions,
+  units,
+} from "@/db/schema";
 import { ConfirmMatchButton } from "@/app/components/confirm-match-button";
 import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import { canReview, requireUser } from "@/lib/current-user";
@@ -26,14 +34,18 @@ export default async function CodeTransactionPage({
       allocations: true,
       flags: true,
       receipts: true,
-      matchedPendingExpense: true,
     },
   });
   if (!txn) notFound();
   if (txn.assignedUserId !== user.id && !canReview(user)) notFound();
 
-  const bankMatches =
-    txn.allocations.length === 0 ? await findMatchesForTransaction(txn.id) : [];
+  const [bankMatches, matchedPending] = await Promise.all([
+    txn.allocations.length === 0 ? findMatchesForTransaction(txn.id) : Promise.resolve([]),
+    db.query.pendingExpenses.findFirst({
+      where: eq(pendingExpenses.matchedTransactionId, txn.id),
+      columns: { autoMatched: true },
+    }),
+  ]);
 
   const [entityRows, locationRows, unitRows, jobRows, categoryRows] = await Promise.all([
     db.query.entities.findMany({ where: eq(entities.active, true), orderBy: [asc(entities.code)] }),
@@ -133,10 +145,10 @@ export default async function CodeTransactionPage({
             ))}
           </div>
         )}
-        {txn.matchedPendingExpense && (
+        {matchedPending && (
           <p className="mt-2 text-xs opacity-60">
             Coded from a Receipt Bank entry
-            {txn.matchedPendingExpense.autoMatched ? " (auto-matched on import)" : ""}.
+            {matchedPending.autoMatched ? " (auto-matched on import)" : ""}.
           </p>
         )}
       </div>
