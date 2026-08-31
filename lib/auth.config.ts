@@ -33,7 +33,13 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> {
 }
 
 export const authConfig = {
-  providers: [MicrosoftEntraID],
+  providers: [
+    MicrosoftEntraID({
+      // User.Read lets the delegated token hit Graph /me if ever needed; the
+      // group -> role sync itself uses app-only Graph (see lib/graph.ts).
+      authorization: { params: { scope: "openid profile email offline_access User.Read" } },
+    }),
+  ],
   pages: { signIn: "/signin" },
   session: { strategy: "jwt" },
   callbacks: {
@@ -52,16 +58,17 @@ export const authConfig = {
       // On initial sign-in, pull oid + the "groups" claim. Entra puts groups in
       // the id_token (Token configuration -> groups claim), which isn't always
       // surfaced on `profile`, so decode the id_token directly as the source.
-      const claims = account?.id_token
-        ? decodeJwtPayload(account.id_token as string)
-        : ((profile as Record<string, unknown>) ?? {});
-
       if (account || profile) {
+        const claims = account?.id_token
+          ? decodeJwtPayload(account.id_token as string)
+          : ((profile as Record<string, unknown>) ?? {});
+
         token.oid = (claims.oid as string | undefined) ?? token.oid;
         token.email =
           emailFromProfile({ ...(profile as Record<string, unknown>), ...claims }) || token.email;
-        if (Array.isArray(claims.groups)) token.groups = claims.groups as string[];
-        else if (!token.groups) token.groups = [];
+        token.groups = Array.isArray(claims.groups) ? (claims.groups as string[]) : [];
+        // Entra emits _claim_names when the groups list overflows the token.
+        token.groupsOverage = !!(claims as Record<string, unknown>)._claim_names;
       }
       return token;
     },
@@ -69,6 +76,7 @@ export const authConfig = {
       if (session.user) {
         session.user.oid = token.oid as string | undefined;
         session.user.groups = (token.groups as string[] | undefined) ?? [];
+        session.user.groupsOverage = !!token.groupsOverage;
       }
       return session;
     },

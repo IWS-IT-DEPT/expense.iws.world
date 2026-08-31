@@ -32,7 +32,7 @@ const ACCOUNTING_ZONE: Zone = {
 
 const ADMIN_ZONE: Zone = {
   key: "admin",
-  label: "Admin",
+  label: "IT Admin",
   href: "/admin",
   matches: ["/admin"],
   nav: [], // admin/layout.tsx renders its own tab bar
@@ -55,9 +55,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="font-semibold">Expense</span>
           </Link>
           <AppNav zones={zones} />
-          <span className="text-xs opacity-60">
+          <Link href="/account" className="text-xs opacity-60 hover:opacity-100">
             {user.name} · {user.role}
-          </span>
+          </Link>
           <form
             action={async () => {
               "use server";

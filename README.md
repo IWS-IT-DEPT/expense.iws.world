@@ -92,13 +92,17 @@ any Microsoft account can sign in.
 | `approver` | set manually on `/admin/users` | `/review` |
 | `cardholder` | default | own transactions + weekly report |
 
-Role sync runs on **every login** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
-are set (to the group Object Ids) and the app registration emits a `groups`
-claim. Until then, set roles on `/admin/users`. `BOOTSTRAP_ADMIN_EMAILS` is a
-break-glass list that's always `admin`.
+Role sync runs on **every request** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
+are set. Membership is read from the token's `groups` claim, falling back to
+**app-only Microsoft Graph** (`GroupMember.Read.All` application permission +
+admin consent) when the claim is missing or overflowed. `BOOTSTRAP_ADMIN_EMAILS`
+is a break-glass list that's always `admin`.
 
-First-run: set `BOOTSTRAP_ADMIN_EMAILS=you@iws.world`, sign in, then configure
-the groups and remove yourself from the bootstrap list.
+Visit **`/account`** to see your resolved role, groups, and which path produced
+them — the place to debug "I don't see the admin toggle".
+
+First-run: set `BOOTSTRAP_ADMIN_EMAILS=you@iws.world`, sign in, configure the
+groups, then remove yourself from the bootstrap list.
 
 ### Scripts
 
