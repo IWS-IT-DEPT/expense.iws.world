@@ -22,6 +22,8 @@ export function ImportForm({ accounts }: { accounts: { id: string; name: string 
     }
     setResult(
       `Parsed ${json.parsed}, inserted ${json.inserted}, skipped ${json.duplicatesSkipped} duplicates` +
+        (json.autoMatched ? `, ${json.autoMatched} auto-matched to bank receipts` : "") +
+        (json.matchSuggested ? `, ${json.matchSuggested} with a suggested bank match` : "") +
         (json.unparseableRows?.length ? `, ${json.unparseableRows.length} unparseable rows` : ""),
     );
     router.refresh();

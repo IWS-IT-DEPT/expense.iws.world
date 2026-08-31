@@ -48,6 +48,24 @@ import CSV → assign to cardholder → cardholder codes (weekly, mandatory)
           → accounting reviews → approve-by-exception → push to QuickBooks
 ```
 
+### Receipt Bank (`/receipts`)
+
+Cardholders lose paper receipts before the statement lands. The Receipt Bank lets
+them scan + pre-code a purchase the moment they buy it: a `pending_expenses` row
+holds the merchant/amount/date, the full coding, and the receipt file. When the
+statement imports, `lib/receipt-match.ts` scores each new charge against the
+user's open bank entries (amount ± tip, date ± few days, merchant tokens) and, on
+a confident unambiguous match, applies the coding as an `allocations` row and
+moves the receipt onto the charge. Weaker matches show as a suggestion on the
+transaction page and the bank page for a one-click confirm.
+
+Capture: an in-browser scanner (`app/components/receipt-scanner.tsx` +
+`lib/scan-warp.ts`) — camera → drag 4 corners → perspective de-skew → multi-page
+PDF via `pdf-lib`, no OpenCV. Desktop can hand off to a phone via a QR code
+carrying a short-lived HMAC token (`lib/upload-token.ts`); the phone posts to the
+public `/api/receipt-upload` and the desktop polls for the result. Receipt bytes
+are only ever served through the authenticated `/api/receipts/[id]` route.
+
 Reimbursements (out-of-pocket + IRS-rate mileage) collect into a batch and export
 to **payroll**. Intercompany charges (bought for an entity other than the card
 owner) are flagged for accounting; no due-to/due-from automation yet.
@@ -172,7 +190,8 @@ QBO has **no CSV import for Purchases** — the API is the only real path.
 ## Roadmap
 
 - [ ] Split allocations UI (schema already supports it)
-- [ ] Receipt upload + mobile capture (PWA), receipt viewer in `/review`
+- [x] Receipt upload + mobile capture (scanner + QR phone handoff), Receipt Bank
+- [ ] Receipt viewer/thumbnails in `/review`; receipts on expense items (UI)
 - [ ] Out-of-pocket + mileage entry on the weekly report
 - [ ] Reimbursement batches → payroll CSV export
 - [ ] Admin CRUD for locations / units / jobs / categories / card assignments
@@ -195,14 +214,24 @@ lib/
   transactions/    CSV parsers behind TransactionSource (Capital One, Amex)
   qbo/             QuickBooks types + stubbed client (Phase 2)
   storage.ts       receipt blob store (Vercel Blob / local)
+  receipt-store.ts validate + store a receipt file (shared by both upload routes)
+  receipt-match.ts Receipt Bank ↔ transaction matching + apply
+  upload-token.ts  HMAC signed one-time links for the phone handoff
+  scan-warp.ts     perspective de-skew for the scanner (no deps)
+  pdf-assemble.ts  multi-page image/PDF → single PDF (pdf-lib)
   mileage.ts       IRS rate lookup
 app/
   signin/          M365 sign-in
+  r/[token]/       public phone upload page (token-auth, no login)
+  components/      modal, coding-fields, receipt-scanner, receipt-upload-button
   (app)/           authed shell
     page.tsx           dashboard
     transactions/      list + coding wizard
+    receipts/          Receipt Bank
     report/            weekly report + submit
     review/            accounting review queue
     admin/             CSV import + setup overview
   api/imports/     statement CSV upload
+  api/receipts/    authed receipt upload + streaming (/[id])
+  api/receipt-upload/  public token-auth upload + status poll
 ```

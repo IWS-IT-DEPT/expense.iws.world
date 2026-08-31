@@ -2,9 +2,20 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { categories, entities, jobs, locations, transactions, units } from "@/db/schema";
+import {
+  categories,
+  entities,
+  jobs,
+  locations,
+  pendingExpenses,
+  transactions,
+  units,
+} from "@/db/schema";
+import { ConfirmMatchButton } from "@/app/components/confirm-match-button";
+import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import { canReview, requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
+import { findMatchesForTransaction } from "@/lib/receipt-match";
 
 import { CodingForm } from "./coding-form";
 
@@ -22,10 +33,19 @@ export default async function CodeTransactionPage({
       cardAccount: { with: { owningEntity: true } },
       allocations: true,
       flags: true,
+      receipts: true,
     },
   });
   if (!txn) notFound();
   if (txn.assignedUserId !== user.id && !canReview(user)) notFound();
+
+  const [bankMatches, matchedPending] = await Promise.all([
+    txn.allocations.length === 0 ? findMatchesForTransaction(txn.id) : Promise.resolve([]),
+    db.query.pendingExpenses.findFirst({
+      where: eq(pendingExpenses.matchedTransactionId, txn.id),
+      columns: { autoMatched: true },
+    }),
+  ]);
 
   const [entityRows, locationRows, unitRows, jobRows, categoryRows] = await Promise.all([
     db.query.entities.findMany({ where: eq(entities.active, true), orderBy: [asc(entities.code)] }),
@@ -67,6 +87,71 @@ export default async function CodeTransactionPage({
             ))}
         </ul>
       )}
+
+      {bankMatches.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
+          <p className="text-sm font-medium">Looks like a receipt you already banked</p>
+          {bankMatches.slice(0, 2).map((c) => (
+            <div key={c.pendingExpenseId} className="space-y-1 text-sm">
+              <div className="opacity-80">
+                {c.pending.merchant} · {money(c.pending.amountCents)} ·{" "}
+                {shortDate(c.pending.purchaseDate)}
+                <span className="opacity-60"> — {c.reasons.join(", ")}</span>
+              </div>
+              {c.pending.coded ? (
+                <ConfirmMatchButton pendingExpenseId={c.pendingExpenseId} transactionId={txn.id} />
+              ) : (
+                <p className="text-xs opacity-60">
+                  Finish coding it in the{" "}
+                  <a href="/receipts" className="underline">
+                    Receipt Bank
+                  </a>{" "}
+                  to link it here.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-lg border border-black/10 p-4 dark:border-white/15">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Receipts ({txn.receipts.length})</h2>
+          <ReceiptUploadButton purpose="txn" targetId={txn.id} label="Upload receipt" />
+        </div>
+        {txn.receipts.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {txn.receipts.map((rec) => (
+              <a
+                key={rec.id}
+                href={`/api/receipts/${rec.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+              >
+                {rec.contentType.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/receipts/${rec.id}`}
+                    alt={rec.filename}
+                    className="h-24 w-20 rounded border border-black/10 object-cover dark:border-white/15"
+                  />
+                ) : (
+                  <span className="flex h-24 w-20 items-center justify-center rounded border border-black/10 text-xs opacity-70 dark:border-white/15">
+                    PDF
+                  </span>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+        {matchedPending && (
+          <p className="mt-2 text-xs opacity-60">
+            Coded from a Receipt Bank entry
+            {matchedPending.autoMatched ? " (auto-matched on import)" : ""}.
+          </p>
+        )}
+      </div>
 
       <CodingForm
         transactionId={txn.id}

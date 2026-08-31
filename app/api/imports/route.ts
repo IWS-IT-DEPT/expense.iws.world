@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { cardAccounts, cards, transactions } from "@/db/schema";
 import { canReview, getCurrentUser } from "@/lib/current-user";
 import { normalizeMerchant } from "@/lib/merchant";
+import { autoMatchImportedTransaction } from "@/lib/receipt-match";
 import { getTransactionSource } from "@/lib/transactions";
 import { recordMerchant } from "@/lib/txn-flags";
 
@@ -45,6 +46,8 @@ export async function POST(req: Request) {
   const cardByLast4 = new Map(knownCards.map((c) => [c.last4, c]));
 
   let inserted = 0;
+  let autoMatched = 0;
+  let matchSuggested = 0;
   for (const t of parsed) {
     const card = t.cardLast4 ? cardByLast4.get(t.cardLast4) : undefined;
     const assignedUserId = card?.userId ?? null;
@@ -75,6 +78,11 @@ export async function POST(req: Request) {
     if (result.length) {
       inserted++;
       if (normalized) await recordMerchant(normalized, t.merchantRaw);
+      if (assignedUserId) {
+        const outcome = await autoMatchImportedTransaction(result[0].id, user.id);
+        if (outcome === "applied") autoMatched++;
+        else if (outcome === "suggested") matchSuggested++;
+      }
     }
   }
 
@@ -88,5 +96,7 @@ export async function POST(req: Request) {
     inserted,
     duplicatesSkipped: parsed.length - inserted,
     unparseableRows: skipped,
+    autoMatched,
+    matchSuggested,
   });
 }
