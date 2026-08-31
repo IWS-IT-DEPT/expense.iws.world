@@ -16,14 +16,25 @@ full picture. Key facts an agent needs:
 - **Next.js 16** (App Router, Turbopack). `middleware` is now `proxy.ts`.
 - **6 entities**, each with its own QuickBooks Online file. Entity on a charge is
   chosen per-transaction, never derived from the card.
-- **Coding** = `allocations` rows (entity, location, unit|job, category, purpose).
-  Which of unit/job is required comes from `entities.costingMode`. Logic lives in
-  `lib/coding.ts`; keep validation there, not in components. The 5 coding selects
-  are the shared `<CodingFields>` component.
-- **Receipt Bank** = `pending_expenses` (pre-coded purchase + receipt, awaiting
-  its charge). `lib/receipt-match.ts` matches + applies on import. Receipt files
-  go through `lib/receipt-store.ts`; bytes are served only via
+- **No CSV import.** Cardholders enter every expense themselves. The
+  `transactions` / `allocations` / `exception_flags` tables and `/lib/transactions`
+  parsers are dead (kept for a future reconciliation feature).
+- **Card expense** = a `pending_expenses` row (historical name; the receipt-upload
+  plumbing keys off it). **Out-of-pocket + mileage** = `expense_items`. Lifecycle
+  `draft → submitted → reconciled → approved` (`+ rejected`); guard every
+  cardholder edit on `status in ('draft','rejected')`.
+- **Coding** columns (entity, location, unit|job, category, purpose) live inline
+  on both tables. `entities.costingMode` drives which of unit/job is required.
+  Rules in `lib/coding.ts`; the 5 selects are `<CodingFields>`;
+  `lib/expense-checks.ts` says whether a line is ready to submit.
+- **Weekly report** (`/report` + `submitWeek`) bundles the week's `draft`/`rejected`
+  lines dated `<= periodEnd` into one `expense_reports` row. **Reconcile**
+  (`/reconcile`) is accounting confirming card lines vs. the statement (may set
+  `actualAmountCents`/`actualPurchaseDate`). **Approve** (`/approvals`) locks it.
+- Receipt files go through `lib/receipt-store.ts`; bytes served only via
   `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
+- Reminder emails: `app/api/cron/report-reminders` (hourly, picks a slot in
+  `APP_TZ`), `lib/email.ts` (Resend).
 - **Money is integer cents** everywhere (`amountCents`). Rates/miles use `numeric`.
 - DB is **Neon Postgres via the `neon-http` driver** — no interactive
   transactions; write sequential statements.
