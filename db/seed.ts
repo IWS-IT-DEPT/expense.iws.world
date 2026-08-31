@@ -3,6 +3,8 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
+import { sql } from "drizzle-orm";
+
 import {
   cardAccounts,
   categories,
@@ -23,15 +25,28 @@ async function seed() {
   const { db } = await import("./index");
 
   console.log("Seeding entities...");
+  // brandColor: accent for entity badges, sampled from each company logo.
+  // logoPath: drop the matching PNG (transparent) into /public/brand/ — see
+  // public/brand/README.md. IWS is already in place.
   const entityRows = [
-    { code: "IWS", name: "IWS", legalName: "International Warehousing & Shipping, LLC", costingMode: "none" as const },
-    { code: "PRE", name: "Precision Construction Repair", legalName: "Precision Construction Repair, LLC", costingMode: "job" as const },
-    { code: "PORT", name: "Port City Repair", legalName: "Port City Repair, LLC", costingMode: "unit" as const },
-    { code: "RGT", name: "Rolling Green Transportation", legalName: "Rolling Green Transportation, LLC", costingMode: "unit" as const },
-    { code: "RGL", name: "Rolling Green Logistics", legalName: "Rolling Green Logistics, LLC", costingMode: "none" as const },
-    { code: "GGB", name: "Gravel Grabbers", legalName: "Gravel Grabbers, LLC", costingMode: "unit" as const },
+    { code: "IWS", name: "IWS", legalName: "International Warehousing & Shipping, LLC", costingMode: "none" as const, brandColor: "#2F9E5A", logoPath: "/brand/iws.png" },
+    { code: "PRE", name: "Precision Construction Repair", legalName: "Precision Construction Repair, LLC", costingMode: "job" as const, brandColor: "#4B5563", logoPath: "/brand/pre.png" },
+    { code: "PORT", name: "Port City Repair", legalName: "Port City Repair, LLC", costingMode: "unit" as const, brandColor: "#3B2A1E", logoPath: "/brand/port.png" },
+    { code: "RGT", name: "Rolling Green Transportation", legalName: "Rolling Green Transportation, LLC", costingMode: "unit" as const, brandColor: "#2E7D32", logoPath: "/brand/rgt.png" },
+    { code: "RGL", name: "Rolling Green Logistics", legalName: "Rolling Green Logistics, LLC", costingMode: "none" as const, brandColor: "#4A8A96", logoPath: "/brand/rgl.png" },
+    { code: "GGB", name: "Gravel Grabbers", legalName: "Gravel Grabbers, LLC", costingMode: "unit" as const, brandColor: "#1B3A6B", logoPath: "/brand/ggb.png" },
   ];
-  await db.insert(entities).values(entityRows).onConflictDoNothing({ target: entities.code });
+  await db
+    .insert(entities)
+    .values(entityRows)
+    .onConflictDoUpdate({
+      target: entities.code,
+      set: {
+        brandColor: sql`excluded.brand_color`,
+        logoPath: sql`excluded.logo_path`,
+        costingMode: sql`excluded.costing_mode`,
+      },
+    });
   const entityByCode = Object.fromEntries(
     (await db.query.entities.findMany()).map((e) => [e.code, e.id]),
   ) as Record<string, string>;

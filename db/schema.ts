@@ -105,6 +105,10 @@ export const entities = pgTable("entities", {
   legalName: text("legal_name"),
   /** Drives which extra field the coding wizard forces (unit vs job). */
   costingMode: costingMode("costing_mode").notNull().default("none"),
+  /** Hex accent for entity badges in the UI. */
+  brandColor: text("brand_color"),
+  /** Path under /public to the entity logo, e.g. /brand/rgt.png */
+  logoPath: text("logo_path"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

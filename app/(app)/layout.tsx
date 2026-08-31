@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -25,7 +26,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-black/10 dark:border-white/15">
         <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
-          <span className="font-semibold">IWS Expense</span>
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/brand/iws.png" alt="IWS" width={28} height={28} priority />
+            <span className="font-semibold">Expense</span>
+          </Link>
           <nav className="flex flex-1 gap-4 text-sm">
             {items.map((item) => (
               <Link key={item.href} href={item.href} className="opacity-70 hover:opacity-100">

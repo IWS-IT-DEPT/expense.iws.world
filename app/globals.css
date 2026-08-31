@@ -3,11 +3,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* IWS group brand — sampled from the corporate logo */
+  --brand-green: #2f9e5a;
+  --brand-green-dark: #227a44;
+  --brand-blue: #2731a8;
+  --brand-ink: #3a2e24;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand-green);
+  --color-brand-dark: var(--brand-green-dark);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-ink: var(--brand-ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +26,7 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --brand-green: #3cb96e;
   }
 }
 

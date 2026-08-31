@@ -3,9 +3,13 @@ import path from "node:path";
 
 /**
  * Receipt blob storage. Abstracted so local dev writes to disk and production
- * uses Netlify Blobs (or S3-compatible storage) without touching call sites.
+ * uses Vercel Blob without touching call sites.
  *
- * Set STORAGE_DRIVER=netlify in production; defaults to local disk.
+ * Set STORAGE_DRIVER=vercel in production; defaults to local disk.
+ *
+ * Callers must persist the `key` returned by `put()` (Vercel Blob rewrites it).
+ * Receipts are financial documents — serve them through an authenticated route
+ * handler that streams from the stored URL; never expose the blob URL directly.
  */
 
 export interface StoredBlob {
@@ -55,43 +59,40 @@ class LocalBlobStore implements BlobStore {
   }
 }
 
-class NetlifyBlobStore implements BlobStore {
-  private storeName = "receipts";
-
-  private async store() {
-    // Imported lazily so local dev / migrations don't need the package resolved.
-    const { getStore } = await import("@netlify/blobs");
-    return getStore(this.storeName);
+class VercelBlobStore implements BlobStore {
+  private async lib() {
+    return import("@vercel/blob");
   }
 
   async put(key: string, data: Buffer, contentType: string): Promise<StoredBlob> {
-    const store = await this.store();
-    const arrayBuffer = data.buffer.slice(
-      data.byteOffset,
-      data.byteOffset + data.byteLength,
-    ) as ArrayBuffer;
-    await store.set(key, arrayBuffer, { metadata: { contentType } });
-    return { key, size: data.byteLength, contentType };
+    const { put } = await this.lib();
+    const result = await put(key, data, {
+      access: "public",
+      contentType,
+      addRandomSuffix: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    // Persist result.url — it is the durable, hard-to-guess key.
+    return { key: result.url, size: data.byteLength, contentType };
   }
 
   async get(key: string) {
-    const store = await this.store();
-    const result = await store.getWithMetadata(key, { type: "arrayBuffer" });
-    if (!result) return null;
+    const res = await fetch(key);
+    if (!res.ok) return null;
     return {
-      data: Buffer.from(result.data as ArrayBuffer),
-      contentType: (result.metadata?.contentType as string) ?? "application/octet-stream",
+      data: Buffer.from(await res.arrayBuffer()),
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
     };
   }
 
   async delete(key: string) {
-    const store = await this.store();
-    await store.delete(key);
+    const { del } = await this.lib();
+    await del(key, { token: process.env.BLOB_READ_WRITE_TOKEN });
   }
 }
 
 export const blobStore: BlobStore =
-  process.env.STORAGE_DRIVER === "netlify" ? new NetlifyBlobStore() : new LocalBlobStore();
+  process.env.STORAGE_DRIVER === "vercel" ? new VercelBlobStore() : new LocalBlobStore();
 
 export function receiptKey(scope: "txn" | "item", id: string, filename: string): string {
   const ext = path.extname(filename).toLowerCase() || ".bin";

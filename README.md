@@ -63,10 +63,10 @@ anything flagged surfaces individually in `/review`.
 | Concern    | Choice                                              |
 | ---------- | -------------------------------------------------- |
 | Framework  | Next.js 16 (App Router) + TypeScript + Tailwind    |
-| Hosting    | Netlify (free tier, commercial use allowed)        |
+| Hosting    | Vercel (Pro — the Hobby tier is non-commercial-use only) |
 | DB         | Neon Postgres + Drizzle ORM                        |
 | Auth       | Auth.js v5 + Microsoft Entra ID (M365 SSO)         |
-| Receipts   | Netlify Blobs (prod) / local disk (dev)            |
+| Receipts   | Vercel Blob (prod) / local disk (dev)              |
 | Accounting | QuickBooks Online API — one connection per entity  |
 | Email      | Resend                                             |
 
@@ -117,15 +117,18 @@ update users set role = 'admin' where email = 'you@iws.world';
 
 Needs someone with **Application Administrator** rights in the tenant.
 
-## Deploy (Netlify)
+## Deploy (Vercel)
 
-1. Connect the GitHub repo to a new Netlify site.
-2. Set env vars (see `netlify.toml` comments).
-3. Point `expense.iws.world` at Netlify: in **GoDaddy DNS** add a `CNAME`,
-   host `expense`, value `<site>.netlify.app`. TLS is automatic.
-4. Add the production redirect URI to the Entra app registration.
+1. Import the GitHub repo as a new Vercel project (framework auto-detected;
+   `vercel.json` runs `db:migrate` before the build).
+2. Create a **Blob store** for the project and set `STORAGE_DRIVER=vercel`
+   (`BLOB_READ_WRITE_TOKEN` is injected automatically).
+3. Set the other env vars (see `.env.example`) for Production + Preview.
+4. Add `expense.iws.world` as a domain: in **GoDaddy DNS** add a `CNAME`,
+   host `expense`, value `cname.vercel-dns.com`. TLS is automatic.
+5. Add the production redirect URI to the Entra app registration.
 
-`AUTH_TRUST_HOST=true` is required (Netlify is not Vercel).
+Auth.js trusts the Vercel host automatically — no `AUTH_TRUST_HOST` needed.
 
 ## QuickBooks Online — Phase 2
 
@@ -168,7 +171,7 @@ lib/
   txn-flags.ts     recompute a transaction's flags
   transactions/    CSV parsers behind TransactionSource (Capital One, Amex)
   qbo/             QuickBooks types + stubbed client (Phase 2)
-  storage.ts       receipt blob store (Netlify Blobs / local)
+  storage.ts       receipt blob store (Vercel Blob / local)
   mileage.ts       IRS rate lookup
 app/
   signin/          M365 sign-in

@@ -6,6 +6,8 @@ import { transactions, type txnStatus } from "@/db/schema";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
 
+import { EntityBadge } from "../../components/entity-badge";
+
 type Status = (typeof txnStatus.enumValues)[number];
 
 export default async function TransactionsPage({
@@ -62,11 +64,18 @@ export default async function TransactionsPage({
                 <td className="opacity-60">{t.cardAccount.name}</td>
                 <td className="text-right">{money(t.amountCents)}</td>
                 <td className="opacity-70">
-                  {t.allocations.length === 0
-                    ? "—"
-                    : t.allocations
-                        .map((a) => `${a.entity.code} / ${a.category.name}`)
-                        .join(", ")}
+                  {t.allocations.length === 0 ? (
+                    "—"
+                  ) : (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {t.allocations.map((a) => (
+                        <span key={a.id} className="inline-flex items-center gap-1">
+                          <EntityBadge code={a.entity.code} color={a.entity.brandColor} />
+                          {a.category.name}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </td>
                 <td className="text-right">
                   <Link href={`/transactions/${t.id}`} className="underline">

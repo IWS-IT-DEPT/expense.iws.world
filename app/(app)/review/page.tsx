@@ -5,6 +5,7 @@ import { transactions } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
 
+import { EntityBadge } from "../../components/entity-badge";
 import { approveClean, approveOne, rejectOne, resolveFlag } from "./actions";
 
 function getReviewRows() {
@@ -103,12 +104,17 @@ function Row({ t }: { t: ReviewRow }) {
       <span className="opacity-60">
         {shortDate(t.txnDate)} · {t.assignedUser?.name ?? "unassigned"} · {t.cardAccount.name}
       </span>
-      <span className="w-full opacity-70">
-        {a
-          ? `${a.entity.code} · ${a.location.name}${a.unit ? ` · ${a.unit.unitNumber}` : ""}${
-              a.job ? ` · Job ${a.job.jobNumber}` : ""
-            } · ${a.category.name} — ${a.businessPurpose}`
-          : "not coded"}
+      <span className="flex w-full flex-wrap items-center gap-1 opacity-70">
+        {a ? (
+          <>
+            <EntityBadge code={a.entity.code} color={a.entity.brandColor} />
+            {a.location.name}
+            {a.unit ? ` · ${a.unit.unitNumber}` : ""}
+            {a.job ? ` · Job ${a.job.jobNumber}` : ""} · {a.category.name} — {a.businessPurpose}
+          </>
+        ) : (
+          "not coded"
+        )}
       </span>
     </div>
   );
