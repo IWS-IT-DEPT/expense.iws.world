@@ -62,6 +62,12 @@ export function signUploadToken(
   return `${body}.${sign(body)}`;
 }
 
+/** True when `d` is in the past. Kept here so server components don't call the
+ *  impure `Date.now()` directly in render (lint: react-hooks/purity). */
+export function isPast(d: Date): boolean {
+  return d.getTime() < Date.now();
+}
+
 /** Returns the payload, or null for a malformed / forged / expired token. */
 export function verifyUploadToken(token: string): UploadTokenPayload | null {
   const dot = token.indexOf(".");

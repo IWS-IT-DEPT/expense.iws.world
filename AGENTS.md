@@ -18,7 +18,12 @@ full picture. Key facts an agent needs:
   chosen per-transaction, never derived from the card.
 - **Coding** = `allocations` rows (entity, location, unit|job, category, purpose).
   Which of unit/job is required comes from `entities.costingMode`. Logic lives in
-  `lib/coding.ts`; keep validation there, not in components.
+  `lib/coding.ts`; keep validation there, not in components. The 5 coding selects
+  are the shared `<CodingFields>` component.
+- **Receipt Bank** = `pending_expenses` (pre-coded purchase + receipt, awaiting
+  its charge). `lib/receipt-match.ts` matches + applies on import. Receipt files
+  go through `lib/receipt-store.ts`; bytes are served only via
+  `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
 - **Money is integer cents** everywhere (`amountCents`). Rates/miles use `numeric`.
 - DB is **Neon Postgres via the `neon-http` driver** — no interactive
   transactions; write sequential statements.

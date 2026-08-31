@@ -13,6 +13,8 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|signin|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // `r/` (phone upload page) and `api/receipt-upload` authenticate with a
+    // signed token, not a session — keep them out of the auth proxy.
+    "/((?!api/auth|api/receipt-upload|r/|signin|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

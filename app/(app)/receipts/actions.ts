@@ -2,14 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { toDataURL } from "qrcode";
 
 import { db } from "@/db";
-import { cardAccounts, pendingExpenses, receipts } from "@/db/schema";
+import {
+  cardAccounts,
+  expenseItems,
+  pendingExpenses,
+  receiptUploadSessions,
+  receipts,
+  transactions,
+} from "@/db/schema";
 import { isIntercompany, validateCoding, type CostingMode } from "@/lib/coding";
-import { requireUser } from "@/lib/current-user";
+import { canReview, requireUser } from "@/lib/current-user";
 import { normalizeMerchant } from "@/lib/merchant";
 import { applyPendingToTransaction } from "@/lib/receipt-match";
 import { blobStore } from "@/lib/storage";
+import { signUploadToken, type UploadPurpose } from "@/lib/upload-token";
 
 export interface PendingExpenseState {
   ok?: boolean;
@@ -254,4 +263,78 @@ export async function confirmMatch(
   revalidatePath(`/transactions/${transactionId}`);
   revalidatePath("/");
   return { ok: true };
+}
+
+export interface UploadLink {
+  token: string;
+  url: string;
+  qrDataUrl: string;
+  nonce: string;
+  expiresAt: string;
+}
+
+const UPLOAD_TTL_SECONDS = 1200;
+
+async function ownsUploadTarget(
+  userId: string,
+  isReviewer: boolean,
+  purpose: UploadPurpose,
+  targetId: string | null,
+): Promise<boolean> {
+  if (purpose === "bank") return true;
+  if (!targetId) return false;
+  if (purpose === "txn") {
+    const t = await db.query.transactions.findFirst({
+      where: eq(transactions.id, targetId),
+      columns: { assignedUserId: true },
+    });
+    return !!t && (t.assignedUserId === userId || isReviewer);
+  }
+  if (purpose === "item") {
+    const it = await db.query.expenseItems.findFirst({
+      where: eq(expenseItems.id, targetId),
+      columns: { userId: true },
+    });
+    return !!it && (it.userId === userId || isReviewer);
+  }
+  const p = await db.query.pendingExpenses.findFirst({
+    where: eq(pendingExpenses.id, targetId),
+    columns: { userId: true, status: true },
+  });
+  return !!p && p.userId === userId && p.status === "open";
+}
+
+/** Mint a signed one-time link + QR for the desktop→phone handoff. */
+export async function startReceiptUpload(
+  purpose: UploadPurpose,
+  targetId: string | null,
+): Promise<{ ok: true; link: UploadLink } | { ok: false; error: string }> {
+  const user = await requireUser();
+  if (!(await ownsUploadTarget(user.id, canReview(user), purpose, targetId))) {
+    return { ok: false, error: "You can't upload a receipt there." };
+  }
+
+  const expiresAt = new Date(Date.now() + UPLOAD_TTL_SECONDS * 1000);
+  const [session] = await db
+    .insert(receiptUploadSessions)
+    .values({
+      purpose,
+      targetId: purpose === "bank" ? null : targetId,
+      userId: user.id,
+      expiresAt,
+    })
+    .returning({ id: receiptUploadSessions.id });
+
+  const token = signUploadToken(
+    { p: purpose, t: purpose === "bank" ? null : targetId, u: user.id, n: session.id },
+    UPLOAD_TTL_SECONDS,
+  );
+  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  const url = `${base}/r/${token}`;
+  const qrDataUrl = await toDataURL(url, { margin: 1, width: 240 });
+
+  return {
+    ok: true,
+    link: { token, url, qrDataUrl, nonce: session.id, expiresAt: expiresAt.toISOString() },
+  };
 }
