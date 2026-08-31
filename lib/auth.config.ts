@@ -20,6 +20,18 @@ function emailFromProfile(profile: Record<string, unknown> | undefined): string 
   return raw.toLowerCase();
 }
 
+/** Decode a JWT payload without verifying (already validated by the OIDC flow). */
+function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  try {
+    const b64 = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json =
+      typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("utf8");
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 export const authConfig = {
   providers: [MicrosoftEntraID],
   pages: { signIn: "/signin" },
@@ -36,14 +48,20 @@ export const authConfig = {
     authorized({ auth }) {
       return !!auth?.user;
     },
-    jwt({ token, profile }) {
-      if (profile) {
-        token.oid = (profile.oid as string | undefined) ?? token.oid;
-        token.email = emailFromProfile(profile as Record<string, unknown>) || token.email;
-        // Entra "groups" claim — configured in the app registration
-        // (Token configuration -> groups -> "Groups assigned to the application").
-        const groups = (profile as Record<string, unknown>).groups;
-        token.groups = Array.isArray(groups) ? (groups as string[]) : [];
+    jwt({ token, profile, account }) {
+      // On initial sign-in, pull oid + the "groups" claim. Entra puts groups in
+      // the id_token (Token configuration -> groups claim), which isn't always
+      // surfaced on `profile`, so decode the id_token directly as the source.
+      const claims = account?.id_token
+        ? decodeJwtPayload(account.id_token as string)
+        : ((profile as Record<string, unknown>) ?? {});
+
+      if (account || profile) {
+        token.oid = (claims.oid as string | undefined) ?? token.oid;
+        token.email =
+          emailFromProfile({ ...(profile as Record<string, unknown>), ...claims }) || token.email;
+        if (Array.isArray(claims.groups)) token.groups = claims.groups as string[];
+        else if (!token.groups) token.groups = [];
       }
       return token;
     },
