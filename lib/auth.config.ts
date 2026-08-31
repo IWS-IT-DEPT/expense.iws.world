@@ -40,12 +40,17 @@ export const authConfig = {
       if (profile) {
         token.oid = (profile.oid as string | undefined) ?? token.oid;
         token.email = emailFromProfile(profile as Record<string, unknown>) || token.email;
+        // Entra "groups" claim — configured in the app registration
+        // (Token configuration -> groups -> "Groups assigned to the application").
+        const groups = (profile as Record<string, unknown>).groups;
+        token.groups = Array.isArray(groups) ? (groups as string[]) : [];
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
         session.user.oid = token.oid as string | undefined;
+        session.user.groups = (token.groups as string[] | undefined) ?? [];
       }
       return session;
     },

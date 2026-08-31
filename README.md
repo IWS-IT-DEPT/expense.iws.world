@@ -83,12 +83,22 @@ npm run dev
 `AUTH_SECRET`: `npx auth secret`. In dev, leave `ALLOWED_EMAIL_DOMAINS` blank so
 any Microsoft account can sign in.
 
-The first person to sign in is auto-provisioned as a `cardholder`. Promote
-yourself in the DB to see the review/admin screens:
+### Roles
 
-```sql
-update users set role = 'admin' where email = 'you@iws.world';
-```
+| Role | Source | Access |
+| ---- | ------ | ------ |
+| `admin` | Entra group `IT@iws.world` | everything, incl. `/admin/*` backend management |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/review`, `/imports`, exports |
+| `approver` | set manually on `/admin/users` | `/review` |
+| `cardholder` | default | own transactions + weekly report |
+
+Role sync runs on **every login** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
+are set (to the group Object Ids) and the app registration emits a `groups`
+claim. Until then, set roles on `/admin/users`. `BOOTSTRAP_ADMIN_EMAILS` is a
+break-glass list that's always `admin`.
+
+First-run: set `BOOTSTRAP_ADMIN_EMAILS=you@iws.world`, sign in, then configure
+the groups and remove yourself from the bootstrap list.
 
 ### Scripts
 

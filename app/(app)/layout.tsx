@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth";
-import { canReview, getCurrentUser } from "@/lib/current-user";
+import { canReview, getCurrentUser, isAdmin } from "@/lib/current-user";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -13,14 +13,18 @@ const navItems = [
 
 const reviewNav = [
   { href: "/review", label: "Review Queue" },
-  { href: "/admin", label: "Admin" },
+  { href: "/imports", label: "Imports" },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
 
-  const items = canReview(user) ? [...navItems, ...reviewNav] : navItems;
+  const items = [
+    ...navItems,
+    ...(canReview(user) ? reviewNav : []),
+    ...(isAdmin(user) ? [{ href: "/admin", label: "Admin" }] : []),
+  ];
 
   return (
     <div className="flex min-h-screen flex-col">

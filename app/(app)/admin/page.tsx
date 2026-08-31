@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -7,65 +8,73 @@ import {
   entities,
   jobs,
   locations,
-  mileageRates,
   units,
+  users,
 } from "@/db/schema";
-import { requireRole } from "@/lib/current-user";
 import { shortDate } from "@/lib/format";
 
-import { ImportForm } from "./import-form";
+const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
-export default async function AdminPage() {
-  await requireRole("accounting", "admin");
-
-  const [entityRows, accountRows, rateRows, counts] = await Promise.all([
-    db.query.entities.findMany({
-      orderBy: [asc(entities.code)],
-      with: { qboConnection: true },
-    }),
-    db.query.cardAccounts.findMany({
-      orderBy: [asc(cardAccounts.name)],
-      with: { owningEntity: true, cards: true },
-    }),
-    db.query.mileageRates.findMany({ orderBy: [asc(mileageRates.effectiveDate)] }),
+export default async function AdminOverviewPage() {
+  const [entityRows, accountRows, counts] = await Promise.all([
+    db.query.entities.findMany({ orderBy: [asc(entities.code)], with: { qboConnection: true } }),
+    db.query.cardAccounts.findMany({ orderBy: [asc(cardAccounts.name)], with: { cards: true } }),
     Promise.all([
+      db.select({ n: sql<number>`count(*)` }).from(users),
       db.select({ n: sql<number>`count(*)` }).from(locations),
       db.select({ n: sql<number>`count(*)` }).from(units),
       db.select({ n: sql<number>`count(*)` }).from(jobs),
       db.select({ n: sql<number>`count(*)` }).from(categories),
     ]),
   ]);
-
-  const [loc, unit, job, cat] = counts.map((c) => c[0].n);
+  const [nUsers, nLoc, nUnit, nJob, nCat] = counts.map((c) => c[0].n);
 
   return (
     <div className="space-y-8">
-      <h1 className="text-lg font-semibold">Admin</h1>
+      <section className="rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
+        <h2 className="mb-1 font-medium">Access control</h2>
+        <p className="opacity-70">
+          {groupSyncOn ? (
+            <>
+              Role sync is <strong>ON</strong>. <code>IT@iws.world</code> → admin,{" "}
+              <code>IWS-Finance@iws.world</code> → accounting, applied on every login.
+            </>
+          ) : (
+            <>
+              Role sync is <strong>OFF</strong> — set <code>ENTRA_GROUP_IT</code> and{" "}
+              <code>ENTRA_GROUP_FINANCE</code> to the group Object Ids. Until then roles are managed
+              on the Users tab.
+            </>
+          )}
+        </p>
+      </section>
 
-      <ImportForm accounts={accountRows.map((a) => ({ id: a.id, name: a.name }))} />
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Card href="/admin/users" label="Users" value={nUsers} />
+        <Card href="/admin/locations" label="Locations" value={nLoc} />
+        <Card href="/admin/units" label="Units" value={nUnit} />
+        <Card href="/admin/jobs" label="Jobs" value={nJob} />
+        <Card href="/admin/categories" label="Categories" value={nCat} />
+        <Card href="/imports" label="Statement import" value="→" />
+      </section>
 
       <section>
         <h2 className="mb-2 font-medium">Entities & QuickBooks</h2>
-        <table className="w-full text-sm">
-          <thead className="text-left opacity-60">
-            <tr>
-              <th className="py-1">Code</th>
-              <th>Name</th>
-              <th>Costing</th>
-              <th>QBO</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entityRows.map((e) => (
-              <tr key={e.id} className="border-t border-black/10 dark:border-white/10">
-                <td className="py-1 font-mono">{e.code}</td>
-                <td>{e.name}</td>
-                <td>{e.costingMode}</td>
-                <td>{e.qboConnection?.status ?? "disconnected"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className="text-sm">
+          {entityRows.map((e) => (
+            <li key={e.id} className="flex items-center gap-2 border-t border-black/10 py-1 dark:border-white/10">
+              <span
+                className="inline-block h-3 w-3 rounded-sm"
+                style={{ backgroundColor: e.brandColor ?? "#999" }}
+              />
+              <span className="font-mono">{e.code}</span>
+              <span className="opacity-70">{e.name}</span>
+              <span className="ml-auto text-xs opacity-50">
+                costing {e.costingMode} · QBO {e.qboConnection?.status ?? "disconnected"}
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section>
@@ -73,34 +82,24 @@ export default async function AdminPage() {
         <ul className="text-sm">
           {accountRows.map((a) => (
             <li key={a.id} className="border-t border-black/10 py-1 dark:border-white/10">
-              {a.name} — owner {a.owningEntity.code} · {a.cards.length} card(s) ·{" "}
+              {a.name} · {a.cards.length} card(s) ·{" "}
               {a.lastImportedAt ? `last import ${shortDate(a.lastImportedAt)}` : "never imported"}
             </li>
           ))}
         </ul>
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-medium">Mileage rates (IRS)</h2>
-        <ul className="text-sm">
-          {rateRows.map((r) => (
-            <li key={r.id}>
-              from {r.effectiveDate}: ${r.ratePerMile}/mi {r.note ? `— ${r.note}` : ""}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="text-sm opacity-70">
-        <h2 className="mb-2 font-medium opacity-100">Reference data</h2>
-        <p>
-          {loc} locations · {unit} units · {job} jobs · {cat} categories.
-        </p>
-        <p className="mt-1">
-          Managed via <code>db/seed.ts</code> and <code>npm run db:studio</code> for now. Admin CRUD
-          screens are on the roadmap (see README).
-        </p>
+        <Link href="/admin/cards" className="text-sm underline">
+          Manage cards →
+        </Link>
       </section>
     </div>
+  );
+}
+
+function Card({ href, label, value }: { href: string; label: string; value: number | string }) {
+  return (
+    <Link href={href} className="rounded-lg border border-black/10 p-4 dark:border-white/15">
+      <div className="text-2xl font-semibold">{value}</div>
+      <div className="text-sm opacity-70">{label}</div>
+    </Link>
   );
 }
