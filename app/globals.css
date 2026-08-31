@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 :root {
+  /* Tell the UA both themes are supported so native controls — <select> option
+     popups especially — follow the system preference instead of rendering
+     light-mode chrome (white-on-white option text in dark mode). */
+  color-scheme: light dark;
+
   --background: #ffffff;
   --foreground: #171717;
 
