@@ -3,24 +3,63 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
+import type { CostingMode } from "@/lib/coding";
 import { canReview, isAdmin, requireUser } from "@/lib/current-user";
+import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 import { money, weekBounds } from "@/lib/format";
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const policy = await loadPolicy();
   const { start, end } = weekBounds(new Date());
   const isApprover = user.role === "approver" || isAdmin(user);
 
-  const [cardAgg] = await db
-    .select({
-      draft: sql<number>`count(*) filter (where ${pendingExpenses.status} = 'draft')`,
-      rejected: sql<number>`count(*) filter (where ${pendingExpenses.status} = 'rejected')`,
-      submitted: sql<number>`count(*) filter (where ${pendingExpenses.status} in ('submitted','reconciled'))`,
-      noReceipt: sql<number>`count(*) filter (where ${pendingExpenses.status} in ('draft','rejected') and not exists (select 1 from receipts r where r.pending_expense_id = ${pendingExpenses.id}))`,
-      weekTotal: sql<number>`coalesce(sum(coalesce(${pendingExpenses.actualAmountCents}, ${pendingExpenses.amountCents})) filter (where ${pendingExpenses.status} <> 'cancelled' and ${pendingExpenses.purchaseDate} between ${start} and ${end}), 0)`,
-    })
-    .from(pendingExpenses)
-    .where(eq(pendingExpenses.userId, user.id));
+  const myCards = await db.query.pendingExpenses.findMany({
+    where: eq(pendingExpenses.userId, user.id),
+    with: { entity: true, category: true, receipts: { columns: { id: true } } },
+  });
+
+  let cardDraft = 0;
+  let cardRejected = 0;
+  let cardSubmitted = 0;
+  let cardMissingReceipt = 0;
+  let cardWeekTotal = 0;
+  for (const r of myCards) {
+    if (r.status === "draft") cardDraft++;
+    else if (r.status === "rejected") cardRejected++;
+    else if (r.status === "submitted" || r.status === "reconciled") cardSubmitted++;
+
+    if (r.status !== "cancelled" && r.purchaseDate >= start && r.purchaseDate <= end) {
+      cardWeekTotal += r.actualAmountCents ?? r.amountCents;
+    }
+    if (r.status === "draft" || r.status === "rejected") {
+      const needsReceipt = checkExpenseLine(
+        {
+          kind: "card",
+          amountCents: r.amountCents,
+          entityId: r.entityId,
+          locationId: r.locationId,
+          categoryId: r.categoryId,
+          businessPurpose: r.businessPurpose,
+          unitId: r.unitId,
+          jobId: r.jobId,
+          cardId: r.cardId,
+          receiptCount: r.receipts.length,
+          costingMode: r.entity?.costingMode as CostingMode | undefined,
+          categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
+        },
+        policy,
+      ).some((c) => c.code === "missing_receipt");
+      if (needsReceipt) cardMissingReceipt++;
+    }
+  }
+  const cardAgg = {
+    draft: cardDraft,
+    rejected: cardRejected,
+    submitted: cardSubmitted,
+    noReceipt: cardMissingReceipt,
+    weekTotal: cardWeekTotal,
+  };
 
   const [itemAgg] = await db
     .select({
