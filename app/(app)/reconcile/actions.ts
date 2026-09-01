@@ -6,6 +6,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvals, pendingExpenses } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
+import { money } from "@/lib/format";
+import { notifySentBack } from "@/lib/notify";
 
 export interface LineActionState {
   ok?: boolean;
@@ -84,6 +86,7 @@ export async function rejectLine(_prev: LineActionState, fd: FormData): Promise<
     actorId: user.id,
     note: reason,
   });
+  await notifySentBack(line.userId, `${line.merchant} · ${money(line.amountCents)}`, reason);
 
   revalidatePath("/reconcile");
   revalidatePath("/approvals");

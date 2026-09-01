@@ -17,6 +17,7 @@ import { validateCoding, type CostingMode } from "@/lib/coding";
 import { canReview, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { normalizeMerchant } from "@/lib/merchant";
+import { notifyAccountingSubmitted } from "@/lib/notify";
 import { rateForDate, mileageAmountCents } from "@/lib/mileage";
 import { blobStore } from "@/lib/storage";
 import { signUploadToken, type UploadPurpose } from "@/lib/upload-token";
@@ -285,6 +286,7 @@ export async function submitCardExpense(fd: FormData): Promise<void> {
     action: "submit",
     actorId: user.id,
   });
+  await notifyAccountingSubmitted(user.name, `a card purchase (${row.merchant})`, row.amountCents);
 
   revalidatePath("/expenses");
   revalidatePath(`/expenses/${id}`);
@@ -342,6 +344,15 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
       actorId: user.id,
     });
   }
+
+  const total = rows
+    .filter((r) => readyIds.includes(r.id))
+    .reduce((s, r) => s + r.amountCents, 0);
+  await notifyAccountingSubmitted(
+    user.name,
+    `${readyIds.length} card ${readyIds.length === 1 ? "purchase" : "purchases"}`,
+    total,
+  );
 
   revalidatePath("/expenses");
   revalidatePath("/report");

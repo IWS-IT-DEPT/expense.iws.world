@@ -8,6 +8,7 @@ import { approvals, expenseItems, expenseReports } from "@/db/schema";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
+import { notifyAccountingSubmitted } from "@/lib/notify";
 
 export interface SubmitState {
   ok?: boolean;
@@ -99,6 +100,11 @@ export async function submitWeek(_prev: SubmitState, fd: FormData): Promise<Subm
     actorId: user.id,
     note: `${itemLines.filter((i) => i.kind === "out_of_pocket").length} oop / ${itemLines.filter((i) => i.kind === "mileage").length} mileage`,
   });
+  await notifyAccountingSubmitted(
+    user.name,
+    "a reimbursement report",
+    itemLines.reduce((s, i) => s + i.amountCents, 0),
+  );
 
   revalidatePath("/report");
   revalidatePath("/expenses");
