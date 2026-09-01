@@ -1,4 +1,5 @@
-import { asc, eq } from "drizzle-orm";
+import Link from "next/link";
+import { asc, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { expenseItems, pendingExpenses } from "@/db/schema";
@@ -37,15 +38,22 @@ function ReceiptStrip({ receipts }: { receipts: Rec[] }) {
   );
 }
 
-export default async function ReconcilePage() {
+export default async function ReconcilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sort?: string }>;
+}) {
   await requireRole("accounting", "approver", "admin");
+  const { sort } = await searchParams;
+  const newestFirst = sort === "desc";
+  const dir = newestFirst ? desc : asc;
 
   const [lines, items] = await Promise.all([
     db.query.pendingExpenses.findMany({
       where: eq(pendingExpenses.status, "submitted"),
-      orderBy: [asc(pendingExpenses.purchaseDate)],
+      orderBy: [dir(pendingExpenses.purchaseDate), dir(pendingExpenses.createdAt)],
       with: {
-        user: { columns: { id: true, name: true } },
+        user: { columns: { name: true } },
         card: true,
         entity: true,
         location: true,
@@ -55,125 +63,118 @@ export default async function ReconcilePage() {
     }),
     db.query.expenseItems.findMany({
       where: eq(expenseItems.status, "submitted"),
-      orderBy: [asc(expenseItems.itemDate)],
+      orderBy: [dir(expenseItems.itemDate)],
       with: {
-        user: { columns: { id: true, name: true } },
+        user: { columns: { name: true } },
         entity: true,
-        location: true,
         category: true,
         receipts: { columns: { id: true, contentType: true } },
       },
     }),
   ]);
 
-  // union of users who have something submitted
-  const users = new Map<string, string>();
-  for (const l of lines) users.set(l.user.id, l.user.name);
-  for (const i of items) users.set(i.user.id, i.user.name);
-
   return (
-    <div className="space-y-8">
-      <h1 className="text-lg font-semibold">Reconcile</h1>
-      <p className="max-w-prose text-sm opacity-70">
-        Cardholder-submitted expenses, grouped by person. Cross-check each card charge against the
-        statement and confirm — correcting the posted amount or date if it differs. Out-of-pocket and
-        mileage don&apos;t need reconciling; they&apos;re approved with the report.
-      </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Reconcile</h1>
+          <p className="text-sm opacity-70">
+            Submitted card charges in statement order. Confirm each against the statement — correcting
+            the posted amount or date if it differs — or send it back.
+          </p>
+        </div>
+        <div className="flex gap-1 text-xs">
+          <Link
+            href="/reconcile?sort=asc"
+            className={
+              newestFirst
+                ? "rounded border border-black/15 px-2 py-0.5 dark:border-white/20"
+                : "rounded bg-black px-2 py-0.5 text-white dark:bg-white dark:text-black"
+            }
+          >
+            Oldest first
+          </Link>
+          <Link
+            href="/reconcile?sort=desc"
+            className={
+              newestFirst
+                ? "rounded bg-black px-2 py-0.5 text-white dark:bg-white dark:text-black"
+                : "rounded border border-black/15 px-2 py-0.5 dark:border-white/20"
+            }
+          >
+            Newest first
+          </Link>
+        </div>
+      </div>
 
-      {users.size === 0 ? (
+      {lines.length === 0 ? (
         <p className="text-sm opacity-60">Nothing to reconcile right now.</p>
       ) : (
-        [...users.entries()].map(([uid, name]) => {
-          const userCards = new Map<string, typeof lines>();
-          for (const l of lines.filter((x) => x.user.id === uid)) {
-            const key = l.cardId ?? "none";
-            userCards.set(key, [...(userCards.get(key) ?? []), l]);
-          }
-          const userItems = items.filter((i) => i.user.id === uid);
+        <div className="space-y-2">
+          {lines.map((l) => (
+            <div key={l.id} className="rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="font-medium">{shortDate(l.purchaseDate)}</span>
+                <span className="font-medium">{l.merchant}</span>
+                <span>{money(l.amountCents)}</span>
+                <span className="opacity-70">{l.user.name}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
+                <span className="opacity-70">
+                  {l.card ? cardLabel(l.card) : "no card"}
+                </span>
+                {" · "}
+                {l.entity ? <EntityBadge code={l.entity.code} color={l.entity.brandColor} /> : null}
+                {l.location?.name}
+                {l.category ? ` · ${l.category.name}` : ""}
+                {l.businessPurpose ? ` — ${l.businessPurpose}` : ""}
+              </div>
+              <div className="mt-2">
+                <ReceiptStrip receipts={l.receipts} />
+              </div>
+              <ReconcileLine
+                lineId={l.id}
+                amountLabel={(l.amountCents / 100).toFixed(2)}
+                dateLabel={l.purchaseDate}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
-          return (
-            <section key={uid} className="space-y-3">
-              <h2 className="font-semibold">{name}</h2>
-
-              {[...userCards.values()].map((cardLines) => (
-                <div
-                  key={cardLines[0].cardId ?? "none"}
-                  className="rounded-lg border border-black/10 dark:border-white/15"
-                >
-                  <div className="border-b border-black/10 px-4 py-2 text-sm font-medium dark:border-white/15">
-                    {cardLines[0].card ? cardLabel(cardLines[0].card) : "No card selected"}
-                  </div>
-                  <div className="divide-y divide-black/5 dark:divide-white/10">
-                    {cardLines.map((l) => (
-                      <div key={l.id} className="p-4 text-sm">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="font-medium">{l.merchant}</span>
-                          <span>{money(l.amountCents)}</span>
-                          <span className="opacity-60">{shortDate(l.purchaseDate)}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
-                          {l.entity ? (
-                            <EntityBadge code={l.entity.code} color={l.entity.brandColor} />
-                          ) : null}
-                          {l.location?.name}
-                          {l.category ? ` · ${l.category.name}` : ""}
-                          {l.businessPurpose ? ` — ${l.businessPurpose}` : ""}
-                        </div>
-                        <div className="mt-2">
-                          <ReceiptStrip receipts={l.receipts} />
-                        </div>
-                        <ReconcileLine
-                          lineId={l.id}
-                          amountLabel={(l.amountCents / 100).toFixed(2)}
-                          dateLabel={l.purchaseDate}
-                        />
-                      </div>
-                    ))}
-                  </div>
+      {items.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
+            Out-of-pocket &amp; mileage ({items.length}) — reviewed at approval
+          </h2>
+          <div className="space-y-1">
+            {items.map((i) => (
+              <div
+                key={i.id}
+                className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="font-medium">{shortDate(i.itemDate)}</span>
+                  <span>
+                    {i.kind === "mileage" ? `Mileage · ${i.miles ?? "?"} mi` : "Out of pocket"}
+                  </span>
+                  <span>{money(i.amountCents)}</span>
+                  <span className="opacity-70">{i.user.name}</span>
                 </div>
-              ))}
-
-              {userItems.length > 0 && (
-                <div className="rounded-lg border border-black/10 dark:border-white/15">
-                  <div className="border-b border-black/10 px-4 py-2 text-xs font-medium uppercase tracking-wide opacity-60 dark:border-white/15">
-                    Out-of-pocket &amp; mileage ({userItems.length}) — reviewed at approval
-                  </div>
-                  <div className="divide-y divide-black/5 dark:divide-white/10">
-                    {userItems.map((i) => (
-                      <div key={i.id} className="p-4 text-sm">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <span className="font-medium">
-                            {i.kind === "mileage"
-                              ? `Mileage · ${i.miles ?? "?"} mi`
-                              : "Out of pocket"}
-                          </span>
-                          <span>{money(i.amountCents)}</span>
-                          <span className="opacity-60">{shortDate(i.itemDate)}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
-                          {i.entity ? (
-                            <EntityBadge code={i.entity.code} color={i.entity.brandColor} />
-                          ) : null}
-                          {i.location?.name}
-                          {i.category ? ` · ${i.category.name}` : ""}
-                          {i.kind === "mileage" && (i.tripFrom || i.tripTo)
-                            ? ` · ${i.tripFrom ?? "?"} → ${i.tripTo ?? "?"}`
-                            : ""}
-                          {i.businessPurpose ? ` — ${i.businessPurpose}` : ""}
-                        </div>
-                        {i.kind !== "mileage" && (
-                          <div className="mt-2">
-                            <ReceiptStrip receipts={i.receipts} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
+                  {i.entity ? <EntityBadge code={i.entity.code} color={i.entity.brandColor} /> : null}
+                  {i.category?.name}
+                  {i.businessPurpose ? ` — ${i.businessPurpose}` : ""}
                 </div>
-              )}
-            </section>
-          );
-        })
+                {i.kind !== "mileage" && (
+                  <div className="mt-2">
+                    <ReceiptStrip receipts={i.receipts} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
