@@ -8,7 +8,6 @@ import { requireUser } from "@/lib/current-user";
 import { checkExpenseLine, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
 import { money } from "@/lib/format";
 
-import { submitCardExpense } from "../actions";
 import { CardExpenseForm } from "../card-expense-form";
 import { loadCodingOptions, loadUserCards } from "../coding-options";
 import { ExpenseReceipts } from "../expense-receipts";
@@ -45,7 +44,7 @@ function Header({
         </div>
       ) : (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
-          Complete and ready for the weekly report.
+          Complete — save any edits, then submit it to accounting below.
         </p>
       )}
     </>
@@ -91,18 +90,11 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
           rejectionReason={card.status === "rejected" ? card.rejectionReason : null}
           checks={checks}
         />
-        {checks.length === 0 ? (
-          <form action={submitCardExpense}>
-            <input type="hidden" name="id" value={card.id} />
-            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
-              Submit to accounting
-            </button>
-          </form>
-        ) : null}
         <ExpenseReceipts receipts={card.receipts} purpose="pending" targetId={card.id} />
         <CardExpenseForm
           {...options}
           cards={cards}
+          submitReady={checks.length === 0}
           initial={{
             id: card.id,
             merchant: card.merchant,

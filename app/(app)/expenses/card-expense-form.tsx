@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -10,7 +10,12 @@ import {
 } from "@/app/components/coding-fields";
 import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 
-import { createCardExpense, updateCardExpense, type FormState } from "./actions";
+import {
+  createCardExpense,
+  submitCardExpense,
+  updateCardExpense,
+  type FormState,
+} from "./actions";
 
 const inputClass =
   "w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm dark:border-white/20";
@@ -22,6 +27,8 @@ export interface CardExpenseFormProps {
   jobs: CodingScopedOption[];
   categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
   cards: { id: string; label: string }[];
+  /** true when the server says this expense passes every check and can be sent to accounting */
+  submitReady?: boolean;
   initial?: {
     id: string;
     merchant: string;
@@ -42,19 +49,28 @@ export interface CardExpenseFormProps {
 export function CardExpenseForm(props: CardExpenseFormProps) {
   const router = useRouter();
   const editing = !!props.initial;
+  const [dirty, setDirty] = useState(false);
   const [state, action, pending] = useActionState<FormState, FormData>(
-    editing ? updateCardExpense : createCardExpense,
+    async (prev, fd) => {
+      const r = await (editing ? updateCardExpense : createCardExpense)(prev, fd);
+      if (r.ok) {
+        setDirty(false);
+        if (editing) router.refresh(); // re-pull server checks / submitReady
+      }
+      return r;
+    },
     {},
   );
 
-  if (state.ok && state.id) {
+  // Create flow: after the first save, show the receipt-upload hand-off.
+  if (state.ok && state.id && !editing) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-emerald-700 dark:text-emerald-400">Purchase saved.</p>
         <ReceiptUploadButton
           purpose="pending"
           targetId={state.id}
-          label={editing ? "Add another receipt" : "Add the receipt"}
+          label="Add the receipt"
           onDone={() => {
             router.refresh();
             props.onDone?.();
@@ -69,7 +85,7 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
             }}
             className="text-xs underline opacity-70 hover:opacity-100"
           >
-            {editing ? "Done" : "Done — I'll add the receipt later"}
+            Done — I&apos;ll add the receipt later
           </button>
         </div>
       </div>
@@ -78,9 +94,10 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
 
   const i = props.initial;
   const noCards = props.cards.length === 0;
+  const savedClean = editing && state.ok && !dirty;
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -163,14 +180,36 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
       </fieldset>
 
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+      {savedClean ? (
+        <p className="text-sm text-emerald-700 dark:text-emerald-400">Changes saved.</p>
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-      >
-        {pending ? "Saving…" : editing ? "Save changes" : "Save purchase"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={pending || (editing && !dirty)}
+          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
+        >
+          {pending ? "Saving…" : editing ? "Save changes" : "Save purchase"}
+        </button>
+
+        {editing && props.submitReady ? (
+          dirty ? (
+            <span className="text-xs opacity-70">
+              Save your changes before submitting to accounting.
+            </span>
+          ) : (
+            <button
+              type="submit"
+              formAction={submitCardExpense}
+              disabled={pending}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Submit to accounting
+            </button>
+          )
+        ) : null}
+      </div>
     </form>
   );
 }
