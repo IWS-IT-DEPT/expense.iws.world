@@ -44,36 +44,46 @@ Display tag: `RGT · Main Office · Truck 07 · Fuel`
 ### Workflow
 
 Cardholders **enter every expense themselves** — there is no statement import.
+**Card purchases flow continuously**, one at a time; **reimbursements batch** into
+a weekly report.
 
 ```
-cardholder logs each expense (card / out-of-pocket / mileage) + coding + receipt
-  → files a weekly report (review, verify, submit — due EOD Friday; locks the week)
-  → accounting reconciles each card line vs. the real statement (confirm / correct)
-  → approver locks the reconciled report  → ready for the books / QBO
+CARD PURCHASE:  cardholder logs it + coding + receipt → submits it →
+                accounting reconciles vs. the statement (confirm / correct) →
+                approver approves → ready for the books / QBO
+
+OOP / MILEAGE:  cardholder logs items through the week → submits the weekly
+                reimbursement report → approver approves → payroll
 ```
+
+Everything is due **end of day Friday** — that's the reminder deadline, not a
+batch gate for card charges.
 
 - **Cards** (`/cards`): a cardholder self-registers each card — network + last 4 +
   nickname. No admin approval, no link to a card program.
-- **Expenses** (`/expenses`): `/expenses/new` (card purchase — pick which card),
-  `/expenses/out-of-pocket`, `/expenses/mileage` (IRS rate via `lib/mileage.ts`,
-  amount computed server-side). Card lines can be drafted uncoded; coding +
-  receipt are required to submit. `lib/expense-checks.ts` is the readiness rule
-  set (replaces the old `exception_flags`).
-- **Weekly report** (`/report`): shows everything logged in the ISO week (plus
-  stragglers from earlier weeks not yet on a report), flags anything that isn't
-  ready, and submits it all in one action → `expense_reports` row + status
-  `submitted` on every line. Email reminders (Wed 8am / Fri 8am / Fri 3pm, Central)
-  go to anyone who hasn't filed — `app/api/cron/report-reminders` + Resend.
-- **Reconcile** (`/reconcile`, accounting): submitted card lines grouped by
-  cardholder + card. Confirm each (recording `actualAmountCents` /
-  `actualPurchaseDate` if the statement differs) or send it back. When a report's
-  last submitted card line is confirmed it auto-advances to `reconciled`.
-- **Approvals** (`/approvals`, approver/admin): approve a reconciled report →
-  every line `approved` and locked. Books total uses `COALESCE(actual, entered)`.
+- **Expenses** (`/expenses`): the `+ Log a Purchase / Out of Pocket / Mileage`
+  buttons. Card lines can be drafted uncoded; coding + receipt are required to
+  submit. `lib/expense-checks.ts` is the readiness rule set. A ready card
+  purchase has a **submit** button on the row / edit page; `submitCardExpense`
+  sends it straight to `/reconcile`.
+- **This Week** (`/report`): a completeness checklist — which of this week's card
+  purchases are submitted, which still need info — plus the **Submit
+  reimbursements** batch for out-of-pocket + mileage (`submitWeek` →
+  `expense_reports`). Reminder emails (Wed am / Fri am / Fri pm, Central) go to
+  anyone with an unsubmitted expense — `app/api/cron/report-reminders` + Resend.
+- **Reconcile** (`/reconcile`, accounting): submitted card charges grouped by
+  cardholder + card, each with coding + receipts. Confirm each (recording
+  `actualAmountCents` / `actualPurchaseDate` if the statement differs) or send it
+  back. Out-of-pocket receipts show here too (display-only; acted on at approval).
+- **Approvals** (`/approvals`, approver/admin): reconciled card charges grouped by
+  cardholder — **approve all** or per-charge send-back — plus submitted
+  reimbursement reports. Books total uses `COALESCE(actualAmountCents, amountCents)`.
 
-Data model: the cardholder card expense is the `pending_expenses` table (name is
-historical — the receipt-upload plumbing keys off it); out-of-pocket + mileage are
-`expense_items`. Every workflow transition writes an `approvals` audit row.
+Data model: a card purchase is a `pending_expenses` row (name is historical — the
+receipt-upload plumbing keys off it), lifecycle
+`draft → submitted → reconciled → approved`, no `reportId`. Out-of-pocket +
+mileage are `expense_items` on an `expense_reports` batch. Every transition writes
+an `approvals` audit row.
 
 ### Receipt capture
 

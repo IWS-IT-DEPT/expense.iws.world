@@ -20,17 +20,23 @@ full picture. Key facts an agent needs:
   `transactions` / `allocations` / `exception_flags` tables and `/lib/transactions`
   parsers are dead (kept for a future reconciliation feature).
 - **Card expense** = a `pending_expenses` row (historical name; the receipt-upload
-  plumbing keys off it). **Out-of-pocket + mileage** = `expense_items`. Lifecycle
-  `draft → submitted → reconciled → approved` (`+ rejected`); guard every
-  cardholder edit on `status in ('draft','rejected')`.
+  plumbing keys off it), lifecycle `draft → submitted → reconciled → approved`
+  (`+ rejected`). **Submitted one at a time** by the cardholder
+  (`submitCardExpense`) the moment it's ready — no `reportId`, no weekly batch.
+  Guard every cardholder edit on `status in ('draft','rejected')`.
+- **Out-of-pocket + mileage** = `expense_items`, batched weekly into an
+  `expense_reports` row (`submitWeek`), lifecycle `draft → submitted → approved`
+  (no reconcile step — nothing to check against a statement).
 - **Coding** columns (entity, location, unit|job, category, purpose) live inline
   on both tables. `entities.costingMode` drives which of unit/job is required.
   Rules in `lib/coding.ts`; the 5 selects are `<CodingFields>`;
   `lib/expense-checks.ts` says whether a line is ready to submit.
-- **Weekly report** (`/report` + `submitWeek`) bundles the week's `draft`/`rejected`
-  lines dated `<= periodEnd` into one `expense_reports` row. **Reconcile**
-  (`/reconcile`) is accounting confirming card lines vs. the statement (may set
-  `actualAmountCents`/`actualPurchaseDate`). **Approve** (`/approvals`) locks it.
+- **`/report` ("This Week")** is a completeness checklist for card purchases +
+  the `submitWeek` batch for reimbursements. **Reconcile** (`/reconcile`) is
+  accounting confirming each submitted card charge vs. the statement (may set
+  `actualAmountCents`/`actualPurchaseDate`), per-charge. **Approve**
+  (`/approvals`) locks reconciled card charges (`approveCardExpenses`, bulk) and
+  submitted reimbursement reports (`approveReport`).
 - Receipt files go through `lib/receipt-store.ts`; bytes served only via
   `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
 - Reminder emails: `app/api/cron/report-reminders` (hourly, picks a slot in
