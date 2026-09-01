@@ -3,7 +3,9 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { pendingExpenses } from "@/db/schema";
+import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
+import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 
 import { CardExpenseForm } from "../card-expense-form";
 import { loadCodingOptions, loadUserCards } from "../coding-options";
@@ -16,22 +18,62 @@ export default async function EditCardExpensePage({
   const { id } = await params;
   const user = await requireUser();
 
-  const row = await db.query.pendingExpenses.findFirst({ where: eq(pendingExpenses.id, id) });
+  const row = await db.query.pendingExpenses.findFirst({
+    where: eq(pendingExpenses.id, id),
+    with: { entity: true, category: true, receipts: { columns: { id: true } } },
+  });
   if (!row || row.userId !== user.id) notFound();
-  if (row.status !== "draft" && row.status !== "rejected") {
-    notFound();
-  }
+  if (row.status !== "draft" && row.status !== "rejected") notFound();
 
-  const [options, cards] = await Promise.all([loadCodingOptions(), loadUserCards(user.id)]);
+  const [options, cards, policy] = await Promise.all([
+    loadCodingOptions(),
+    loadUserCards(user.id),
+    loadPolicy(),
+  ]);
+
+  const checks = checkExpenseLine(
+    {
+      kind: "card",
+      amountCents: row.amountCents,
+      entityId: row.entityId,
+      locationId: row.locationId,
+      categoryId: row.categoryId,
+      businessPurpose: row.businessPurpose,
+      unitId: row.unitId,
+      jobId: row.jobId,
+      cardId: row.cardId,
+      receiptCount: row.receipts.length,
+      costingMode: row.entity?.costingMode as CostingMode | undefined,
+      categoryRequiresJobOrUnit: row.category?.requiresJobOrUnit,
+    },
+    policy,
+  );
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <h1 className="text-lg font-semibold">Edit purchase</h1>
+
       {row.status === "rejected" && row.rejectionReason ? (
         <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
           Sent back: {row.rejectionReason}
         </p>
       ) : null}
+
+      {checks.length > 0 ? (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
+          <p className="font-medium">Still needed before you can submit:</p>
+          <ul className="mt-1 space-y-0.5">
+            {checks.map((c, i) => (
+              <li key={i}>• {c.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-sm text-emerald-700 dark:text-emerald-400">
+          This purchase is complete and ready for the weekly report.
+        </p>
+      )}
+
       <CardExpenseForm
         {...options}
         cards={cards}

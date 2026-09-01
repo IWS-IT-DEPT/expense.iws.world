@@ -223,9 +223,21 @@ function Row(props: {
 }) {
   const blocked = props.checks.length > 0;
   return (
-    <div className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+    <div
+      className={`rounded-lg border p-3 text-sm ${
+        blocked
+          ? "border-amber-500/50 bg-amber-500/5"
+          : "border-black/10 dark:border-white/15"
+      }`}
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="font-medium">{props.title}</span>
+        {props.editHref ? (
+          <Link href={props.editHref} className="font-medium underline decoration-dotted hover:decoration-solid">
+            {props.title}
+          </Link>
+        ) : (
+          <span className="font-medium">{props.title}</span>
+        )}
         <span>{props.amount}</span>
         <span className="opacity-60">{shortDate(props.date)}</span>
         <span className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
@@ -233,25 +245,35 @@ function Row(props: {
         </span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">{props.sub}</div>
+      {blocked && (
+        <ul className="mt-2 space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
+          {props.checks.map((c, i) => (
+            <li key={i}>
+              • {c}
+              {props.editHref ? (
+                <>
+                  {" "}
+                  <Link href={props.editHref} className="underline">
+                    fix
+                  </Link>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
         <span className="opacity-60">
           {props.receipts > 0 ? `📎 ${props.receipts}` : "no receipt"}
         </span>
         {props.editHref ? (
           <Link href={props.editHref} className="underline opacity-70 hover:opacity-100">
-            edit
+            open / edit
           </Link>
         ) : null}
         {props.upload}
         {props.voidForm}
       </div>
-      {blocked && (
-        <ul className="mt-2 space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
-          {props.checks.map((c, i) => (
-            <li key={i}>• {c}</li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
