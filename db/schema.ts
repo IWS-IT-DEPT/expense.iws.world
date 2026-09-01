@@ -691,6 +691,36 @@ export const policySettings = pgTable("policy_settings", {
   updatedById: uuid("updated_by_id").references(() => users.id),
 });
 
+/**
+ * Server-side error log surfaced in the IT Admin dashboard. Written by
+ * `instrumentation.ts` (`onRequestError`) and `lib/log-error.ts`. No FK to
+ * `users` — an error can happen before (or without) an authenticated user.
+ * Rows are grouped by `fingerprint` in the UI; "resolve" stamps every row
+ * sharing a fingerprint.
+ */
+export const errorLogs = pgTable(
+  "error_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fingerprint: text("fingerprint").notNull(),
+    message: text("message").notNull(),
+    stack: text("stack"),
+    digest: text("digest"),
+    path: text("path"),
+    method: text("method"),
+    /** 'render' | 'route' | 'action' | 'proxy' | 'manual' */
+    source: text("source"),
+    routePath: text("route_path"),
+    userEmail: text("user_email"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("error_log_created_idx").on(t.createdAt),
+    index("error_log_fingerprint_idx").on(t.fingerprint),
+  ],
+);
+
 /* ----------------------------------------------------- QuickBooks Online ---- */
 
 /** One OAuth connection per entity (6 separate QBO company files). */

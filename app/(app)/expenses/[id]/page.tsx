@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -63,7 +63,9 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
   });
 
   if (card) {
-    if (card.userId !== user.id || !EDITABLE.has(card.status)) notFound();
+    if (card.userId !== user.id) notFound();
+    // already submitted / reconciled / approved / voided — nothing to edit here
+    if (!EDITABLE.has(card.status)) redirect("/expenses");
     const [options, cards] = await Promise.all([loadCodingOptions(), loadUserCards(user.id)]);
     const checks = checkExpenseLine(
       {
@@ -124,7 +126,8 @@ export default async function EditExpensePage({ params }: { params: Promise<{ id
     where: eq(expenseItems.id, id),
     with: { entity: true, category: true, receipts: { columns: { id: true, contentType: true, filename: true } } },
   });
-  if (!item || item.userId !== user.id || !EDITABLE.has(item.status)) notFound();
+  if (!item || item.userId !== user.id) notFound();
+  if (!EDITABLE.has(item.status)) redirect("/expenses");
 
   const options = await loadCodingOptions();
   const checks = checkExpenseLine(

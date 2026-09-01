@@ -8,6 +8,7 @@ import { money, shortDate } from "@/lib/format";
 
 import { EntityBadge } from "../../components/entity-badge";
 import { cardLabel } from "../expenses/coding-options";
+import { ItemActions } from "./item-actions";
 import { ReconcileLine } from "./reconcile-line";
 
 type Rec = { id: string; contentType: string };
@@ -145,7 +146,7 @@ export default async function ReconcilePage({
       {items.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-            Out-of-pocket &amp; mileage ({items.length}) — reviewed at approval
+            Out-of-pocket &amp; mileage ({items.length})
           </h2>
           <div className="space-y-1">
             {items.map((i) => (
@@ -171,6 +172,7 @@ export default async function ReconcilePage({
                     <ReceiptStrip receipts={i.receipts} />
                   </div>
                 )}
+                <ItemActions itemId={i.id} />
               </div>
             ))}
           </div>

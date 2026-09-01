@@ -2,7 +2,7 @@ import Link from "next/link";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { cards, categories, entities, jobs, locations, units, users } from "@/db/schema";
+import { cards, categories, entities, errorLogs, jobs, locations, units, users } from "@/db/schema";
 
 const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
@@ -16,9 +16,13 @@ export default async function AdminOverviewPage() {
       db.select({ n: sql<number>`count(*)` }).from(jobs),
       db.select({ n: sql<number>`count(*)` }).from(categories),
       db.select({ n: sql<number>`count(*) filter (where ${cards.active})` }).from(cards),
+      db
+        .select({ n: sql<number>`count(distinct ${errorLogs.fingerprint})` })
+        .from(errorLogs)
+        .where(sql`${errorLogs.resolvedAt} is null`),
     ]),
   ]);
-  const [nUsers, nLoc, nUnit, nJob, nCat, nCards] = counts.map((c) => c[0].n);
+  const [nUsers, nLoc, nUnit, nJob, nCat, nCards, nErrors] = counts.map((c) => c[0].n);
 
   return (
     <div className="space-y-8">
@@ -47,6 +51,22 @@ export default async function AdminOverviewPage() {
         <Card href="/admin/units" label="Units" value={nUnit} />
         <Card href="/admin/jobs" label="Jobs" value={nJob} />
         <Card href="/admin/categories" label="Categories" value={nCat} />
+      </section>
+
+      <section>
+        <Link
+          href="/admin/errors"
+          className={`inline-flex items-center gap-2 rounded-lg border p-4 text-sm ${
+            Number(nErrors) > 0
+              ? "border-red-500/40 bg-red-500/5"
+              : "border-black/10 dark:border-white/15"
+          }`}
+        >
+          <span className="text-2xl font-semibold">{nErrors}</span>
+          <span className="opacity-70">
+            open error {Number(nErrors) === 1 ? "issue" : "issues"} — view log →
+          </span>
+        </Link>
       </section>
 
       <section>

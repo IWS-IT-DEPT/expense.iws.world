@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { approvals, pendingExpenses } from "@/db/schema";
+import { approvals, expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 import { money } from "@/lib/format";
-import { notifySentBack } from "@/lib/notify";
+import { notifyApproved, notifySentBack } from "@/lib/notify";
 
 export interface LineActionState {
   ok?: boolean;
@@ -92,4 +92,89 @@ export async function rejectLine(_prev: LineActionState, fd: FormData): Promise<
   revalidatePath("/approvals");
   revalidatePath("/");
   return { ok: true };
+}
+
+/* --------------------------------- out-of-pocket / mileage (no statement) */
+
+const ITEM_LABEL = (kind: string, cents: number) =>
+  `${kind === "mileage" ? "Mileage" : "Out-of-pocket"} · ${money(cents)}`;
+
+/** When a report has no `submitted` items left, close it. */
+async function maybeCloseReport(reportId: string | null, actorId: string) {
+  if (!reportId) return;
+  const stillOpen = await db.query.expenseItems.findFirst({
+    where: and(eq(expenseItems.reportId, reportId), eq(expenseItems.status, "submitted")),
+    columns: { id: true },
+  });
+  if (stillOpen) return;
+  const anyApproved = await db.query.expenseItems.findFirst({
+    where: and(eq(expenseItems.reportId, reportId), eq(expenseItems.status, "approved")),
+    columns: { id: true },
+  });
+  const next = anyApproved ? "approved" : "rejected";
+  const r = await db
+    .update(expenseReports)
+    .set({ status: next, updatedAt: new Date() })
+    .where(and(eq(expenseReports.id, reportId), eq(expenseReports.status, "submitted")))
+    .returning({ id: expenseReports.id });
+  if (r.length) {
+    await db.insert(approvals).values({
+      subjectType: "expense_report",
+      subjectId: reportId,
+      action: next === "approved" ? "approve" : "reject",
+      actorId,
+    });
+  }
+}
+
+export async function approveExpenseItem(fd: FormData): Promise<void> {
+  const user = await requireRole("accounting", "approver", "admin");
+  const id = String(fd.get("id") || "");
+  const item = await db.query.expenseItems.findFirst({ where: eq(expenseItems.id, id) });
+  if (!item || item.status !== "submitted") return;
+
+  await db
+    .update(expenseItems)
+    .set({ status: "approved", updatedAt: new Date() })
+    .where(and(eq(expenseItems.id, id), eq(expenseItems.status, "submitted")));
+  await db.insert(approvals).values({
+    subjectType: "expense_item",
+    subjectId: id,
+    action: "approve",
+    actorId: user.id,
+  });
+  await notifyApproved(item.userId, ITEM_LABEL(item.kind, item.amountCents));
+  await maybeCloseReport(item.reportId, user.id);
+
+  revalidatePath("/reconcile");
+  revalidatePath("/approvals");
+  revalidatePath("/expenses");
+  revalidatePath("/");
+}
+
+export async function rejectExpenseItem(fd: FormData): Promise<void> {
+  const user = await requireRole("accounting", "approver", "admin");
+  const id = String(fd.get("id") || "");
+  const reason = String(fd.get("reason") || "").trim() || "Sent back for changes";
+  const item = await db.query.expenseItems.findFirst({ where: eq(expenseItems.id, id) });
+  if (!item || (item.status !== "submitted" && item.status !== "approved")) return;
+
+  await db
+    .update(expenseItems)
+    .set({ status: "rejected", reportId: null, updatedAt: new Date() })
+    .where(eq(expenseItems.id, id));
+  await db.insert(approvals).values({
+    subjectType: "expense_item",
+    subjectId: id,
+    action: "request_changes",
+    actorId: user.id,
+    note: reason,
+  });
+  await notifySentBack(item.userId, ITEM_LABEL(item.kind, item.amountCents), reason);
+  await maybeCloseReport(item.reportId, user.id);
+
+  revalidatePath("/reconcile");
+  revalidatePath("/approvals");
+  revalidatePath("/expenses");
+  revalidatePath("/");
 }
