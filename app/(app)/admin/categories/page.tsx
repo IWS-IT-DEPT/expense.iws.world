@@ -3,11 +3,13 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { categories } from "@/db/schema";
 import { usedCategoryIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { deleteCategory, upsertCategory } from "../actions";
 
 export default async function AdminCategoriesPage() {
+  await requireRole("admin", "accounting");
   const [rows, used] = await Promise.all([
     db.query.categories.findMany({ orderBy: [asc(categories.sortOrder)] }),
     usedCategoryIds(),

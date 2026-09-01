@@ -15,6 +15,7 @@ import { money } from "./format";
 
 const APP_URL = (process.env.APP_URL ?? "").replace(/\/$/, "");
 const ACCOUNTING = process.env.MAIL_TO_ACCOUNTING?.trim() || "accounting@iws.world";
+const PAYROLL = process.env.MAIL_TO_PAYROLL?.trim() || "payroll@iws.world";
 
 async function userEmail(userId: string): Promise<{ email: string; name: string } | null> {
   const u = await db.query.users.findFirst({
@@ -33,17 +34,22 @@ async function safeSend(to: string, subject: string, content: EmailContent) {
   }
 }
 
-/** Cardholder: something they submitted was sent back. */
-export async function notifySentBack(userId: string, label: string, reason: string) {
+/** Submitter: something they turned in was sent back. `by` names the team. */
+export async function notifySentBack(
+  userId: string,
+  label: string,
+  reason: string,
+  by: "Accounting" | "Payroll" = "Accounting",
+) {
   const u = await userEmail(userId);
   if (!u) return;
   await safeSend(u.email, `Sent back: ${label}`, {
     accent: "amber",
-    preheader: `Accounting sent ${label} back to you`,
+    preheader: `${by} sent ${label} back to you`,
     heading: "An expense was sent back",
     paragraphs: [
       `Hi ${u.name.split(" ")[0]},`,
-      `Accounting sent this back for a change: ${label}.`,
+      `${by} sent this back for a change: ${label}.`,
     ],
     callout: { label: "Reason", text: reason },
     cta: { label: "Fix and resubmit", url: `${APP_URL}/expenses` },
@@ -66,7 +72,7 @@ export async function notifyApproved(userId: string, label: string) {
   });
 }
 
-/** Accounting: a cardholder submitted new expense(s). */
+/** Accounting: a cardholder submitted new card expense(s). */
 export async function notifyAccountingSubmitted(
   fromName: string,
   description: string,
@@ -78,5 +84,20 @@ export async function notifyAccountingSubmitted(
     heading: "New expenses to reconcile",
     paragraphs: [`${fromName} submitted ${description}, totalling ${money(totalCents)}.`],
     cta: { label: "Open the reconcile queue", url: `${APP_URL}/reconcile` },
+  });
+}
+
+/** Payroll: an employee submitted a reimbursement report (mileage + OOP). */
+export async function notifyPayrollSubmitted(
+  fromName: string,
+  description: string,
+  totalCents: number,
+) {
+  await safeSend(PAYROLL, `Reimbursement submitted — ${fromName}`, {
+    accent: "blue",
+    preheader: `${fromName} submitted ${description}`,
+    heading: "New reimbursement to reconcile",
+    paragraphs: [`${fromName} submitted ${description}, totalling ${money(totalCents)}.`],
+    cta: { label: "Open the payroll reconcile queue", url: `${APP_URL}/payroll/reconcile` },
   });
 }

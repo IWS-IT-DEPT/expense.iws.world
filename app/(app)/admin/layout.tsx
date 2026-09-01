@@ -1,24 +1,25 @@
 import Link from "next/link";
 
-import { isAdmin, requireRole } from "@/lib/current-user";
+import { isAdmin, requireRole, type Role } from "@/lib/current-user";
 
-const tabs = [
-  { href: "/admin", label: "Overview", adminOnly: true },
-  { href: "/admin/users", label: "Users", adminOnly: true },
-  { href: "/admin/entities", label: "Entities", adminOnly: false },
-  { href: "/admin/locations", label: "Locations", adminOnly: false },
-  { href: "/admin/units", label: "Units", adminOnly: false },
-  { href: "/admin/jobs", label: "Jobs", adminOnly: false },
-  { href: "/admin/categories", label: "Categories", adminOnly: false },
-  { href: "/admin/cards", label: "Cards", adminOnly: false },
-  { href: "/admin/mileage", label: "Mileage", adminOnly: true },
-  { href: "/admin/policy", label: "Policy", adminOnly: true },
-  { href: "/admin/errors", label: "Errors", adminOnly: true },
+/** `roles` lists the non-admin roles that also see the tab; admin sees all. */
+const tabs: { href: string; label: string; roles: Role[] }[] = [
+  { href: "/admin", label: "Overview", roles: [] },
+  { href: "/admin/users", label: "Users", roles: [] },
+  { href: "/admin/entities", label: "Entities", roles: ["accounting"] },
+  { href: "/admin/locations", label: "Locations", roles: ["accounting"] },
+  { href: "/admin/units", label: "Units", roles: ["accounting"] },
+  { href: "/admin/jobs", label: "Jobs", roles: ["accounting"] },
+  { href: "/admin/categories", label: "Categories", roles: ["accounting"] },
+  { href: "/admin/cards", label: "Cards", roles: ["accounting"] },
+  { href: "/admin/mileage", label: "Mileage", roles: ["payroll"] },
+  { href: "/admin/policy", label: "Policy", roles: [] },
+  { href: "/admin/errors", label: "Errors", roles: [] },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireRole("admin", "accounting");
-  const visible = isAdmin(user) ? tabs : tabs.filter((t) => !t.adminOnly);
+  const user = await requireRole("admin", "accounting", "payroll");
+  const visible = isAdmin(user) ? tabs : tabs.filter((t) => t.roles.includes(user.role));
 
   return (
     <div className="space-y-6">

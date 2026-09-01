@@ -2,13 +2,12 @@ import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { expenseItems, pendingExpenses } from "@/db/schema";
+import { pendingExpenses } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
 
 import { EntityBadge } from "../../components/entity-badge";
 import { cardLabel } from "../expenses/coding-options";
-import { ItemActions } from "./item-actions";
 import { ReconcileLine } from "./reconcile-line";
 
 type Rec = { id: string; contentType: string };
@@ -49,30 +48,18 @@ export default async function ReconcilePage({
   const newestFirst = sort === "desc";
   const dir = newestFirst ? desc : asc;
 
-  const [lines, items] = await Promise.all([
-    db.query.pendingExpenses.findMany({
-      where: eq(pendingExpenses.status, "submitted"),
-      orderBy: [dir(pendingExpenses.purchaseDate), dir(pendingExpenses.createdAt)],
-      with: {
-        user: { columns: { name: true } },
-        card: true,
-        entity: true,
-        location: true,
-        category: true,
-        receipts: { columns: { id: true, contentType: true } },
-      },
-    }),
-    db.query.expenseItems.findMany({
-      where: eq(expenseItems.status, "submitted"),
-      orderBy: [dir(expenseItems.itemDate)],
-      with: {
-        user: { columns: { name: true } },
-        entity: true,
-        category: true,
-        receipts: { columns: { id: true, contentType: true } },
-      },
-    }),
-  ]);
+  const lines = await db.query.pendingExpenses.findMany({
+    where: eq(pendingExpenses.status, "submitted"),
+    orderBy: [dir(pendingExpenses.purchaseDate), dir(pendingExpenses.createdAt)],
+    with: {
+      user: { columns: { name: true } },
+      card: true,
+      entity: true,
+      location: true,
+      category: true,
+      receipts: { columns: { id: true, contentType: true } },
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -81,7 +68,8 @@ export default async function ReconcilePage({
           <h1 className="text-lg font-semibold">Reconcile</h1>
           <p className="text-sm opacity-70">
             Submitted card charges in statement order. Confirm each against the statement — correcting
-            the posted amount or date if it differs — or send it back.
+            the posted amount or date if it differs — or send it back. Mileage and out-of-pocket
+            reimbursements are handled by payroll.
           </p>
         </div>
         <div className="flex gap-1 text-xs">
@@ -143,41 +131,6 @@ export default async function ReconcilePage({
         </div>
       )}
 
-      {items.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-            Out-of-pocket &amp; mileage ({items.length})
-          </h2>
-          <div className="space-y-1">
-            {items.map((i) => (
-              <div
-                key={i.id}
-                className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-medium">{shortDate(i.itemDate)}</span>
-                  <span>
-                    {i.kind === "mileage" ? `Mileage · ${i.miles ?? "?"} mi` : "Out of pocket"}
-                  </span>
-                  <span>{money(i.amountCents)}</span>
-                  <span className="opacity-70">{i.user.name}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
-                  {i.entity ? <EntityBadge code={i.entity.code} color={i.entity.brandColor} /> : null}
-                  {i.category?.name}
-                  {i.businessPurpose ? ` — ${i.businessPurpose}` : ""}
-                </div>
-                {i.kind !== "mileage" && (
-                  <div className="mt-2">
-                    <ReceiptStrip receipts={i.receipts} />
-                  </div>
-                )}
-                <ItemActions itemId={i.id} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

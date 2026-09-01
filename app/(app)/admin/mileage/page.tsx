@@ -11,7 +11,7 @@ const GRID =
   "grid grid-cols-[10rem_5.5rem_5rem_minmax(8rem,1fr)_9rem] items-center gap-2";
 
 export default async function AdminMileagePage() {
-  await requireRole("admin");
+  await requireRole("admin", "payroll");
   const [rows, usage] = await Promise.all([
     db.query.mileageRates.findMany({ orderBy: [asc(mileageRates.effectiveDate)] }),
     db

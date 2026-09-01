@@ -3,11 +3,13 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { entities, locations } from "@/db/schema";
 import { usedLocationIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { deleteLocation, upsertLocation } from "../actions";
 
 export default async function AdminLocationsPage() {
+  await requireRole("admin", "accounting");
   const [rows, entityRows, used] = await Promise.all([
     db.query.locations.findMany({ orderBy: [asc(locations.name)] }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),

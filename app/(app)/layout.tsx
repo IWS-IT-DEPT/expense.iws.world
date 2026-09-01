@@ -3,13 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth";
-import {
-  canManageSettings,
-  canReview,
-  canSeePayroll,
-  getCurrentUser,
-  isAdmin,
-} from "@/lib/current-user";
+import { canReview, canSeePayroll, canSeeSettings, getCurrentUser, isAdmin } from "@/lib/current-user";
 
 import { AppNav, type Zone } from "./app-nav";
 
@@ -49,9 +43,13 @@ const SETTINGS_ZONE: Zone = {
 const PAYROLL_ZONE: Zone = {
   key: "payroll",
   label: "Payroll",
-  href: "/payroll",
+  href: "/payroll/reconcile",
   matches: ["/payroll"],
-  nav: [{ href: "/payroll", label: "Reimbursements" }],
+  nav: [
+    { href: "/payroll/reconcile", label: "Reconcile" },
+    { href: "/payroll/approvals", label: "Approvals" },
+    { href: "/payroll/reports", label: "Reports" },
+  ],
 };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -61,9 +59,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const zones: Zone[] = [ME_ZONE];
   if (canReview(user)) zones.push(ACCOUNTING_ZONE);
   if (canSeePayroll(user)) zones.push(PAYROLL_ZONE);
-  if (canManageSettings(user)) {
-    // Finance lands on the first tab they can see; the Overview page is IT-only.
-    zones.push(isAdmin(user) ? SETTINGS_ZONE : { ...SETTINGS_ZONE, href: "/admin/entities" });
+  if (canSeeSettings(user)) {
+    // Land on the first Settings tab the role can open (Overview is IT-only).
+    const href = isAdmin(user)
+      ? "/admin"
+      : user.role === "payroll"
+        ? "/admin/mileage"
+        : "/admin/entities";
+    zones.push({ ...SETTINGS_ZONE, href });
   }
 
   return (

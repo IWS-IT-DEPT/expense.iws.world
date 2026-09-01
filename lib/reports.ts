@@ -147,7 +147,7 @@ export async function loadSpend(opts: {
   const cardStatuses: CardStatus[] =
     scope === "approved" ? ["approved"] : ["submitted", "reconciled", "approved"];
   const itemStatuses: ItemStatus[] =
-    scope === "approved" ? ["approved"] : ["submitted", "approved"];
+    scope === "approved" ? ["approved"] : ["submitted", "reconciled", "approved"];
 
   const cardRows =
     only === "reimbursement"

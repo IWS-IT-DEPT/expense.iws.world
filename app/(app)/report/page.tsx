@@ -107,7 +107,7 @@ export default async function WeeklyReportPage() {
         <p className="text-sm opacity-70">
           {shortDate(start)} – {shortDate(end)}. Every expense must be submitted by{" "}
           <strong>end of day Friday</strong>. Card purchases go to accounting as soon as you submit
-          them; reimbursements go together.
+          them; mileage and out-of-pocket go to payroll together as one report.
         </p>
       </div>
 

@@ -9,8 +9,8 @@ import { isAdmin, requireRole } from "@/lib/current-user";
 const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
 export default async function AdminOverviewPage() {
-  const user = await requireRole("admin", "accounting");
-  if (!isAdmin(user)) redirect("/admin/entities");
+  const user = await requireRole("admin", "accounting", "payroll");
+  if (!isAdmin(user)) redirect(user.role === "payroll" ? "/admin/mileage" : "/admin/entities");
 
   const [entityRows, counts] = await Promise.all([
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),

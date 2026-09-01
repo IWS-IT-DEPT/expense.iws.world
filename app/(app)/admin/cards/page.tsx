@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, users } from "@/db/schema";
 import { usedCardIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, SaveButton, Section } from "../_ui";
 import { deleteCard, upsertCard } from "../actions";
@@ -12,6 +13,7 @@ const NETWORKS = ["visa", "mastercard", "amex", "discover", "other"];
 const GRID = "grid grid-cols-[8rem_4.5rem_minmax(8rem,1fr)_11rem_5rem_auto] items-center gap-2";
 
 export default async function AdminCardsPage() {
+  await requireRole("admin", "accounting");
   const [cardRows, userRows, used] = await Promise.all([
     db.query.cards.findMany({ orderBy: [asc(cards.last4)], with: { user: true } }),
     db.query.users.findMany({ orderBy: [asc(users.name)] }),

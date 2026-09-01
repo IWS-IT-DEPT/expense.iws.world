@@ -3,11 +3,13 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { entities, jobs } from "@/db/schema";
 import { usedJobIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { deleteJob, upsertJob } from "../actions";
 
 export default async function AdminJobsPage() {
+  await requireRole("admin", "accounting");
   const [rows, entityRows, used] = await Promise.all([
     db.query.jobs.findMany({ orderBy: [asc(jobs.jobNumber)], with: { entity: true } }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),

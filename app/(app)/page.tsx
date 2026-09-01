@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
 import type { CostingMode } from "@/lib/coding";
-import { canReview, isAdmin, requireUser } from "@/lib/current-user";
+import { canReview, canSeePayroll, isAdmin, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 import { money, weekBounds } from "@/lib/format";
 
@@ -85,14 +85,24 @@ export default async function DashboardPage() {
       )[0]
     : null;
 
-  const reimb = canReview(user)
-    ? (
-        await db
-          .select({
-            toApprove: sql<number>`count(*) filter (where ${expenseReports.status} = 'submitted')`,
-          })
-          .from(expenseReports)
-      )[0]
+  const payroll = canSeePayroll(user)
+    ? {
+        item: (
+          await db
+            .select({
+              toReconcile: sql<number>`count(*) filter (where ${expenseItems.status} = 'submitted')`,
+              sentBack: sql<number>`count(*) filter (where ${expenseItems.status} = 'rejected')`,
+            })
+            .from(expenseItems)
+        )[0],
+        report: (
+          await db
+            .select({
+              toApprove: sql<number>`count(*) filter (where ${expenseReports.status} = 'reconciled')`,
+            })
+            .from(expenseReports)
+        )[0],
+      }
     : null;
 
   return (
@@ -124,25 +134,34 @@ export default async function DashboardPage() {
         </p>
       </section>
 
-      {review && reimb && (
+      {review && (
         <section>
           <h2 className="text-lg font-semibold">Accounting</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <Stat label="Card charges to reconcile" value={Number(review.toReconcile)} href="/reconcile" alert={Number(review.toReconcile) > 0} />
             <Stat label="Reconciled, awaiting approval" value={Number(review.reconciled)} href="/approvals" />
-            <Stat label="Reimbursement reports to approve" value={Number(reimb.toApprove)} href="/approvals" />
             <Stat label="Amount corrections" value={Number(review.corrections)} href="/reconcile" />
             <Stat label="Sent back to cardholders" value={Number(review.sentBack)} href="/reconcile" />
           </div>
         </section>
       )}
 
-      {isApprover && review && reimb && (
+      {payroll && (
+        <section>
+          <h2 className="text-lg font-semibold">Payroll</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Stat label="Reimbursement lines to reconcile" value={Number(payroll.item.toReconcile)} href="/payroll/reconcile" alert={Number(payroll.item.toReconcile) > 0} />
+            <Stat label="Reports awaiting approval" value={Number(payroll.report.toApprove)} href="/payroll/approvals" alert={Number(payroll.report.toApprove) > 0} />
+            <Stat label="Sent back to employees" value={Number(payroll.item.sentBack)} href="/payroll/reconcile" />
+          </div>
+        </section>
+      )}
+
+      {isApprover && review && (
         <section>
           <h2 className="text-lg font-semibold">To approve</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <Stat label="Reconciled card charges" value={Number(review.reconciled)} href="/approvals" alert={Number(review.reconciled) > 0} />
-            <Stat label="Reimbursement reports" value={Number(reimb.toApprove)} href="/approvals" alert={Number(reimb.toApprove) > 0} />
           </div>
         </section>
       )}

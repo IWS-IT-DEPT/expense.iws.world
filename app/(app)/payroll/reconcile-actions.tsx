@@ -2,21 +2,21 @@
 
 import { useState } from "react";
 
-import { approveExpenseItem, rejectExpenseItem } from "./actions";
+import { reconcileItems, sendBackItem } from "./actions";
 
-export function ItemActions({ itemId }: { itemId: string }) {
+export function ItemReconcileActions({ itemId }: { itemId: string }) {
   const [sendingBack, setSendingBack] = useState(false);
 
   return (
     <div className="mt-2 space-y-2">
       <div className="flex flex-wrap gap-2">
-        <form action={approveExpenseItem}>
+        <form action={reconcileItems}>
           <input type="hidden" name="id" value={itemId} />
           <button
             type="submit"
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
           >
-            Approve
+            Confirm
           </button>
         </form>
         <button
@@ -30,7 +30,7 @@ export function ItemActions({ itemId }: { itemId: string }) {
 
       {sendingBack && (
         <form
-          action={rejectExpenseItem}
+          action={sendBackItem}
           className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15"
         >
           <input type="hidden" name="id" value={itemId} />
@@ -44,7 +44,7 @@ export function ItemActions({ itemId }: { itemId: string }) {
             type="submit"
             className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
           >
-            Send back to submitter
+            Send back to employee
           </button>
         </form>
       )}

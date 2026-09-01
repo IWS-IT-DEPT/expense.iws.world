@@ -25,24 +25,31 @@ full picture. Key facts an agent needs:
   (`submitCardExpense`) the moment it's ready — no `reportId`, no weekly batch.
   Guard every cardholder edit on `status in ('draft','rejected')`.
 - **Out-of-pocket + mileage** = `expense_items`, batched weekly into an
-  `expense_reports` row (`submitWeek`), lifecycle `draft → submitted → approved`
-  (no reconcile step — nothing to check against a statement).
+  `expense_reports` row (`submitWeek`), lifecycle
+  `draft → submitted → reconciled → approved` (`+ rejected`). Owned end-to-end by
+  the **`payroll`** team (Entra `HR@iws.world` / `ENTRA_GROUP_HR`), + admin — not
+  accounting. Guard every submitter edit on `status in ('draft','rejected')`.
 - **Coding** columns (entity, location, unit|job, category, purpose) live inline
   on both tables. `entities.costingMode` drives which of unit/job is required.
   Rules in `lib/coding.ts`; the 5 selects are `<CodingFields>`;
   `lib/expense-checks.ts` says whether a line is ready to submit.
 - **`/report` ("This Week")** is a completeness checklist for card purchases +
-  the `submitWeek` batch for reimbursements. **Reconcile** (`/reconcile`) is
-  accounting confirming each submitted card charge vs. the statement (may set
-  `actualAmountCents`/`actualPurchaseDate`), per-charge. **Approve**
-  (`/approvals`) locks reconciled card charges (`approveCardExpenses`, bulk) and
-  submitted reimbursement reports (`approveReport`).
-- **Analytics dashboards** split by team: **`/reports`** (accounting/approver/
-  admin) is *card spend only*; **`/payroll`** (`payroll` role from
-  `ENTRA_GROUP_HR`, + admin) is the mirror for mileage + out-of-pocket
-  `expense_items`. Both are built from `lib/reports.ts` (`loadSpend({ only })`)
-  and share `/api/reports/export` (`?view=card|reimbursement`). Finance does not
-  touch reimbursements.
+  the `submitWeek` batch for reimbursements.
+- **Card queue (accounting/approver/admin):** **Reconcile** (`/reconcile`)
+  confirms each submitted card charge vs. the statement (may set
+  `actualAmountCents`/`actualPurchaseDate`), per-charge; **Approve**
+  (`/approvals`) locks reconciled card charges (`approveCardExpenses`, bulk).
+- **Reimbursement queue (payroll/admin) — mirrors it under `/payroll/*`:**
+  **`/payroll/reconcile`** confirms each `submitted` `expense_item`
+  (`reconcileItems`, per-line + bulk) or sends it back; when a report's lines are
+  all settled it rolls to `reconciled`. **`/payroll/approvals`** approves the
+  `reconciled` report (`approveReport`) — locks it for payment. No amount
+  correction (the employee's entry is the request; disagree → send back).
+- **Analytics dashboards** split the same way: **`/reports`** (accounting/
+  approver/admin) is *card spend only*; **`/payroll/reports`** (payroll/admin) is
+  the mirror for `expense_items`. Both come from `lib/reports.ts`
+  (`loadSpend({ only })`) and share `/api/reports/export`
+  (`?view=card|reimbursement`). Finance does not touch reimbursements.
 - Receipt files go through `lib/receipt-store.ts`; bytes served only via
   `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
 - Reminder emails: `app/api/cron/report-reminders` (hourly, picks a slot in

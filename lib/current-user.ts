@@ -171,12 +171,19 @@ export function canManageSettings(user: CurrentUser): boolean {
 }
 
 /**
- * Who may see the Payroll reimbursement dashboard — the HR / payroll team
- * (`payroll`, from the `HR@iws.world` Entra group) plus `admin`. Finance /
- * accounting does not handle reimbursements.
+ * Who owns reimbursements (mileage + out-of-pocket) end to end — the reconcile
+ * queue, the approvals queue and the reports dashboard under /payroll. The HR /
+ * payroll team (`payroll`, from `HR@iws.world`) plus `admin`. Finance /
+ * accounting does not touch reimbursements.
  */
 export function canSeePayroll(user: CurrentUser): boolean {
   return user.role === "payroll" || user.role === "admin";
+}
+
+/** Anyone with at least one Settings tab: coding tables (accounting) or the
+ *  mileage rate (payroll) or everything (admin). */
+export function canSeeSettings(user: CurrentUser): boolean {
+  return user.role === "admin" || user.role === "accounting" || user.role === "payroll";
 }
 
 export function isAdmin(user: CurrentUser): boolean {

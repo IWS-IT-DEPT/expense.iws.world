@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { entities, units } from "@/db/schema";
 import { usedUnitIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { deleteUnit, upsertUnit } from "../actions";
@@ -10,6 +11,7 @@ import { deleteUnit, upsertUnit } from "../actions";
 const types = ["truck", "tractor", "trailer", "equipment", "other"] as const;
 
 export default async function AdminUnitsPage() {
+  await requireRole("admin", "accounting");
   const [rows, entityRows, used] = await Promise.all([
     db.query.units.findMany({ orderBy: [asc(units.unitNumber)], with: { entity: true } }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),

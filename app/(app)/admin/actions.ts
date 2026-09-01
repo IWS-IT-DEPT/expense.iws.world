@@ -315,7 +315,7 @@ export async function deleteCard(fd: FormData) {
 /* ------------------------------------------------------------------ mileage */
 
 export async function upsertMileageRate(fd: FormData) {
-  await requireRole("admin");
+  await requireRole("admin", "payroll");
   const id = opt(fd, "id");
   const values = {
     effectiveDate: str(fd, "effectiveDate"),
@@ -330,7 +330,7 @@ export async function upsertMileageRate(fd: FormData) {
 
 /** Remove a rate — only when no mileage line references it (kept for the audit). */
 export async function deleteMileageRate(fd: FormData) {
-  await requireRole("admin");
+  await requireRole("admin", "payroll");
   const id = str(fd, "id");
   if (!id) return;
   const [used] = await db

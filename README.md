@@ -74,22 +74,32 @@ batch gate for card charges.
 - **Reconcile** (`/reconcile`, accounting): submitted card charges grouped by
   cardholder + card, each with coding + receipts. Confirm each (recording
   `actualAmountCents` / `actualPurchaseDate` if the statement differs) or send it
-  back. Out-of-pocket receipts show here too (display-only; acted on at approval).
+  back.
 - **Approvals** (`/approvals`, approver/admin): reconciled card charges grouped by
-  cardholder — **approve all** or per-charge send-back — plus submitted
-  reimbursement reports. Books total uses `COALESCE(actualAmountCents, amountCents)`.
+  cardholder — **approve all** or per-charge send-back. Books total uses
+  `COALESCE(actualAmountCents, amountCents)`.
 - **Reports** (`/reports`, accounting/approver/admin): card-spend analytics only —
-  summary, charts, breakdowns, Excel/PDF export. Card charges are accounting's
-  domain; reimbursements are not.
-- **Payroll → Reimbursements** (`/payroll`, payroll/admin): the mirror dashboard
-  for mileage + out-of-pocket `expense_items` — totals, mileage vs out-of-pocket,
-  by employee / entity / category, same Excel/PDF export (`?view=reimbursement`).
+  summary, charts, breakdowns, Excel/PDF export.
+
+The **payroll team** owns mileage + out-of-pocket reimbursements end to end, with
+its own three tabs mirroring accounting's:
+
+- **Payroll → Reconcile** (`/payroll/reconcile`, payroll/admin): submitted
+  `expense_items` grouped by employee — confirm each line (or bulk per employee)
+  against its receipt / trip, or send it back. When a weekly report's lines are
+  all settled it rolls to `reconciled`.
+- **Payroll → Approvals** (`/payroll/approvals`): approve the reconciled report —
+  locks it for payment — or send the whole report back.
+- **Payroll → Reports** (`/payroll/reports`): the reimbursement dashboard —
+  totals, mileage vs out-of-pocket, by employee / entity / category, Excel/PDF
+  export (`/api/reports/export?view=reimbursement`).
 
 Data model: a card purchase is a `pending_expenses` row (name is historical — the
 receipt-upload plumbing keys off it), lifecycle
 `draft → submitted → reconciled → approved`, no `reportId`. Out-of-pocket +
-mileage are `expense_items` on an `expense_reports` batch. Every transition writes
-an `approvals` audit row.
+mileage are `expense_items` on an `expense_reports` batch, same lifecycle
+(`reconciled` = payroll has checked every line). Every transition writes an
+`approvals` audit row.
 
 ### Receipt capture
 
@@ -134,15 +144,15 @@ any Microsoft account can sign in.
 | ---- | ------ | ------ |
 | `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`), approvals and Payroll |
 | `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Units, Jobs, Categories, Cards) |
-| `payroll` | Entra group `HR@iws.world` | `/payroll` — the mileage + out-of-pocket reimbursement dashboard and its export |
+| `payroll` | Entra group `HR@iws.world` | `/payroll/*` — reconcile, approve and report on mileage + out-of-pocket reimbursements; plus **Settings → Mileage** (the IRS rate) |
 | `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
 | `cardholder` | default | own expenses + weekly report + `/cards` |
 
 **Settings** (`/admin`, the tab labelled "Settings") holds the shared coding
-tables. IT sees every tab; finance sees only Entities / Locations / Units / Jobs
-/ Categories / Cards. Users, Mileage, Policy, Errors and the Overview stay
-IT-only. Rows retire with the `active` checkbox; the `Delete` button appears only
-when nothing references the row.
+tables. IT sees every tab; finance sees Entities / Locations / Units / Jobs /
+Categories / Cards; payroll sees only Mileage (the IRS rate). Users, Policy,
+Errors and the Overview stay IT-only. Rows retire with the `active` checkbox; the
+`Delete` button appears only when nothing references the row.
 
 Cardholders self-register their cards at **`/cards`** (network + last 4 +
 nickname) — no approval step. IT and finance can view/edit/add all cards under

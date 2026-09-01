@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { entities } from "@/db/schema";
 import { usedEntityIds } from "@/lib/admin-usage";
+import { requireRole } from "@/lib/current-user";
 
 import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { deleteEntity, upsertEntity } from "../actions";
@@ -10,6 +11,7 @@ import { deleteEntity, upsertEntity } from "../actions";
 const modes = ["none", "unit", "job", "unit_or_job"] as const;
 
 export default async function AdminEntitiesPage() {
+  await requireRole("admin", "accounting");
   const [rows, used] = await Promise.all([
     db.query.entities.findMany({
       orderBy: [asc(entities.code)],
