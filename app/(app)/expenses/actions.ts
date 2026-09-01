@@ -1,13 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { toDataURL } from "qrcode";
 
 import { db } from "@/db";
-import { cards, expenseItems, pendingExpenses, receiptUploadSessions, receipts } from "@/db/schema";
+import {
+  approvals,
+  cards,
+  expenseItems,
+  pendingExpenses,
+  receiptUploadSessions,
+  receipts,
+} from "@/db/schema";
 import { validateCoding, type CostingMode } from "@/lib/coding";
 import { canReview, requireUser } from "@/lib/current-user";
+import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { normalizeMerchant } from "@/lib/merchant";
 import { rateForDate, mileageAmountCents } from "@/lib/mileage";
 import { blobStore } from "@/lib/storage";
@@ -225,6 +233,120 @@ export async function deleteCardExpenseReceipt(fd: FormData): Promise<void> {
   await blobStore.delete(receipt.blobKey);
   await db.delete(receipts).where(eq(receipts.id, receiptId));
   revalidateExpenses();
+}
+
+/**
+ * Submit one finished card purchase straight to accounting — no weekly batch.
+ * Guarded so it only fires on a ready line (the UI only shows the button then).
+ */
+export async function submitCardExpense(fd: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = String(fd.get("id") || "");
+
+  const row = await db.query.pendingExpenses.findFirst({
+    where: eq(pendingExpenses.id, id),
+    with: { entity: true, category: true, receipts: { columns: { id: true } } },
+  });
+  if (!row || row.userId !== user.id) return;
+  if (row.status !== "draft" && row.status !== "rejected") return;
+
+  const policy = await loadPolicy();
+  const checks = checkExpenseLine(
+    {
+      kind: "card",
+      amountCents: row.amountCents,
+      entityId: row.entityId,
+      locationId: row.locationId,
+      categoryId: row.categoryId,
+      businessPurpose: row.businessPurpose,
+      unitId: row.unitId,
+      jobId: row.jobId,
+      cardId: row.cardId,
+      receiptCount: row.receipts.length,
+      costingMode: row.entity?.costingMode as CostingMode | undefined,
+      categoryRequiresJobOrUnit: row.category?.requiresJobOrUnit,
+    },
+    policy,
+  );
+  if (isBlocked(checks)) return;
+
+  await db
+    .update(pendingExpenses)
+    .set({ status: "submitted", submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(pendingExpenses.id, id),
+        inArray(pendingExpenses.status, ["draft", "rejected"]),
+      ),
+    );
+  await db.insert(approvals).values({
+    subjectType: "card_expense",
+    subjectId: id,
+    action: "submit",
+    actorId: user.id,
+  });
+
+  revalidatePath("/expenses");
+  revalidatePath(`/expenses/${id}`);
+  revalidatePath("/reconcile");
+  revalidatePath("/");
+}
+
+/** Submit every ready draft/rejected card purchase for the current user. */
+export async function submitAllReadyCardExpenses(): Promise<void> {
+  const user = await requireUser();
+  const policy = await loadPolicy();
+  const rows = await db.query.pendingExpenses.findMany({
+    where: and(
+      eq(pendingExpenses.userId, user.id),
+      inArray(pendingExpenses.status, ["draft", "rejected"]),
+    ),
+    with: { entity: true, category: true, receipts: { columns: { id: true } } },
+  });
+
+  const readyIds = rows
+    .filter(
+      (r) =>
+        !isBlocked(
+          checkExpenseLine(
+            {
+              kind: "card",
+              amountCents: r.amountCents,
+              entityId: r.entityId,
+              locationId: r.locationId,
+              categoryId: r.categoryId,
+              businessPurpose: r.businessPurpose,
+              unitId: r.unitId,
+              jobId: r.jobId,
+              cardId: r.cardId,
+              receiptCount: r.receipts.length,
+              costingMode: r.entity?.costingMode as CostingMode | undefined,
+              categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
+            },
+            policy,
+          ),
+        ),
+    )
+    .map((r) => r.id);
+  if (readyIds.length === 0) return;
+
+  await db
+    .update(pendingExpenses)
+    .set({ status: "submitted", submittedAt: new Date(), rejectionReason: null, updatedAt: new Date() })
+    .where(inArray(pendingExpenses.id, readyIds));
+  for (const id of readyIds) {
+    await db.insert(approvals).values({
+      subjectType: "card_expense",
+      subjectId: id,
+      action: "submit",
+      actorId: user.id,
+    });
+  }
+
+  revalidatePath("/expenses");
+  revalidatePath("/report");
+  revalidatePath("/reconcile");
+  revalidatePath("/");
 }
 
 /* --------------------------------------------------------- expense items */

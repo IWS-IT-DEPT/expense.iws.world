@@ -136,18 +136,7 @@ async function main() {
       isIntercompany: false,
     });
 
-    // --- a submitted report from last week (awaiting reconcile) ---
-    const lastWeekStart = iso(9);
-    const [report] = await db
-      .insert(expenseReports)
-      .values({
-        userId: u.id,
-        periodStart: lastWeekStart,
-        periodEnd: iso(3),
-        status: "submitted",
-        submittedAt: new Date(),
-      })
-      .returning();
+    // --- card charges submitted individually (awaiting reconcile) ---
     await db.insert(pendingExpenses).values([
       {
         userId: u.id,
@@ -158,7 +147,6 @@ async function main() {
         cardId: card.id,
         status: "submitted",
         submittedAt: new Date(),
-        reportId: report.id,
         createdById: u.id,
         ...coding("PRE", parts),
       },
@@ -171,11 +159,38 @@ async function main() {
         cardId: card.id,
         status: "submitted",
         submittedAt: new Date(),
-        reportId: report.id,
         createdById: u.id,
         ...coding("IWS", meals),
       },
     ]);
+    // --- one already reconciled, awaiting approval ---
+    await db.insert(pendingExpenses).values({
+      userId: u.id,
+      merchant: "Lowe's",
+      merchantNormalized: "LOWES",
+      amountCents: 15512,
+      purchaseDate: iso(8),
+      cardId: card.id,
+      status: "reconciled",
+      submittedAt: new Date(),
+      reconciledAt: new Date(),
+      actualAmountCents: 15512,
+      actualPurchaseDate: iso(8),
+      createdById: u.id,
+      ...coding("PRE", parts),
+    });
+
+    // --- a submitted reimbursement report (OOP + mileage) ---
+    const [report] = await db
+      .insert(expenseReports)
+      .values({
+        userId: u.id,
+        periodStart: iso(9),
+        periodEnd: iso(3),
+        status: "submitted",
+        submittedAt: new Date(),
+      })
+      .returning();
     await db.insert(expenseItems).values({
       userId: u.id,
       kind: "out_of_pocket",

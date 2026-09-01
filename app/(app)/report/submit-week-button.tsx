@@ -35,10 +35,10 @@ export function SubmitWeekButton({
         disabled={disabled || pending || count === 0}
         className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
       >
-        {pending ? "Submitting…" : `Submit week (${count})`}
+        {pending ? "Submitting…" : `Submit ${count} reimbursement${count === 1 ? "" : "s"}`}
       </button>
       {disabled && count > 0 ? (
-        <p className="text-xs opacity-60">Clear the items that need attention first.</p>
+        <p className="text-xs opacity-60">Fix the flagged items first.</p>
       ) : null}
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
     </form>

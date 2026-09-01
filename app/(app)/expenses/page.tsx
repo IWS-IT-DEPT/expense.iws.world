@@ -7,10 +7,10 @@ import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
-import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
+import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 
 import { EntityBadge } from "../../components/entity-badge";
-import { voidCardExpense, voidExpenseItem } from "./actions";
+import { submitCardExpense, voidCardExpense, voidExpenseItem } from "./actions";
 import { cardLabel } from "./coding-options";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -130,6 +130,16 @@ export default async function ExpensesPage() {
               receipts={r.receipts.length}
               checks={checks.map((c) => c.message)}
               editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
+              submitForm={
+                EDITABLE.has(r.status) && !isBlocked(checks) ? (
+                  <form action={submitCardExpense}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">
+                      submit
+                    </button>
+                  </form>
+                ) : null
+              }
               upload={
                 EDITABLE.has(r.status) ? (
                   <ReceiptUploadButton purpose="pending" targetId={r.id} label="Add receipt" compact />
@@ -219,6 +229,7 @@ function Row(props: {
   receipts: number;
   checks: string[];
   editHref?: string;
+  submitForm?: React.ReactNode;
   upload?: React.ReactNode;
   voidForm?: React.ReactNode;
 }) {
@@ -273,6 +284,7 @@ function Row(props: {
           </Link>
         ) : null}
         {props.upload}
+        {props.submitForm}
         {props.voidForm}
       </div>
     </div>

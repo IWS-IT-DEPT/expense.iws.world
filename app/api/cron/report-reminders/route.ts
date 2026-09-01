@@ -43,16 +43,16 @@ function slotForWindow(window: string | null): Slot | null {
 
 const COPY: Record<Slot, { subject: string; lead: string }> = {
   wed_am: {
-    subject: "Your weekly expense report is due Friday",
-    lead: "Heads-up — your weekly expense report is due end of day Friday.",
+    subject: "Expenses due Friday",
+    lead: "Heads-up — all of this week's expenses must be submitted by end of day Friday.",
   },
   fri_am: {
-    subject: "Your weekly expense report is due today",
-    lead: "Your weekly expense report is due today, end of day.",
+    subject: "Expenses due today",
+    lead: "All of this week's expenses must be submitted by end of day today.",
   },
   fri_pm: {
-    subject: "Last call: weekly expense report due end of day",
-    lead: "Last call — your weekly expense report is due by end of day today.",
+    subject: "Last call — expenses due end of day",
+    lead: "Last call — every expense for this week must be submitted by end of day today.",
   },
 };
 
@@ -70,10 +70,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ skipped: "no slot", tz: APP_TZ, dow: dowInTz() });
   }
 
-  const { start } = weekBounds(new Date());
+  const { start, end } = weekBounds(new Date());
   const appUrl = (process.env.APP_URL ?? "").replace(/\/$/, "");
 
-  // active users with ≥1 active card who haven't filed this week's report
+  // active users who still have something unsubmitted (card draft/rejected, or an
+  // out-of-pocket / mileage item not yet on a report) dated this week or earlier
   const recipients = await db
     .select({ id: users.id, name: users.name, email: users.email })
     .from(users)
@@ -81,12 +82,20 @@ export async function GET(req: Request) {
       and(
         eq(users.active, true),
         inArray(users.role, ["cardholder", "approver", "accounting", "admin"]),
-        sql`exists (select 1 from cards c where c.user_id = ${users.id} and c.active = true)`,
-        sql`not exists (
-          select 1 from expense_reports er
-          where er.user_id = ${users.id}
-            and er.period_start = ${start}
-            and er.status in ('submitted','reconciled','approved')
+        sql`(
+          exists (
+            select 1 from pending_expenses pe
+            where pe.user_id = ${users.id}
+              and pe.status in ('draft','rejected')
+              and pe.purchase_date <= ${end}
+          )
+          or exists (
+            select 1 from expense_items ei
+            where ei.user_id = ${users.id}
+              and ei.status in ('draft','rejected')
+              and ei.report_id is null
+              and ei.item_date <= ${end}
+          )
         )`,
       ),
     );
@@ -109,7 +118,7 @@ export async function GET(req: Request) {
 
     const [cardAgg] = await db
       .select({
-        n: sql<number>`count(*) filter (where ${pendingExpenses.status} in ('draft','rejected') and ${pendingExpenses.reportId} is null)`,
+        n: sql<number>`count(*) filter (where ${pendingExpenses.status} in ('draft','rejected'))`,
       })
       .from(pendingExpenses)
       .where(eq(pendingExpenses.userId, u.id));
@@ -126,11 +135,9 @@ export async function GET(req: Request) {
       `Hi ${u.name.split(" ")[0]},`,
       "",
       c.lead,
-      pending > 0
-        ? `You have ${pending} expense${pending === 1 ? "" : "s"} logged that aren't submitted yet.`
-        : `You haven't logged any expenses for this week yet.`,
+      `You have ${pending} expense${pending === 1 ? "" : "s"} not submitted yet.`,
       "",
-      `Review and submit: ${appUrl}/report`,
+      `Finish and submit them: ${appUrl}/report`,
     ].join("\n");
 
     await sendEmail({ to: u.email, subject: c.subject, text });
