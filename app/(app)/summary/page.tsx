@@ -64,6 +64,7 @@ export default async function DashboardPage() {
   const [itemAgg] = await db
     .select({
       unsubmitted: sql<number>`count(*) filter (where ${expenseItems.status} in ('draft','rejected') and ${expenseItems.reportId} is null and ${expenseItems.itemDate} <= ${end})`,
+      rejected: sql<number>`count(*) filter (where ${expenseItems.status} = 'rejected')`,
       submitted: sql<number>`count(*) filter (where ${expenseItems.status} = 'submitted')`,
       weekTotal: sql<number>`coalesce(sum(${expenseItems.amountCents}) filter (where ${expenseItems.status} <> 'rejected' and ${expenseItems.itemDate} between ${start} and ${end}), 0)`,
     })
@@ -71,6 +72,7 @@ export default async function DashboardPage() {
     .where(eq(expenseItems.userId, user.id));
 
   const notSubmitted = Number(cardAgg.draft) + Number(cardAgg.rejected) + Number(itemAgg.unsubmitted);
+  const sentBack = Number(cardAgg.rejected) + Number(itemAgg.rejected);
 
   const review = canReview(user)
     ? (
@@ -120,7 +122,7 @@ export default async function DashboardPage() {
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <Stat label="Drafts to finish" value={Number(cardAgg.draft)} href="/expenses" alert={Number(cardAgg.draft) > 0} />
           <Stat label="Missing a receipt" value={Number(cardAgg.noReceipt)} href="/expenses" alert={Number(cardAgg.noReceipt) > 0} />
-          <Stat label="Sent back to you" value={Number(cardAgg.rejected)} href="/expenses" alert={Number(cardAgg.rejected) > 0} />
+          <Stat label="Sent back to you" value={sentBack} href="/expenses" danger={sentBack > 0} />
           <Stat label="Not submitted (due Friday)" value={notSubmitted} href="/report" alert={notSubmitted > 0} />
           <Stat label="With accounting" value={Number(cardAgg.submitted) + Number(itemAgg.submitted)} href="/report" />
         </div>
@@ -174,20 +176,24 @@ function Stat({
   value,
   href,
   alert,
+  danger,
 }: {
   label: string;
   value: number;
   href: string;
   alert?: boolean;
+  danger?: boolean;
 }) {
+  const tone = danger
+    ? "border-red-500/60 bg-red-500/10"
+    : alert
+      ? "border-amber-500/60 bg-amber-500/5"
+      : "border-black/10 dark:border-white/15";
   return (
-    <Link
-      href={href}
-      className={`rounded-lg border p-4 ${
-        alert ? "border-amber-500/60 bg-amber-500/5" : "border-black/10 dark:border-white/15"
-      }`}
-    >
-      <div className="text-2xl font-semibold">{value}</div>
+    <Link href={href} className={`rounded-lg border p-4 ${tone}`}>
+      <div className={`text-2xl font-semibold ${danger ? "text-red-600 dark:text-red-400" : ""}`}>
+        {value}
+      </div>
       <div className="text-sm opacity-70">{label}</div>
     </Link>
   );

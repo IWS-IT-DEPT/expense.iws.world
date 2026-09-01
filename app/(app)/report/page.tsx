@@ -147,14 +147,26 @@ export default async function WeeklyReportPage() {
               <tbody>
                 {weekCards.map((c) => {
                   const editable = c.status === "draft" || c.status === "rejected";
+                  const rejected = c.status === "rejected";
                   const blocked = editable && isBlocked(cardCheck(c));
                   return (
-                    <tr key={c.id} className="border-t border-black/5 dark:border-white/10">
+                    <tr
+                      key={c.id}
+                      className={`border-t border-black/5 dark:border-white/10 ${
+                        rejected ? "bg-red-500/5" : ""
+                      }`}
+                    >
                       <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
                         {shortDate(c.purchaseDate)}
                       </td>
                       <td
-                        className={`py-1.5 pr-3 ${blocked ? "text-amber-600 dark:text-amber-400" : ""}`}
+                        className={`py-1.5 pr-3 ${
+                          rejected
+                            ? "text-red-600 dark:text-red-400"
+                            : blocked
+                              ? "text-amber-600 dark:text-amber-400"
+                              : ""
+                        }`}
                       >
                         {c.merchant}
                       </td>
@@ -162,7 +174,12 @@ export default async function WeeklyReportPage() {
                         {money(c.amountCents)}
                       </td>
                       <td className="py-1.5 pl-3 text-right">
-                        <div className="flex items-center justify-end gap-2 text-xs opacity-70">
+                        <div className="flex items-center justify-end gap-2 text-xs">
+                          {rejected ? (
+                            <span className="rounded bg-red-500/15 px-1.5 py-0.5 font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                              sent back
+                            </span>
+                          ) : null}
                           {editable && blocked ? (
                             <Link
                               href={`/expenses/${c.id}`}
@@ -178,7 +195,7 @@ export default async function WeeklyReportPage() {
                               </button>
                             </form>
                           ) : (
-                            <span>{STATUS_LABEL[c.status] ?? c.status}</span>
+                            <span className="opacity-70">{STATUS_LABEL[c.status] ?? c.status}</span>
                           )}
                         </div>
                       </td>
@@ -216,15 +233,33 @@ export default async function WeeklyReportPage() {
               <tbody>
                 {[...oop, ...mileage].map((i) => {
                   const blocked = isBlocked(itemCheck(i));
+                  const rejected = i.status === "rejected";
                   return (
-                    <tr key={i.id} className="border-t border-black/5 dark:border-white/10">
+                    <tr
+                      key={i.id}
+                      className={`border-t border-black/5 dark:border-white/10 ${
+                        rejected ? "bg-red-500/5" : ""
+                      }`}
+                    >
                       <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
                         {shortDate(i.itemDate)}
                       </td>
                       <td
-                        className={`py-1.5 pr-3 ${blocked ? "text-amber-600 dark:text-amber-400" : ""}`}
+                        className={`py-1.5 pr-3 ${
+                          rejected
+                            ? "text-red-600 dark:text-red-400"
+                            : blocked
+                              ? "text-amber-600 dark:text-amber-400"
+                              : ""
+                        }`}
                       >
-                        {blocked ? "⚠ " : ""}
+                        {rejected ? (
+                          <span className="mr-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                            sent back
+                          </span>
+                        ) : blocked ? (
+                          "⚠ "
+                        ) : null}
                         {i.kind === "mileage"
                           ? `Mileage · ${i.miles ?? "?"} mi`
                           : "Out of pocket"}

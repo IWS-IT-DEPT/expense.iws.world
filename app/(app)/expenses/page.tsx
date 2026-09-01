@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { expenseItems, pendingExpenses } from "@/db/schema";
+import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
 import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
@@ -44,6 +44,24 @@ export default async function ExpensesPage() {
       with: { entity: true, category: true, receipts: { columns: { id: true } } },
     }),
   ]);
+
+  // Why an item was sent back lives on the `approvals` audit trail, not the row.
+  const rejectedItemIds = itemRows.filter((r) => r.status === "rejected").map((r) => r.id);
+  const itemReason = new Map<string, string>();
+  if (rejectedItemIds.length) {
+    const notes = await db.query.approvals.findMany({
+      where: and(
+        eq(approvals.subjectType, "expense_item"),
+        inArray(approvals.subjectId, rejectedItemIds),
+        inArray(approvals.action, ["request_changes", "reject"]),
+      ),
+      orderBy: [desc(approvals.createdAt)],
+      columns: { subjectId: true, note: true },
+    });
+    for (const n of notes) {
+      if (n.note && !itemReason.has(n.subjectId)) itemReason.set(n.subjectId, n.note);
+    }
+  }
 
   const cards = cardRows
     .filter((r) => r.status !== "cancelled")
@@ -115,6 +133,8 @@ export default async function ExpensesPage() {
               amount={money(r.amountCents)}
               date={r.purchaseDate}
               status={r.status}
+              rejected={r.status === "rejected"}
+              reason={r.rejectionReason ?? undefined}
               sub={
                 <>
                   {r.card ? cardLabel(r.card) : <span className="text-red-600">no card</span>}
@@ -171,6 +191,8 @@ export default async function ExpensesPage() {
               amount={money(r.amountCents)}
               date={r.itemDate}
               status={r.status}
+              rejected={r.status === "rejected"}
+              reason={itemReason.get(r.id)}
               sub={
                 <>
                   {r.entity ? <EntityBadge code={r.entity.code} color={r.entity.brandColor} /> : null}
@@ -225,6 +247,8 @@ function Row(props: {
   amount: string;
   date: string;
   status: string;
+  rejected?: boolean;
+  reason?: string;
   sub: React.ReactNode;
   receipts: number;
   checks: string[];
@@ -234,14 +258,13 @@ function Row(props: {
   voidForm?: React.ReactNode;
 }) {
   const blocked = props.checks.length > 0;
+  const tone = props.rejected
+    ? "border-red-500/60 bg-red-500/10"
+    : blocked
+      ? "border-amber-500/50 bg-amber-500/5"
+      : "border-black/10 dark:border-white/15";
   return (
-    <div
-      className={`rounded-lg border p-3 text-sm ${
-        blocked
-          ? "border-amber-500/50 bg-amber-500/5"
-          : "border-black/10 dark:border-white/15"
-      }`}
-    >
+    <div className={`rounded-lg border p-3 text-sm ${tone}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         {props.editHref ? (
           <Link href={props.editHref} className="font-medium underline decoration-dotted hover:decoration-solid">
@@ -252,11 +275,22 @@ function Row(props: {
         )}
         <span>{props.amount}</span>
         <span className="opacity-60">{shortDate(props.date)}</span>
-        <span className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
+        <span
+          className={`rounded px-1.5 py-0.5 text-xs ${
+            props.rejected
+              ? "bg-red-500/15 font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300"
+              : "bg-black/5 dark:bg-white/10"
+          }`}
+        >
           {STATUS_LABEL[props.status] ?? props.status}
         </span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">{props.sub}</div>
+      {props.rejected && props.reason ? (
+        <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+          Sent back: {props.reason}
+        </p>
+      ) : null}
       {blocked && (
         <ul className="mt-2 space-y-0.5 text-xs text-amber-600 dark:text-amber-400">
           {props.checks.map((c, i) => (
