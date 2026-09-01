@@ -30,19 +30,25 @@ function hash(s: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
-/** Framework control-flow "errors" that aren't real failures. */
-function isControlFlow(message: string, digest?: string | null): boolean {
+/**
+ * Noise we never want in the log: Next.js control-flow "errors", and the
+ * auth guards in `lib/current-user.ts` that fire on every unauthenticated /
+ * unauthorized hit (bots, expired sessions) and are handled by the redirect.
+ */
+function isNoise(message: string, digest?: string | null): boolean {
   const d = digest ?? "";
   return (
     d.startsWith("NEXT_REDIRECT") ||
     d.startsWith("NEXT_HTTP_ERROR_FALLBACK") ||
     message === "NEXT_NOT_FOUND" ||
-    message === "NEXT_REDIRECT"
+    message === "NEXT_REDIRECT" ||
+    message === "Not authenticated" ||
+    message === "Forbidden"
   );
 }
 
 export async function logError(e: LoggedError): Promise<void> {
-  if (isControlFlow(e.message, e.digest)) return;
+  if (isNoise(e.message, e.digest)) return;
   try {
     await db.insert(errorLogs).values({
       fingerprint: hash(`${e.message}\n${e.routePath ?? e.path ?? ""}`),
