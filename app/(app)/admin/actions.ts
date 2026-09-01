@@ -1,13 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   cards,
   categories,
   entities,
+  expenseItems,
   jobs,
   locations,
   mileageRates,
@@ -184,6 +185,20 @@ export async function upsertMileageRate(fd: FormData) {
   };
   if (id) await db.update(mileageRates).set(values).where(eq(mileageRates.id, id));
   else await db.insert(mileageRates).values(values);
+  await done("/admin/mileage");
+}
+
+/** Remove a rate — only when no mileage line references it (kept for the audit). */
+export async function deleteMileageRate(fd: FormData) {
+  await requireRole("admin");
+  const id = str(fd, "id");
+  if (!id) return;
+  const [used] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(expenseItems)
+    .where(eq(expenseItems.mileageRateId, id));
+  if (Number(used.n) > 0) return; // in use — leave it alone
+  await db.delete(mileageRates).where(eq(mileageRates.id, id));
   await done("/admin/mileage");
 }
 
