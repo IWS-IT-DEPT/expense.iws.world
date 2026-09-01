@@ -24,10 +24,11 @@ const ACCOUNTING_ZONE: Zone = {
   key: "accounting",
   label: "Accounting",
   href: "/reconcile",
-  matches: ["/reconcile", "/approvals"],
+  matches: ["/reconcile", "/approvals", "/reports"],
   nav: [
     { href: "/reconcile", label: "Reconcile" },
     { href: "/approvals", label: "Approvals" },
+    { href: "/reports", label: "Reports" },
   ],
 };
 
