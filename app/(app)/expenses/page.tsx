@@ -152,25 +152,28 @@ export default async function ExpensesPage() {
               editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
               submitForm={
                 EDITABLE.has(r.status) && !isBlocked(checks) ? (
-                  <form action={submitCardExpense}>
+                  <form action={submitCardExpense} className="contents">
                     <input type="hidden" name="id" value={r.id} />
-                    <button className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white">
-                      submit
-                    </button>
+                    <button className={rowActionPrimary}>Submit</button>
                   </form>
                 ) : null
               }
               upload={
                 EDITABLE.has(r.status) ? (
-                  <ReceiptUploadButton purpose="pending" targetId={r.id} label="Add receipt" compact />
+                  <ReceiptUploadButton
+                    purpose="pending"
+                    targetId={r.id}
+                    label="Add receipt"
+                    className={rowAction}
+                  />
                 ) : null
               }
               voidForm={
                 r.status === "draft" || r.status === "rejected" ? (
-                  <form action={voidCardExpense}>
+                  <form action={voidCardExpense} className="contents">
                     <input type="hidden" name="id" value={r.id} />
-                    <button className="text-xs underline opacity-50 hover:opacity-100">
-                      {r.status === "draft" ? "delete" : "discard"}
+                    <button className={rowAction}>
+                      {r.status === "draft" ? "Delete" : "Discard"}
                     </button>
                   </form>
                 ) : null
@@ -207,14 +210,19 @@ export default async function ExpensesPage() {
               editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
               upload={
                 EDITABLE.has(r.status) && r.kind !== "mileage" ? (
-                  <ReceiptUploadButton purpose="item" targetId={r.id} label="Add receipt" compact />
+                  <ReceiptUploadButton
+                    purpose="item"
+                    targetId={r.id}
+                    label="Add receipt"
+                    className={rowAction}
+                  />
                 ) : null
               }
               voidForm={
                 r.status === "draft" || r.status === "rejected" ? (
-                  <form action={voidExpenseItem}>
+                  <form action={voidExpenseItem} className="contents">
                     <input type="hidden" name="id" value={r.id} />
-                    <button className="text-xs underline opacity-50 hover:opacity-100">delete</button>
+                    <button className={rowAction}>Delete</button>
                   </form>
                 ) : null
               }
@@ -228,6 +236,13 @@ export default async function ExpensesPage() {
 
 const btn =
   "rounded-md border border-black/15 px-3 py-1.5 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
+
+// Row action controls: full-width, comfortable tap targets on phones; compact
+// inline buttons from `sm:` up.
+const rowAction =
+  "inline-flex min-h-[40px] grow items-center justify-center rounded-md border border-black/15 px-3.5 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10 sm:min-h-0 sm:grow-0 sm:px-2.5 sm:py-1 sm:text-xs";
+const rowActionPrimary =
+  "inline-flex min-h-[40px] grow items-center justify-center rounded-md border border-emerald-600 bg-emerald-600 px-3.5 text-sm font-medium text-white hover:bg-emerald-700 sm:min-h-0 sm:grow-0 sm:px-2.5 sm:py-1 sm:text-xs";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -308,13 +323,13 @@ function Row(props: {
           ))}
         </ul>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-        <span className="opacity-60">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs opacity-60">
           {props.receipts > 0 ? `📎 ${props.receipts}` : "no receipt"}
         </span>
         {props.editHref ? (
-          <Link href={props.editHref} className="underline opacity-70 hover:opacity-100">
-            open / edit
+          <Link href={props.editHref} className={rowAction}>
+            Open / edit
           </Link>
         ) : null}
         {props.upload}

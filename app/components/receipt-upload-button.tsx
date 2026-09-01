@@ -18,12 +18,15 @@ export function ReceiptUploadButton({
   targetId,
   label = "Upload receipt",
   compact = false,
+  className,
   onDone,
 }: {
   purpose: UploadPurpose;
   targetId?: string;
   label?: string;
   compact?: boolean;
+  /** Overrides the built-in trigger styling (compact is ignored when set). */
+  className?: string;
   onDone?: (r: { receiptCount: number; pendingExpenseId?: string | null }) => void;
 }) {
   const router = useRouter();
@@ -94,9 +97,11 @@ export function ReceiptUploadButton({
     }, 3000);
   }
 
-  const triggerClass = compact
-    ? "text-xs underline opacity-70 hover:opacity-100"
-    : "rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
+  const triggerClass =
+    className ??
+    (compact
+      ? "text-xs underline opacity-70 hover:opacity-100"
+      : "rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10");
 
   return (
     <>
