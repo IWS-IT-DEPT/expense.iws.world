@@ -37,6 +37,12 @@ full picture. Key facts an agent needs:
   `actualAmountCents`/`actualPurchaseDate`), per-charge. **Approve**
   (`/approvals`) locks reconciled card charges (`approveCardExpenses`, bulk) and
   submitted reimbursement reports (`approveReport`).
+- **Analytics dashboards** split by team: **`/reports`** (accounting/approver/
+  admin) is *card spend only*; **`/payroll`** (`payroll` role from
+  `ENTRA_GROUP_HR`, + admin) is the mirror for mileage + out-of-pocket
+  `expense_items`. Both are built from `lib/reports.ts` (`loadSpend({ only })`)
+  and share `/api/reports/export` (`?view=card|reimbursement`). Finance does not
+  touch reimbursements.
 - Receipt files go through `lib/receipt-store.ts`; bytes served only via
   `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
 - Reminder emails: `app/api/cron/report-reminders` (hourly, picks a slot in

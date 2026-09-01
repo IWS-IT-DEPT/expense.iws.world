@@ -3,7 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth";
-import { canManageSettings, canReview, getCurrentUser, isAdmin } from "@/lib/current-user";
+import {
+  canManageSettings,
+  canReview,
+  canSeePayroll,
+  getCurrentUser,
+  isAdmin,
+} from "@/lib/current-user";
 
 import { AppNav, type Zone } from "./app-nav";
 
@@ -40,12 +46,21 @@ const SETTINGS_ZONE: Zone = {
   nav: [], // admin/layout.tsx renders its own tab bar
 };
 
+const PAYROLL_ZONE: Zone = {
+  key: "payroll",
+  label: "Payroll",
+  href: "/payroll",
+  matches: ["/payroll"],
+  nav: [{ href: "/payroll", label: "Reimbursements" }],
+};
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
 
   const zones: Zone[] = [ME_ZONE];
   if (canReview(user)) zones.push(ACCOUNTING_ZONE);
+  if (canSeePayroll(user)) zones.push(PAYROLL_ZONE);
   if (canManageSettings(user)) {
     // Finance lands on the first tab they can see; the Overview page is IT-only.
     zones.push(isAdmin(user) ? SETTINGS_ZONE : { ...SETTINGS_ZONE, href: "/admin/entities" });

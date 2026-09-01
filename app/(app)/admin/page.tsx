@@ -37,7 +37,8 @@ export default async function AdminOverviewPage() {
           {groupSyncOn ? (
             <>
               Role sync is <strong>ON</strong>. <code>IT@iws.world</code> → admin,{" "}
-              <code>IWS-Finance@iws.world</code> → accounting, applied on every login.
+              <code>IWS-Finance@iws.world</code> → accounting, <code>HR@iws.world</code> → payroll,
+              applied on every login.
             </>
           ) : (
             <>

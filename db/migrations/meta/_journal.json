@@ -57,6 +57,13 @@
       "when": 1788228521408,
       "tag": "0007_add_error_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788279593992,
+      "tag": "0008_gifted_hairball",
+      "breakpoints": true
     }
   ]
 }

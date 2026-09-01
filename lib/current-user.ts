@@ -12,6 +12,8 @@ export type CurrentUser = typeof users.$inferSelect;
 
 const GROUP_IT = process.env.ENTRA_GROUP_IT?.trim();
 const GROUP_FINANCE = process.env.ENTRA_GROUP_FINANCE?.trim();
+/** HR / payroll team — handles mileage + out-of-pocket reimbursements. */
+const GROUP_PAYROLL = process.env.ENTRA_GROUP_HR?.trim();
 const GROUP_SYNC_ENABLED = !!(GROUP_IT && GROUP_FINANCE);
 
 const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
@@ -19,13 +21,14 @@ const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
-/** admin/accounting come from Entra groups; approver/cardholder are set manually. */
-const GROUP_DRIVEN: Role[] = ["admin", "accounting"];
+/** admin/accounting/payroll come from Entra groups; approver/cardholder are set manually. */
+const GROUP_DRIVEN: Role[] = ["admin", "accounting", "payroll"];
 
 /** Map Entra group membership to a role. Highest privilege wins. */
 export function roleFromGroups(groupIds: string[]): Role | null {
   if (GROUP_IT && groupIds.includes(GROUP_IT)) return "admin";
   if (GROUP_FINANCE && groupIds.includes(GROUP_FINANCE)) return "accounting";
+  if (GROUP_PAYROLL && groupIds.includes(GROUP_PAYROLL)) return "payroll";
   return null;
 }
 
@@ -135,7 +138,7 @@ export const getIdentityDiagnostics = cache(async () => {
     resolvedRole: resolution.role,
     graphConfigured,
     groupSyncEnabled: GROUP_SYNC_ENABLED,
-    configuredGroups: { it: GROUP_IT, finance: GROUP_FINANCE },
+    configuredGroups: { it: GROUP_IT, finance: GROUP_FINANCE, hr: GROUP_PAYROLL },
   };
 });
 
@@ -165,6 +168,15 @@ export function canReview(user: CurrentUser): boolean {
  */
 export function canManageSettings(user: CurrentUser): boolean {
   return user.role === "admin" || user.role === "accounting";
+}
+
+/**
+ * Who may see the Payroll reimbursement dashboard — the HR / payroll team
+ * (`payroll`, from the `HR@iws.world` Entra group) plus `admin`. Finance /
+ * accounting does not handle reimbursements.
+ */
+export function canSeePayroll(user: CurrentUser): boolean {
+  return user.role === "payroll" || user.role === "admin";
 }
 
 export function isAdmin(user: CurrentUser): boolean {

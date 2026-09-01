@@ -28,7 +28,7 @@ export default async function AdminUsersPage() {
         <p className="text-xs opacity-60">
           Users are also created automatically on first sign-in.
           {groupSyncOn
-            ? " Role is synced from Entra groups (IT → admin, IWS-Finance → accounting) on every login — set it here only for approver/cardholder."
+            ? " Role is synced from Entra groups (IT → admin, IWS-Finance → accounting, HR → payroll) on every login — set it here only for approver/cardholder."
             : " Entra group role sync is OFF (ENTRA_GROUP_* not set) — roles set here are authoritative."}
         </p>
       </Section>

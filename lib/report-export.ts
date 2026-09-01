@@ -13,10 +13,11 @@ import {
   type Period,
   type SpendLine,
   type SpendScope,
+  type SpendView,
   type Summary,
 } from "@/lib/reports";
 
-const SHEETS: DatasetKind[] = [
+const CARD_SHEETS: DatasetKind[] = [
   "summary",
   "transactions",
   "entity",
@@ -24,6 +25,8 @@ const SHEETS: DatasetKind[] = [
   "cardholder",
   "merchant",
 ];
+// Reimbursements never have a merchant — drop that sheet for the payroll view.
+const REIMBURSEMENT_SHEETS: DatasetKind[] = CARD_SHEETS.filter((s) => s !== "merchant");
 
 /* --------------------------------------------------------------- xlsx ------ */
 
@@ -31,13 +34,14 @@ export async function buildWorkbook(
   lines: SpendLine[],
   summary: Summary,
   period: Period,
+  view: SpendView = "card",
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "IWS Expense";
   wb.created = new Date();
 
-  for (const kind of SHEETS) {
-    const ds = buildDataset(kind, lines, summary, period);
+  for (const kind of view === "reimbursement" ? REIMBURSEMENT_SHEETS : CARD_SHEETS) {
+    const ds = buildDataset(kind, lines, summary, period, view);
     const ws = wb.addWorksheet(ds.name);
     ws.addRow(ds.columns);
     ws.getRow(1).font = { bold: true };
@@ -83,7 +87,10 @@ export async function buildPdf(
   summary: Summary,
   period: Period,
   scope: SpendScope,
+  view: SpendView = "card",
 ): Promise<ArrayBuffer> {
+  const reimb = view === "reimbursement";
+  const personLabel = reimb ? "Employee" : "Cardholder";
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -113,7 +120,10 @@ export async function buildPdf(
     return false;
   };
 
-  write("IWS Expense - Spend Report", MARGIN, { size: 16, bold: true });
+  write(reimb ? "IWS Expense - Reimbursement Report" : "IWS Expense - Spend Report", MARGIN, {
+    size: 16,
+    bold: true,
+  });
   y -= 20;
   write(`${period.label}  -  ${scope === "approved" ? "Approved only" : "All submitted"}`, MARGIN, {
     size: 10,
@@ -126,20 +136,27 @@ export async function buildPdf(
   });
   y -= 26;
 
-  const sumRows: [string, string][] = [
-    ["Total spend", money(summary.total)],
-    ["Card spend", money(summary.card)],
-    ["Reimbursements", money(summary.reimbursement)],
-    ["Mileage", `${money(summary.mileageDollars)}  (${summary.miles.toLocaleString()} mi)`],
-    ["Transactions", String(summary.txnCount)],
-    ["Average transaction", money(summary.avg)],
-    [
-      "vs previous period",
-      summary.deltaPct == null
-        ? "n/a"
-        : `${summary.deltaPct >= 0 ? "+" : ""}${summary.deltaPct.toFixed(1)}%`,
-    ],
+  const deltaRow: [string, string] = [
+    "vs previous period",
+    summary.deltaPct == null
+      ? "n/a"
+      : `${summary.deltaPct >= 0 ? "+" : ""}${summary.deltaPct.toFixed(1)}%`,
   ];
+  const sumRows: [string, string][] = reimb
+    ? [
+        ["Total reimbursements", money(summary.reimbursement)],
+        ["Out of pocket", money(summary.reimbursement - summary.mileageDollars)],
+        ["Mileage", `${money(summary.mileageDollars)}  (${summary.miles.toLocaleString()} mi)`],
+        ["Line items", String(summary.txnCount)],
+        ["Average item", money(summary.avg)],
+        deltaRow,
+      ]
+    : [
+        ["Card spend", money(summary.card)],
+        ["Transactions", String(summary.txnCount)],
+        ["Average transaction", money(summary.avg)],
+        deltaRow,
+      ];
   for (const [k, v] of sumRows) {
     write(k, MARGIN, { color: rgb(0.4, 0.4, 0.4) });
     write(v, MARGIN + 170, { bold: true });
@@ -173,9 +190,9 @@ export async function buildPdf(
     y -= 14;
   }
 
-  const ds = buildDataset("transactions", lines, summary, period);
-  const pick = [0, 4, 5, 6, 3, 9]; // Date, Cardholder, Entity, Category, Merchant/trip, Entered
-  const heads = ["Date", "Cardholder", "Entity", "Category", "Merchant / trip", "Amount"];
+  const ds = buildDataset("transactions", lines, summary, period, view);
+  const pick = [0, 4, 5, 6, 3, 9]; // Date, person, Entity, Category, Merchant/trip, Entered
+  const heads = ["Date", personLabel, "Entity", "Category", "Merchant / trip", "Amount"];
   const colX = [MARGIN, MARGIN + 66, MARGIN + 168, MARGIN + 206, MARGIN + 298, PAGE_W - MARGIN - 52];
   const colW = [62, 96, 34, 88, 150, 52];
 

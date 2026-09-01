@@ -45,7 +45,13 @@ export const cardNetwork = pgEnum("card_network", [
   "other",
 ]);
 export const importProfile = pgEnum("import_profile", ["capital_one", "amex", "teller"]);
-export const userRole = pgEnum("user_role", ["cardholder", "accounting", "approver", "admin"]);
+export const userRole = pgEnum("user_role", [
+  "cardholder",
+  "accounting",
+  "approver",
+  "admin",
+  "payroll",
+]);
 export const unitType = pgEnum("unit_type", ["truck", "tractor", "trailer", "equipment", "other"]);
 export const jobStatus = pgEnum("job_status", ["open", "closed"]);
 /** Which extra coding dimension an entity requires on every allocation. */

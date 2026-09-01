@@ -139,32 +139,41 @@ export async function loadSpend(opts: {
   start: string;
   end: string;
   scope: SpendScope;
+  /** Restrict to one spend stream. Card = `pending_expenses`, reimbursement =
+   *  `expense_items` (out-of-pocket + mileage). Omit for both. */
+  only?: "card" | "reimbursement";
 }): Promise<SpendLine[]> {
-  const { start, end, scope } = opts;
+  const { start, end, scope, only } = opts;
   const cardStatuses: CardStatus[] =
     scope === "approved" ? ["approved"] : ["submitted", "reconciled", "approved"];
   const itemStatuses: ItemStatus[] =
     scope === "approved" ? ["approved"] : ["submitted", "approved"];
 
-  const cardRows = await db.query.pendingExpenses.findMany({
-    where: inArray(pendingExpenses.status, cardStatuses),
-    with: {
-      user: { columns: { id: true, name: true } },
-      entity: { columns: { code: true, brandColor: true } },
-      category: { columns: { name: true } },
-      location: { columns: { name: true } },
-    },
-  });
+  const cardRows =
+    only === "reimbursement"
+      ? []
+      : await db.query.pendingExpenses.findMany({
+          where: inArray(pendingExpenses.status, cardStatuses),
+          with: {
+            user: { columns: { id: true, name: true } },
+            entity: { columns: { code: true, brandColor: true } },
+            category: { columns: { name: true } },
+            location: { columns: { name: true } },
+          },
+        });
 
-  const itemRows = await db.query.expenseItems.findMany({
-    where: inArray(expenseItems.status, itemStatuses),
-    with: {
-      user: { columns: { id: true, name: true } },
-      entity: { columns: { code: true, brandColor: true } },
-      category: { columns: { name: true } },
-      location: { columns: { name: true } },
-    },
-  });
+  const itemRows =
+    only === "card"
+      ? []
+      : await db.query.expenseItems.findMany({
+          where: inArray(expenseItems.status, itemStatuses),
+          with: {
+            user: { columns: { id: true, name: true } },
+            entity: { columns: { code: true, brandColor: true } },
+            category: { columns: { name: true } },
+            location: { columns: { name: true } },
+          },
+        });
 
   const lines: SpendLine[] = [];
 
@@ -336,6 +345,9 @@ export type DatasetKind =
   | "cardholder"
   | "merchant";
 
+/** Card-spend view (accounting) vs reimbursement view (payroll). */
+export type SpendView = "card" | "reimbursement";
+
 export interface Dataset {
   /** sheet / section name */
   name: string;
@@ -352,13 +364,15 @@ export function buildDataset(
   lines: SpendLine[],
   summary: Summary,
   period: Period,
+  view: SpendView = "card",
 ): Dataset {
+  const personLabel = view === "reimbursement" ? "Employee" : "Cardholder";
   switch (kind) {
     case "transactions":
       return {
         name: "Transactions",
         columns: [
-          "Date", "Source", "Type", "Merchant / trip", "Cardholder", "Entity",
+          "Date", "Source", "Type", "Merchant / trip", personLabel, "Entity",
           "Category", "Location", "Business purpose", "Entered", "Posted", "Miles", "Status",
         ],
         moneyColumns: [9, 10],
@@ -382,28 +396,34 @@ export function buildDataset(
     case "summary": {
       const usd = (cents: number) =>
         `$${dollars(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      return {
-        name: "Summary",
-        columns: ["Metric", "Value"],
-        moneyColumns: [],
-        rows: [
-          ["Period", period.label],
-          ["Total spend", usd(summary.total)],
-          ["Card spend", usd(summary.card)],
-          ["Reimbursements", usd(summary.reimbursement)],
-          ["Mileage", usd(summary.mileageDollars)],
-          ["Miles driven", summary.miles.toLocaleString("en-US")],
-          ["Transactions", String(summary.txnCount)],
-          ["Average transaction", usd(summary.avg)],
-          ["Previous period total", usd(summary.prevTotal)],
-          [
-            "Change vs previous",
-            summary.deltaPct == null
-              ? "n/a"
-              : `${summary.deltaPct >= 0 ? "+" : ""}${summary.deltaPct.toFixed(1)}%`,
-          ],
-        ],
-      };
+      const delta: [string, string] = [
+        "Change vs previous",
+        summary.deltaPct == null
+          ? "n/a"
+          : `${summary.deltaPct >= 0 ? "+" : ""}${summary.deltaPct.toFixed(1)}%`,
+      ];
+      const rows: (string | number)[][] =
+        view === "reimbursement"
+          ? [
+              ["Period", period.label],
+              ["Total reimbursements", usd(summary.reimbursement)],
+              ["Out of pocket", usd(summary.reimbursement - summary.mileageDollars)],
+              ["Mileage", usd(summary.mileageDollars)],
+              ["Miles driven", summary.miles.toLocaleString("en-US")],
+              ["Line items", String(summary.txnCount)],
+              ["Average item", usd(summary.avg)],
+              ["Previous period total", usd(summary.prevTotal)],
+              delta,
+            ]
+          : [
+              ["Period", period.label],
+              ["Card spend", usd(summary.card)],
+              ["Transactions", String(summary.txnCount)],
+              ["Average transaction", usd(summary.avg)],
+              ["Previous period total", usd(summary.prevTotal)],
+              delta,
+            ];
+      return { name: "Summary", columns: ["Metric", "Value"], moneyColumns: [], rows };
     }
 
     case "entity":
@@ -423,7 +443,7 @@ export function buildDataset(
                 );
       const grand = groups.reduce((s, g) => s + g.total, 0);
       const heading =
-        kind === "entity" ? "Entity" : kind === "category" ? "Category" : kind === "cardholder" ? "Cardholder" : "Merchant";
+        kind === "entity" ? "Entity" : kind === "category" ? "Category" : kind === "cardholder" ? personLabel : "Merchant";
       return {
         name: `By ${heading.toLowerCase()}`,
         columns: [heading, "Transactions", "Total", "% of period"],
@@ -439,7 +459,8 @@ export function buildDataset(
   }
 }
 
-export function exportFilename(period: Period, ext: string): string {
+export function exportFilename(period: Period, ext: string, view: SpendView = "card"): string {
   const slug = period.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return `iws-expense-${slug}.${ext}`;
+  const stem = view === "reimbursement" ? "reimbursements" : "expense";
+  return `iws-${stem}-${slug}.${ext}`;
 }

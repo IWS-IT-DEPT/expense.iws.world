@@ -78,6 +78,12 @@ batch gate for card charges.
 - **Approvals** (`/approvals`, approver/admin): reconciled card charges grouped by
   cardholder — **approve all** or per-charge send-back — plus submitted
   reimbursement reports. Books total uses `COALESCE(actualAmountCents, amountCents)`.
+- **Reports** (`/reports`, accounting/approver/admin): card-spend analytics only —
+  summary, charts, breakdowns, Excel/PDF export. Card charges are accounting's
+  domain; reimbursements are not.
+- **Payroll → Reimbursements** (`/payroll`, payroll/admin): the mirror dashboard
+  for mileage + out-of-pocket `expense_items` — totals, mileage vs out-of-pocket,
+  by employee / entity / category, same Excel/PDF export (`?view=reimbursement`).
 
 Data model: a card purchase is a `pending_expenses` row (name is historical — the
 receipt-upload plumbing keys off it), lifecycle
@@ -126,8 +132,9 @@ any Microsoft account can sign in.
 
 | Role | Source | Access |
 | ---- | ------ | ------ |
-| `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`) and approvals |
-| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/approvals`, `/reports`, and the shared **Settings** tabs (Entities, Locations, Units, Jobs, Categories, Cards) |
+| `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`), approvals and Payroll |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Units, Jobs, Categories, Cards) |
+| `payroll` | Entra group `HR@iws.world` | `/payroll` — the mileage + out-of-pocket reimbursement dashboard and its export |
 | `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
 | `cardholder` | default | own expenses + weekly report + `/cards` |
 
@@ -142,10 +149,12 @@ nickname) — no approval step. IT and finance can view/edit/add all cards under
 **Settings → Cards**.
 
 Role sync runs on **every request** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
-are set. Membership is read from the token's `groups` claim, falling back to
-**app-only Microsoft Graph** (`GroupMember.Read.All` application permission +
-admin consent) when the claim is missing or overflowed. `BOOTSTRAP_ADMIN_EMAILS`
-is a break-glass list that's always `admin`.
+are set; `ENTRA_GROUP_HR` is optional and maps that group to `payroll`. Highest
+privilege wins (admin → accounting → payroll). Membership is read from the
+token's `groups` claim, falling back to **app-only Microsoft Graph**
+(`GroupMember.Read.All` application permission + admin consent) when the claim is
+missing or overflowed. `BOOTSTRAP_ADMIN_EMAILS` is a break-glass list that's
+always `admin`.
 
 Visit **`/account`** to see your resolved role, groups, and which path produced
 them — the place to debug "I don't see the admin toggle".

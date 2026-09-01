@@ -13,7 +13,7 @@ import {
   type SpendScope,
 } from "@/lib/reports";
 
-import { BarsH, BreakdownTable, Card, Panel, TimeBars } from "./charts";
+import { BarsH, BreakdownTable, Card, Panel, SplitBar, TimeBars } from "../reports/charts";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +23,15 @@ function href(range: RangeKind, start: string | null, scope: SpendScope): string
   const sp = new URLSearchParams({ range });
   if (start) sp.set("start", start);
   if (scope === "approved") sp.set("scope", "approved");
-  return `/reports?${sp.toString()}`;
+  return `/payroll?${sp.toString()}`;
 }
 
-export default async function ReportsPage({
+export default async function PayrollPage({
   searchParams,
 }: {
   searchParams: Promise<{ range?: string; start?: string; scope?: string }>;
 }) {
-  await requireRole("accounting", "approver", "admin");
+  await requireRole("payroll", "admin");
   const sp = await searchParams;
 
   const range: RangeKind = RANGES.includes(sp.range as RangeKind) ? (sp.range as RangeKind) : "month";
@@ -39,14 +39,27 @@ export default async function ReportsPage({
   const period = resolvePeriod(range, sp.start);
   const prev = resolvePeriod(range, period.prevStart);
 
-  // Reimbursements (mileage + out-of-pocket) are the payroll team's domain — see
-  // the Payroll tab. Accounting's Reports covers card spend only.
-  const lines = await loadSpend({ start: period.start, end: period.end, scope, only: "card" });
-  const prevLines = await loadSpend({ start: prev.start, end: prev.end, scope, only: "card" });
+  const lines = await loadSpend({
+    start: period.start,
+    end: period.end,
+    scope,
+    only: "reimbursement",
+  });
+  const prevLines = await loadSpend({
+    start: prev.start,
+    end: prev.end,
+    scope,
+    only: "reimbursement",
+  });
 
   const summary = summarize(lines, prevLines);
   const buckets = timeBuckets(period, lines);
 
+  const mileage = lines.filter((l) => l.kind === "mileage");
+  const oop = lines.filter((l) => l.kind === "out_of_pocket");
+  const oopDollars = oop.reduce((s, l) => s + l.amountCents, 0);
+
+  const byEmployee = groupTotals(lines, (l) => ({ key: l.userId, label: l.userName }));
   const byEntity = groupTotals(lines, (l) => ({
     key: l.entityCode ?? "—",
     label: l.entityCode ?? "Unassigned",
@@ -56,13 +69,8 @@ export default async function ReportsPage({
     key: l.categoryName ?? "—",
     label: l.categoryName ?? "Uncategorized",
   }));
-  const byCardholder = groupTotals(lines, (l) => ({ key: l.userId, label: l.userName }));
-  const byMerchant = groupTotals(
-    lines.filter((l) => l.source === "card"),
-    (l) => ({ key: l.merchant ?? "—", label: l.merchant ?? "—" }),
-  );
 
-  const exportQs = new URLSearchParams({ range, start: period.start });
+  const exportQs = new URLSearchParams({ view: "reimbursement", range, start: period.start });
   if (scope === "approved") exportQs.set("scope", "approved");
 
   const delta =
@@ -74,7 +82,7 @@ export default async function ReportsPage({
     <div className="space-y-6">
       {/* controls */}
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Reports</h1>
+        <h1 className="text-lg font-semibold">Reimbursements</h1>
 
         <div className="flex rounded-md border border-black/15 p-0.5 text-xs dark:border-white/20">
           {RANGES.map((r) => (
@@ -156,46 +164,68 @@ export default async function ReportsPage({
       </div>
 
       <p className="text-xs opacity-60">
-        Counting {scope === "approved" ? "approved" : "submitted, reconciled and approved"} card
-        charges dated within {period.label}, using accounting&apos;s corrected figure where one was
-        entered. Mileage and out-of-pocket reimbursements live on the Payroll tab.
+        Mileage and out-of-pocket reimbursements with an item date in {period.label}, counting{" "}
+        {scope === "approved" ? "approved" : "submitted and approved"} items. Card purchases are on
+        the Accounting → Reports tab.
       </p>
 
       {/* summary */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card label="Card spend" value={money(summary.card)} hint={delta} />
-        <Card label="Transactions" value={String(summary.txnCount)} />
-        <Card label="Avg transaction" value={money(summary.avg)} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Card label="Total reimbursements" value={money(summary.reimbursement)} hint={delta} />
+        <Card label="Out of pocket" value={money(oopDollars)} hint={`${oop.length} items`} />
+        <Card
+          label="Mileage"
+          value={money(summary.mileageDollars)}
+          hint={`${summary.miles.toLocaleString()} mi · ${mileage.length} trips`}
+        />
+        <Card label="Line items" value={String(summary.txnCount)} />
+        <Card label="Avg item" value={money(summary.avg)} />
       </div>
 
       {/* charts */}
-      <Panel title={`Spend over time — ${period.label}`}>
+      <Panel title={`Reimbursements over time — ${period.label}`}>
         <TimeBars data={buckets} />
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Mileage vs out of pocket">
+          <SplitBar
+            aLabel="Mileage"
+            aValue={summary.mileageDollars}
+            bLabel="Out of pocket"
+            bValue={oopDollars}
+          />
+        </Panel>
         <Panel title="By entity">
-          <BarsH data={byEntity.map((g) => ({ label: g.label, value: g.total, color: g.color, sub: `${g.count}` }))} />
+          <BarsH
+            data={byEntity.map((g) => ({
+              label: g.label,
+              value: g.total,
+              color: g.color,
+              sub: `${g.count}`,
+            }))}
+            empty="No reimbursements in this period."
+          />
+        </Panel>
+        <Panel title="By employee (top 10)">
+          <BarsH
+            data={byEmployee.slice(0, 10).map((g) => ({ label: g.label, value: g.total }))}
+            empty="No reimbursements in this period."
+          />
         </Panel>
         <Panel title="By category (top 10)">
-          <BarsH data={byCategory.slice(0, 10).map((g) => ({ label: g.label, value: g.total }))} />
-        </Panel>
-        <Panel title="By cardholder (top 10)">
-          <BarsH data={byCardholder.slice(0, 10).map((g) => ({ label: g.label, value: g.total }))} />
-        </Panel>
-        <Panel title="Top merchants (card, top 10)">
           <BarsH
-            data={byMerchant.slice(0, 10).map((g) => ({ label: g.label, value: g.total }))}
-            empty="No card spend in this period."
+            data={byCategory.slice(0, 10).map((g) => ({ label: g.label, value: g.total }))}
+            empty="No reimbursements in this period."
           />
         </Panel>
       </div>
 
       {/* breakdown tables */}
       <div className="grid gap-4 lg:grid-cols-3">
+        <BreakdownTable heading="By employee" label="Employee" groups={byEmployee} />
         <BreakdownTable heading="By entity" label="Entity" groups={byEntity} />
         <BreakdownTable heading="By category" label="Category" groups={byCategory} />
-        <BreakdownTable heading="By cardholder" label="Cardholder" groups={byCardholder} />
       </div>
     </div>
   );

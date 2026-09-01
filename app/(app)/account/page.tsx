@@ -58,6 +58,12 @@ export default async function AccountPage() {
               — {matches(diag.configuredGroups.finance)}
             </dd>
 
+            <dt className="opacity-60">HR / payroll group</dt>
+            <dd>
+              <span className="font-mono text-xs">{diag.configuredGroups.hr ?? "not set"}</span> —{" "}
+              {matches(diag.configuredGroups.hr)}
+            </dd>
+
             <dt className="opacity-60">Graph fallback</dt>
             <dd>{diag.graphConfigured ? "configured" : "not configured"}</dd>
           </dl>
