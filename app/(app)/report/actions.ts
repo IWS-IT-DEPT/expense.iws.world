@@ -109,6 +109,6 @@ export async function submitWeek(_prev: SubmitState, fd: FormData): Promise<Subm
   revalidatePath("/report");
   revalidatePath("/expenses");
   revalidatePath("/payroll/reconcile");
-  revalidatePath("/");
+  revalidatePath("/summary");
   return { ok: true };
 }

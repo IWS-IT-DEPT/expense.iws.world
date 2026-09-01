@@ -14,7 +14,7 @@ function revalidate() {
   revalidatePath("/payroll/approvals");
   revalidatePath("/payroll/reports");
   revalidatePath("/expenses");
-  revalidatePath("/");
+  revalidatePath("/summary");
 }
 
 const itemLabel = (kind: string, cents: number) =>

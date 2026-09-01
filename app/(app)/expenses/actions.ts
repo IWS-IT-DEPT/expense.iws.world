@@ -35,7 +35,7 @@ const EDITABLE = ["draft", "rejected"] as const;
 function revalidateExpenses(extra?: string) {
   revalidatePath("/expenses");
   revalidatePath("/report");
-  revalidatePath("/");
+  revalidatePath("/summary");
   if (extra) revalidatePath(extra);
 }
 
@@ -291,7 +291,7 @@ export async function submitCardExpense(fd: FormData): Promise<void> {
   revalidatePath("/expenses");
   revalidatePath(`/expenses/${id}`);
   revalidatePath("/reconcile");
-  revalidatePath("/");
+  revalidatePath("/summary");
 }
 
 /** Submit every ready draft/rejected card purchase for the current user. */
@@ -357,7 +357,7 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
   revalidatePath("/expenses");
   revalidatePath("/report");
   revalidatePath("/reconcile");
-  revalidatePath("/");
+  revalidatePath("/summary");
 }
 
 /* --------------------------------------------------------- expense items */

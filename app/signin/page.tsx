@@ -22,7 +22,7 @@ export default function SignInPage() {
           className="mt-6"
           action={async () => {
             "use server";
-            await signIn("microsoft-entra-id", { redirectTo: "/" });
+            await signIn("microsoft-entra-id", { redirectTo: "/expenses" });
           }}
         >
           <button

@@ -13,7 +13,7 @@ function revalidate() {
   revalidatePath("/approvals");
   revalidatePath("/reconcile");
   revalidatePath("/expenses");
-  revalidatePath("/");
+  revalidatePath("/summary");
 }
 
 /* ------------------------------------------------- reconciled card charges */

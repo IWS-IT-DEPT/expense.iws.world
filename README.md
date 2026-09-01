@@ -275,13 +275,15 @@ app/
   r/[token]/       public phone upload page (token-auth, no login)
   components/      modal, coding-fields, receipt-scanner, receipt-upload-button
   (app)/           authed shell
-    page.tsx           dashboard (cardholder / accounting / approver tiles)
+    page.tsx           redirect → /expenses (the post-login landing tab)
     expenses/          unified list + Log a Purchase / Out of Pocket / Mileage
+    summary/           "Summary" tab — personal week + accounting / payroll tiles
     cards/             cardholder self-registers a card
     report/            weekly review-and-confirm + submit
     reconcile/         accounting: confirm each card line vs. the statement
-    approvals/         approver: lock a reconciled report
-    admin/             reference-data setup
+    approvals/         approver: lock a reconciled card charge
+    payroll/           payroll: reconcile / approve / report on reimbursements
+    admin/             reference-data setup ("Settings" tab)
   api/receipts/    authed receipt upload + streaming (/[id])
   api/receipt-upload/  public token-auth upload + status poll
   api/cron/report-reminders/  weekly-report reminder emails (hourly cron)

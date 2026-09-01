@@ -10,11 +10,11 @@ import { AppNav, type Zone } from "./app-nav";
 const ME_ZONE: Zone = {
   key: "me",
   label: "My Expenses",
-  href: "/",
-  matches: ["/", "/expenses", "/receipts", "/cards", "/report"],
+  href: "/expenses",
+  matches: ["/", "/expenses", "/receipts", "/cards", "/report", "/summary"],
   nav: [
-    { href: "/", label: "Dashboard" },
     { href: "/expenses", label: "My Expenses" },
+    { href: "/summary", label: "Summary" },
     { href: "/report", label: "Weekly Report" },
     { href: "/cards", label: "My Cards" },
   ],
@@ -73,7 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-black/10 dark:border-white/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/expenses" className="flex items-center gap-2">
             <Image src="/brand/iws.png" alt="IWS" width={28} height={28} priority />
             <span className="font-semibold">Expense</span>
           </Link>

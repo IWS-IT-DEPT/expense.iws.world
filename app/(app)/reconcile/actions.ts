@@ -57,7 +57,7 @@ export async function reconcileLine(_prev: LineActionState, fd: FormData): Promi
 
   revalidatePath("/reconcile");
   revalidatePath("/approvals");
-  revalidatePath("/");
+  revalidatePath("/summary");
   return { ok: true };
 }
 
@@ -90,6 +90,6 @@ export async function rejectLine(_prev: LineActionState, fd: FormData): Promise<
 
   revalidatePath("/reconcile");
   revalidatePath("/approvals");
-  revalidatePath("/");
+  revalidatePath("/summary");
   return { ok: true };
 }
