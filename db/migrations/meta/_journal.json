@@ -43,6 +43,13 @@
       "when": 1788220085390,
       "tag": "0005_seed_mileage_category",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788222854475,
+      "tag": "0006_normalize_legacy_expense_status",
+      "breakpoints": true
     }
   ]
 }
