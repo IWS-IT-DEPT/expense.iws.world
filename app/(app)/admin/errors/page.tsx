@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { errorLogs } from "@/db/schema";
+import { requireRole } from "@/lib/current-user";
 
 import { Section } from "../_ui";
 import { clearResolvedErrors, reopenError, resolveError } from "./actions";
@@ -32,6 +33,7 @@ interface Group {
 }
 
 export default async function AdminErrorsPage() {
+  await requireRole("admin");
   const rows = await db
     .select()
     .from(errorLogs)

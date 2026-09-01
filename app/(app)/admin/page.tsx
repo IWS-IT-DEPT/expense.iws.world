@@ -1,12 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { cards, categories, entities, errorLogs, jobs, locations, units, users } from "@/db/schema";
+import { isAdmin, requireRole } from "@/lib/current-user";
 
 const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
 export default async function AdminOverviewPage() {
+  const user = await requireRole("admin", "accounting");
+  if (!isAdmin(user)) redirect("/admin/entities");
+
   const [entityRows, counts] = await Promise.all([
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),
     Promise.all([

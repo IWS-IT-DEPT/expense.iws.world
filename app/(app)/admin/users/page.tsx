@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { entities, locations, userRole, users } from "@/db/schema";
+import { requireRole } from "@/lib/current-user";
 
 import { inputClass, Row, SaveButton, Section, Table } from "../_ui";
 import { inviteUser, updateUser } from "../actions";
@@ -9,6 +10,7 @@ import { inviteUser, updateUser } from "../actions";
 const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
 export default async function AdminUsersPage() {
+  await requireRole("admin");
   const [userRows, entityRows, locationRows] = await Promise.all([
     db.query.users.findMany({ orderBy: [asc(users.email)] }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),

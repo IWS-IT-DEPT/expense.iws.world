@@ -2,14 +2,16 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { entities, locations } from "@/db/schema";
+import { usedLocationIds } from "@/lib/admin-usage";
 
-import { inputClass, Row, SaveButton, Section, Table } from "../_ui";
-import { upsertLocation } from "../actions";
+import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
+import { deleteLocation, upsertLocation } from "../actions";
 
 export default async function AdminLocationsPage() {
-  const [rows, entityRows] = await Promise.all([
+  const [rows, entityRows, used] = await Promise.all([
     db.query.locations.findMany({ orderBy: [asc(locations.name)] }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),
+    usedLocationIds(),
   ]);
 
   const entityOptions = (selected?: string | null) => (
@@ -50,6 +52,7 @@ export default async function AdminLocationsPage() {
                     <input type="checkbox" name="active" defaultChecked={l.active} /> active
                   </label>
                   <SaveButton />
+                  <DeleteCell used={used.has(l.id)} action={deleteLocation} />
                 </form>
               </td>
             </Row>

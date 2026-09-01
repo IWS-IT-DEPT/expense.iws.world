@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth";
-import { canReview, getCurrentUser, isAdmin } from "@/lib/current-user";
+import { canManageSettings, canReview, getCurrentUser, isAdmin } from "@/lib/current-user";
 
 import { AppNav, type Zone } from "./app-nav";
 
@@ -32,9 +32,9 @@ const ACCOUNTING_ZONE: Zone = {
   ],
 };
 
-const ADMIN_ZONE: Zone = {
+const SETTINGS_ZONE: Zone = {
   key: "admin",
-  label: "IT Admin",
+  label: "Settings",
   href: "/admin",
   matches: ["/admin"],
   nav: [], // admin/layout.tsx renders its own tab bar
@@ -46,7 +46,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const zones: Zone[] = [ME_ZONE];
   if (canReview(user)) zones.push(ACCOUNTING_ZONE);
-  if (isAdmin(user)) zones.push(ADMIN_ZONE);
+  if (canManageSettings(user)) {
+    // Finance lands on the first tab they can see; the Overview page is IT-only.
+    zones.push(isAdmin(user) ? SETTINGS_ZONE : { ...SETTINGS_ZONE, href: "/admin/entities" });
+  }
 
   return (
     <div className="flex min-h-screen flex-col">

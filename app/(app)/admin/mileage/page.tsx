@@ -2,6 +2,7 @@ import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { expenseItems, mileageRates } from "@/db/schema";
+import { requireRole } from "@/lib/current-user";
 
 import { inputClass, SaveButton, Section } from "../_ui";
 import { deleteMileageRate, upsertMileageRate } from "../actions";
@@ -10,6 +11,7 @@ const GRID =
   "grid grid-cols-[10rem_5.5rem_5rem_minmax(8rem,1fr)_9rem] items-center gap-2";
 
 export default async function AdminMileagePage() {
+  await requireRole("admin");
   const [rows, usage] = await Promise.all([
     db.query.mileageRates.findMany({ orderBy: [asc(mileageRates.effectiveDate)] }),
     db

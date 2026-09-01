@@ -1,9 +1,11 @@
 import { db } from "@/db";
+import { requireRole } from "@/lib/current-user";
 
 import { inputClass, SaveButton, Section } from "../_ui";
 import { updatePolicy } from "../actions";
 
 export default async function AdminPolicyPage() {
+  await requireRole("admin");
   const rows = await db.query.policySettings.findMany();
   const p = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Record<string, unknown>;
   const cents =

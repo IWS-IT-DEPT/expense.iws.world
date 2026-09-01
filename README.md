@@ -126,14 +126,20 @@ any Microsoft account can sign in.
 
 | Role | Source | Access |
 | ---- | ------ | ------ |
-| `admin` | Entra group `IT@iws.world` | everything, incl. `/admin/*` and approvals |
-| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/approvals` |
+| `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`) and approvals |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/approvals`, `/reports`, and the shared **Settings** tabs (Entities, Locations, Units, Jobs, Categories, Cards) |
 | `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
 | `cardholder` | default | own expenses + weekly report + `/cards` |
 
+**Settings** (`/admin`, the tab labelled "Settings") holds the shared coding
+tables. IT sees every tab; finance sees only Entities / Locations / Units / Jobs
+/ Categories / Cards. Users, Mileage, Policy, Errors and the Overview stay
+IT-only. Rows retire with the `active` checkbox; the `Delete` button appears only
+when nothing references the row.
+
 Cardholders self-register their cards at **`/cards`** (network + last 4 +
-nickname) — no approval step. Admins can view/edit all cards under **IT Admin →
-Cards**.
+nickname) — no approval step. IT and finance can view/edit/add all cards under
+**Settings → Cards**.
 
 Role sync runs on **every request** once `ENTRA_GROUP_IT` + `ENTRA_GROUP_FINANCE`
 are set. Membership is read from the token's `groups` claim, falling back to

@@ -2,12 +2,16 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories } from "@/db/schema";
+import { usedCategoryIds } from "@/lib/admin-usage";
 
-import { inputClass, Row, SaveButton, Section, Table } from "../_ui";
-import { upsertCategory } from "../actions";
+import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
+import { deleteCategory, upsertCategory } from "../actions";
 
 export default async function AdminCategoriesPage() {
-  const rows = await db.query.categories.findMany({ orderBy: [asc(categories.sortOrder)] });
+  const [rows, used] = await Promise.all([
+    db.query.categories.findMany({ orderBy: [asc(categories.sortOrder)] }),
+    usedCategoryIds(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -48,6 +52,7 @@ export default async function AdminCategoriesPage() {
                     <input type="checkbox" name="active" defaultChecked={c.active} /> active
                   </label>
                   <SaveButton />
+                  <DeleteCell used={used.has(c.id)} action={deleteCategory} />
                 </form>
               </td>
             </Row>

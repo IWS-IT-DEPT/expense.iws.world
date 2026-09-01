@@ -46,6 +46,40 @@ export function SaveButton({ label = "Save" }: { label?: string }) {
   );
 }
 
+/**
+ * Delete control for a dimension row. `used` rows can't be hard-deleted (they're
+ * referenced by expense history or QBO mappings) — the caller deactivates
+ * instead via the row's `active` checkbox.
+ */
+export function DeleteCell({
+  used,
+  action,
+}: {
+  used: boolean;
+  action: (formData: FormData) => void | Promise<void>;
+}) {
+  if (used) {
+    return (
+      <span
+        className="text-xs opacity-40"
+        title="Referenced by expenses or QBO mappings — uncheck ‘active’ to retire it instead"
+      >
+        in use
+      </span>
+    );
+  }
+  return (
+    <button
+      type="submit"
+      formAction={action}
+      formNoValidate
+      className="text-xs text-red-600 underline opacity-80 hover:opacity-100"
+    >
+      Delete
+    </button>
+  );
+}
+
 export function LinkButton({
   label,
   className = "",

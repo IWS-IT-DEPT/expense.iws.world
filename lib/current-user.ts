@@ -157,6 +157,16 @@ export function canReview(user: CurrentUser): boolean {
   return user.role === "accounting" || user.role === "approver" || user.role === "admin";
 }
 
+/**
+ * Who may manage the shared coding tables under Settings — entities, locations,
+ * units, jobs, categories, cards. IT (`admin`) plus the finance team
+ * (`accounting`). The IT-only tabs (Users, Mileage, Policy, Errors) stay
+ * `requireRole("admin")`.
+ */
+export function canManageSettings(user: CurrentUser): boolean {
+  return user.role === "admin" || user.role === "accounting";
+}
+
 export function isAdmin(user: CurrentUser): boolean {
   return user.role === "admin";
 }

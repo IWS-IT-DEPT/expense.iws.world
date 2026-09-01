@@ -2,14 +2,16 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { entities, jobs } from "@/db/schema";
+import { usedJobIds } from "@/lib/admin-usage";
 
-import { inputClass, Row, SaveButton, Section, Table } from "../_ui";
-import { upsertJob } from "../actions";
+import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
+import { deleteJob, upsertJob } from "../actions";
 
 export default async function AdminJobsPage() {
-  const [rows, entityRows] = await Promise.all([
+  const [rows, entityRows, used] = await Promise.all([
     db.query.jobs.findMany({ orderBy: [asc(jobs.jobNumber)], with: { entity: true } }),
     db.query.entities.findMany({ orderBy: [asc(entities.code)] }),
+    usedJobIds(),
   ]);
 
   const entitySelect = (selected?: string) => (
@@ -56,6 +58,7 @@ export default async function AdminJobsPage() {
                     <input type="checkbox" name="active" defaultChecked={j.active} /> active
                   </label>
                   <SaveButton />
+                  <DeleteCell used={used.has(j.id)} action={deleteJob} />
                 </form>
               </td>
             </Row>
