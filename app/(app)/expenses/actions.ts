@@ -229,11 +229,18 @@ export async function deleteCardExpenseReceipt(fd: FormData): Promise<void> {
 
 /* --------------------------------------------------------- expense items */
 
-async function insertItem(
+async function writeItem(
   fd: FormData,
   kind: "out_of_pocket" | "mileage",
   userId: string,
+  existingId: string | null,
 ): Promise<FormState> {
+  if (existingId) {
+    const row = await ownsEditableItem(existingId, userId);
+    if (!row) return { error: "Not found or already submitted." };
+    if (row.kind !== kind) return { error: "Wrong kind." };
+  }
+
   const itemDate = String(fd.get("itemDate") || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(itemDate)) return { error: "Pick a date." };
 
@@ -267,36 +274,58 @@ async function insertItem(
     }
   }
 
+  const values = {
+    itemDate,
+    amountCents,
+    entityId: coding.entityId!,
+    locationId: coding.locationId!,
+    unitId: coding.unitId,
+    jobId: coding.jobId,
+    categoryId: coding.categoryId!,
+    businessPurpose: coding.businessPurpose!,
+    ...extra,
+  };
+
+  if (existingId) {
+    await db
+      .update(expenseItems)
+      .set({ ...values, status: "draft", updatedAt: new Date() })
+      .where(eq(expenseItems.id, existingId));
+    revalidateExpenses(`/expenses/${existingId}`);
+    return { ok: true, id: existingId };
+  }
+
   const [created] = await db
     .insert(expenseItems)
-    .values({
-      userId,
-      kind,
-      itemDate,
-      amountCents,
-      entityId: coding.entityId!,
-      locationId: coding.locationId!,
-      unitId: coding.unitId,
-      jobId: coding.jobId,
-      categoryId: coding.categoryId!,
-      businessPurpose: coding.businessPurpose!,
-      status: "draft",
-      ...extra,
-    })
+    .values({ userId, kind, status: "draft", ...values })
     .returning({ id: expenseItems.id });
-
   revalidateExpenses();
   return { ok: true, id: created.id };
 }
 
+async function ownsEditableItem(id: string, userId: string) {
+  const row = await db.query.expenseItems.findFirst({ where: eq(expenseItems.id, id) });
+  if (!row || row.userId !== userId) return null;
+  if (!EDITABLE.includes(row.status as (typeof EDITABLE)[number])) return null;
+  return row;
+}
+
 export async function createOutOfPocket(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser();
-  return insertItem(fd, "out_of_pocket", user.id);
+  return writeItem(fd, "out_of_pocket", user.id, null);
 }
 
 export async function createMileage(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser();
-  return insertItem(fd, "mileage", user.id);
+  return writeItem(fd, "mileage", user.id, null);
+}
+
+export async function updateExpenseItem(_prev: FormState, fd: FormData): Promise<FormState> {
+  const user = await requireUser();
+  const id = String(fd.get("id") || "");
+  const row = await db.query.expenseItems.findFirst({ where: eq(expenseItems.id, id) });
+  if (!row || row.userId !== user.id) return { error: "Not found." };
+  return writeItem(fd, row.kind, user.id, id);
 }
 
 export async function voidExpenseItem(fd: FormData): Promise<void> {

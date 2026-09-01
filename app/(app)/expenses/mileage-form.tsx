@@ -9,10 +9,24 @@ import {
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
 
-import { createMileage, type FormState } from "./actions";
+import { createMileage, updateExpenseItem, type FormState } from "./actions";
 
 const inputClass =
   "w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm dark:border-white/20";
+
+export interface MileageFormInitial {
+  id: string;
+  itemDate: string;
+  miles: string | null;
+  tripFrom: string | null;
+  tripTo: string | null;
+  entityId: string | null;
+  locationId: string | null;
+  unitId: string | null;
+  jobId: string | null;
+  categoryId: string | null;
+  businessPurpose: string | null;
+}
 
 export function MileageForm(props: {
   entities: CodingEntityOption[];
@@ -22,10 +36,16 @@ export function MileageForm(props: {
   categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
   mileageCategoryId?: string;
   currentRatePerMile?: string;
+  initial?: MileageFormInitial;
 }) {
   const router = useRouter();
-  const [miles, setMiles] = useState("");
-  const [state, action, pending] = useActionState<FormState, FormData>(createMileage, {});
+  const i = props.initial;
+  const editing = !!i;
+  const [miles, setMiles] = useState(i?.miles ?? "");
+  const [state, action, pending] = useActionState<FormState, FormData>(
+    editing ? updateExpenseItem : createMileage,
+    {},
+  );
 
   const estimate =
     props.currentRatePerMile && Number(miles) > 0
@@ -38,7 +58,7 @@ export function MileageForm(props: {
   if (state.ok) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-emerald-700 dark:text-emerald-400">Mileage saved.</p>
+        <p className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>
         <button
           type="button"
           onClick={() => router.push("/expenses")}
@@ -52,6 +72,7 @@ export function MileageForm(props: {
 
   return (
     <form action={action} className="space-y-4">
+      {i ? <input type="hidden" name="id" value={i.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Date</span>
@@ -59,7 +80,7 @@ export function MileageForm(props: {
             name="itemDate"
             type="date"
             required
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={i?.itemDate ?? new Date().toISOString().slice(0, 10)}
             className={inputClass}
           />
         </label>
@@ -81,11 +102,21 @@ export function MileageForm(props: {
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">From</span>
-          <input name="tripFrom" className={inputClass} placeholder="Main Office" />
+          <input
+            name="tripFrom"
+            defaultValue={i?.tripFrom ?? ""}
+            className={inputClass}
+            placeholder="Main Office"
+          />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">To</span>
-          <input name="tripTo" className={inputClass} placeholder="Houston Warehouse 1" />
+          <input
+            name="tripTo"
+            defaultValue={i?.tripTo ?? ""}
+            className={inputClass}
+            placeholder="Houston Warehouse 1"
+          />
         </label>
       </div>
 
@@ -97,7 +128,20 @@ export function MileageForm(props: {
           units={props.units}
           jobs={props.jobs}
           categories={props.categories}
-          initial={props.mileageCategoryId ? { categoryId: props.mileageCategoryId } : undefined}
+          initial={
+            i
+              ? {
+                  entityId: i.entityId,
+                  locationId: i.locationId,
+                  unitId: i.unitId,
+                  jobId: i.jobId,
+                  categoryId: i.categoryId,
+                  businessPurpose: i.businessPurpose,
+                }
+              : props.mileageCategoryId
+                ? { categoryId: props.mileageCategoryId }
+                : undefined
+          }
         />
       </fieldset>
 
@@ -108,7 +152,7 @@ export function MileageForm(props: {
         disabled={pending}
         className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
       >
-        {pending ? "Saving…" : "Save mileage"}
+        {pending ? "Saving…" : editing ? "Save changes" : "Save mileage"}
       </button>
     </form>
   );

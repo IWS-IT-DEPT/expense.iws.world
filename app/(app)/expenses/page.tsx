@@ -172,13 +172,14 @@ export default async function ExpensesPage() {
               }
               receipts={r.receipts.length}
               checks={checks.map((c) => c.message)}
+              editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
               upload={
                 EDITABLE.has(r.status) && r.kind !== "mileage" ? (
                   <ReceiptUploadButton purpose="item" targetId={r.id} label="Add receipt" compact />
                 ) : null
               }
               voidForm={
-                r.status === "draft" ? (
+                r.status === "draft" || r.status === "rejected" ? (
                   <form action={voidExpenseItem}>
                     <input type="hidden" name="id" value={r.id} />
                     <button className="text-xs underline opacity-50 hover:opacity-100">delete</button>
