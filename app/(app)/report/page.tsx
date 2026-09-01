@@ -134,39 +134,60 @@ export default async function WeeklyReportPage() {
             .
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {weekCards.map((c) => {
-              const editable = c.status === "draft" || c.status === "rejected";
-              const blocked = editable && isBlocked(cardCheck(c));
-              return (
-                <li
-                  key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-black/5 py-1 dark:border-white/10"
-                >
-                  <span className={blocked ? "text-amber-600 dark:text-amber-400" : ""}>
-                    {shortDate(c.purchaseDate)} · {c.merchant}
-                  </span>
-                  <span>{money(c.amountCents)}</span>
-                  <span className="flex items-center gap-2 text-xs opacity-70">
-                    {STATUS_LABEL[c.status] ?? c.status}
-                    {editable && blocked ? (
-                      <Link href={`/expenses/${c.id}`} className="underline text-amber-600 dark:text-amber-400">
-                        needs info
-                      </Link>
-                    ) : null}
-                    {editable && !blocked ? (
-                      <form action={submitCardExpense}>
-                        <input type="hidden" name="id" value={c.id} />
-                        <button className="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white">
-                          submit
-                        </button>
-                      </form>
-                    ) : null}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide opacity-50">
+                  <th className="pb-1 pr-3 font-medium">Date</th>
+                  <th className="pb-1 pr-3 font-medium">Merchant</th>
+                  <th className="pb-1 pl-3 text-right font-medium">Amount</th>
+                  <th className="pb-1 pl-3 text-right font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {weekCards.map((c) => {
+                  const editable = c.status === "draft" || c.status === "rejected";
+                  const blocked = editable && isBlocked(cardCheck(c));
+                  return (
+                    <tr key={c.id} className="border-t border-black/5 dark:border-white/10">
+                      <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
+                        {shortDate(c.purchaseDate)}
+                      </td>
+                      <td
+                        className={`py-1.5 pr-3 ${blocked ? "text-amber-600 dark:text-amber-400" : ""}`}
+                      >
+                        {c.merchant}
+                      </td>
+                      <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums">
+                        {money(c.amountCents)}
+                      </td>
+                      <td className="py-1.5 pl-3 text-right">
+                        <div className="flex items-center justify-end gap-2 text-xs opacity-70">
+                          {editable && blocked ? (
+                            <Link
+                              href={`/expenses/${c.id}`}
+                              className="text-amber-600 underline dark:text-amber-400"
+                            >
+                              needs info
+                            </Link>
+                          ) : editable && !blocked ? (
+                            <form action={submitCardExpense}>
+                              <input type="hidden" name="id" value={c.id} />
+                              <button className="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white">
+                                submit
+                              </button>
+                            </form>
+                          ) : (
+                            <span>{STATUS_LABEL[c.status] ?? c.status}</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {needsFixCount > 0 ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -183,29 +204,48 @@ export default async function WeeklyReportPage() {
         {openItems.length === 0 ? (
           <p className="text-sm opacity-60">No out-of-pocket or mileage this week.</p>
         ) : (
-          <ul className="space-y-1 text-sm">
-            {[...oop, ...mileage].map((i) => {
-              const blocked = isBlocked(itemCheck(i));
-              return (
-                <li key={i.id} className="flex justify-between gap-3 border-b border-black/5 py-1 dark:border-white/10">
-                  <span className={blocked ? "text-amber-600 dark:text-amber-400" : ""}>
-                    {blocked ? "⚠ " : ""}
-                    {shortDate(i.itemDate)} ·{" "}
-                    {i.kind === "mileage" ? `${i.miles ?? "?"} mi` : "out of pocket"}
-                    {blocked ? (
-                      <>
-                        {" "}
-                        <Link href={`/expenses/${i.id}`} className="underline">
-                          fix
-                        </Link>
-                      </>
-                    ) : null}
-                  </span>
-                  <span>{money(i.amountCents)}</span>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide opacity-50">
+                  <th className="pb-1 pr-3 font-medium">Date</th>
+                  <th className="pb-1 pr-3 font-medium">Type</th>
+                  <th className="pb-1 pl-3 text-right font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...oop, ...mileage].map((i) => {
+                  const blocked = isBlocked(itemCheck(i));
+                  return (
+                    <tr key={i.id} className="border-t border-black/5 dark:border-white/10">
+                      <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
+                        {shortDate(i.itemDate)}
+                      </td>
+                      <td
+                        className={`py-1.5 pr-3 ${blocked ? "text-amber-600 dark:text-amber-400" : ""}`}
+                      >
+                        {blocked ? "⚠ " : ""}
+                        {i.kind === "mileage"
+                          ? `Mileage · ${i.miles ?? "?"} mi`
+                          : "Out of pocket"}
+                        {blocked ? (
+                          <>
+                            {" "}
+                            <Link href={`/expenses/${i.id}`} className="underline">
+                              fix
+                            </Link>
+                          </>
+                        ) : null}
+                      </td>
+                      <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums">
+                        {money(i.amountCents)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {openItems.length > 0 ? (
           <SubmitWeekButton
