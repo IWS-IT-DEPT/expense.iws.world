@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { approvals, expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
-import { checkExpenseLine, isBlocked } from "@/lib/expense-checks";
+import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 
 export interface SubmitState {
   ok?: boolean;
@@ -48,37 +48,44 @@ export async function submitWeek(_prev: SubmitState, fd: FormData): Promise<Subm
     return { error: "Nothing to submit yet." };
   }
 
+  const policy = await loadPolicy();
   const blocked = [
     ...cardLines.map((r) =>
-      checkExpenseLine({
-        kind: "card",
-        amountCents: r.amountCents,
-        entityId: r.entityId,
-        locationId: r.locationId,
-        categoryId: r.categoryId,
-        businessPurpose: r.businessPurpose,
-        unitId: r.unitId,
-        jobId: r.jobId,
-        cardId: r.cardId,
-        receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-      }),
+      checkExpenseLine(
+        {
+          kind: "card",
+          amountCents: r.amountCents,
+          entityId: r.entityId,
+          locationId: r.locationId,
+          categoryId: r.categoryId,
+          businessPurpose: r.businessPurpose,
+          unitId: r.unitId,
+          jobId: r.jobId,
+          cardId: r.cardId,
+          receiptCount: r.receipts.length,
+          costingMode: r.entity?.costingMode as CostingMode | undefined,
+          categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
+        },
+        policy,
+      ),
     ),
     ...itemLines.map((r) =>
-      checkExpenseLine({
-        kind: r.kind,
-        amountCents: r.amountCents,
-        entityId: r.entityId,
-        locationId: r.locationId,
-        categoryId: r.categoryId,
-        businessPurpose: r.businessPurpose,
-        unitId: r.unitId,
-        jobId: r.jobId,
-        receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-      }),
+      checkExpenseLine(
+        {
+          kind: r.kind,
+          amountCents: r.amountCents,
+          entityId: r.entityId,
+          locationId: r.locationId,
+          categoryId: r.categoryId,
+          businessPurpose: r.businessPurpose,
+          unitId: r.unitId,
+          jobId: r.jobId,
+          receiptCount: r.receipts.length,
+          costingMode: r.entity?.costingMode as CostingMode | undefined,
+          categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
+        },
+        policy,
+      ),
     ),
   ].some(isBlocked);
   if (blocked) return { error: "Some lines still need attention — fix those first." };

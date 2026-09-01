@@ -1,3 +1,8 @@
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db";
+import { policySettings } from "@/db/schema";
+
 import { codingRules, type CostingMode } from "./coding";
 
 /**
@@ -18,6 +23,15 @@ export const DEFAULT_POLICY: ExpensePolicy = {
   receiptThresholdCents: 7500,
   reviewThresholdCents: 50000,
 };
+
+/** Reads the admin-editable receipt threshold; everything else uses defaults. */
+export async function loadPolicy(): Promise<ExpensePolicy> {
+  const row = await db.query.policySettings.findFirst({
+    where: eq(policySettings.key, "receipt_threshold_cents"),
+  });
+  const cents = typeof row?.value === "number" ? row.value : DEFAULT_POLICY.receiptThresholdCents;
+  return { ...DEFAULT_POLICY, receiptThresholdCents: cents };
+}
 
 export type CheckSeverity = "info" | "warn" | "block";
 

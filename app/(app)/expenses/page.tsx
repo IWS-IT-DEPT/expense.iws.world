@@ -7,7 +7,7 @@ import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
-import { checkExpenseLine } from "@/lib/expense-checks";
+import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 
 import { EntityBadge } from "../../components/entity-badge";
 import { voidCardExpense, voidExpenseItem } from "./actions";
@@ -25,6 +25,7 @@ const EDITABLE = new Set(["draft", "rejected"]);
 
 export default async function ExpensesPage() {
   const user = await requireUser();
+  const policy = await loadPolicy();
 
   const [cardRows, itemRows] = await Promise.all([
     db.query.pendingExpenses.findMany({
@@ -60,24 +61,27 @@ export default async function ExpensesPage() {
         receiptCount: r.receipts.length,
         costingMode: r.entity?.costingMode as CostingMode | undefined,
         categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-      });
+      }, policy);
       return { r, checks };
     });
 
   const items = itemRows.map((r) => {
-    const checks = checkExpenseLine({
-      kind: r.kind,
-      amountCents: r.amountCents,
-      entityId: r.entityId,
-      locationId: r.locationId,
-      categoryId: r.categoryId,
-      businessPurpose: r.businessPurpose,
-      unitId: r.unitId,
-      jobId: r.jobId,
-      receiptCount: r.receipts.length,
-      costingMode: r.entity?.costingMode as CostingMode | undefined,
-      categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-    });
+    const checks = checkExpenseLine(
+      {
+        kind: r.kind,
+        amountCents: r.amountCents,
+        entityId: r.entityId,
+        locationId: r.locationId,
+        categoryId: r.categoryId,
+        businessPurpose: r.businessPurpose,
+        unitId: r.unitId,
+        jobId: r.jobId,
+        receiptCount: r.receipts.length,
+        costingMode: r.entity?.costingMode as CostingMode | undefined,
+        categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
+      },
+      policy,
+    );
     return { r, checks };
   });
 

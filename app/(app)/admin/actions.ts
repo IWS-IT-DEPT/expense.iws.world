@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  cardAccounts,
   cards,
   categories,
   entities,
@@ -151,23 +150,14 @@ export async function upsertCategory(fd: FormData) {
 
 /* -------------------------------------------------------------------- cards */
 
-export async function updateCardAccount(fd: FormData) {
-  await requireRole("admin");
-  await db
-    .update(cardAccounts)
-    .set({ name: str(fd, "name"), owningEntityId: str(fd, "owningEntityId"), active: bool(fd, "active") })
-    .where(eq(cardAccounts.id, str(fd, "id")));
-  await done("/admin/cards");
-}
-
 const CARD_NETWORKS = ["visa", "mastercard", "amex", "discover", "other"] as const;
 
+/** Admin edit of an existing card (typo fix / reassign / deactivate). */
 export async function upsertCard(fd: FormData) {
   await requireRole("admin");
   const id = opt(fd, "id");
   const net = str(fd, "network");
   const values = {
-    cardAccountId: opt(fd, "cardAccountId"),
     userId: opt(fd, "userId"),
     network: CARD_NETWORKS.includes(net as (typeof CARD_NETWORKS)[number])
       ? (net as (typeof CARD_NETWORKS)[number])
@@ -201,23 +191,19 @@ export async function upsertMileageRate(fd: FormData) {
 
 export async function updatePolicy(fd: FormData) {
   const user = await requireRole("admin");
-  // the two *_cents fields are entered in dollars on the form
-  const fields: Record<string, number> = {
-    receipt_threshold_cents: 100,
-    review_threshold_cents: 100,
-    weekly_report_due_dow: 1,
-  };
-  for (const [key, mult] of Object.entries(fields)) {
-    const raw = int(fd, key);
-    if (raw == null) continue;
-    await db
-      .update(policySettings)
-      .set({ value: raw * mult, updatedAt: new Date(), updatedById: user.id })
-      .where(eq(policySettings.key, key));
-  }
+  const dollars = int(fd, "receipt_threshold");
+  if (dollars == null || dollars < 0) return;
   await db
-    .update(policySettings)
-    .set({ value: bool(fd, "auto_approve_clean"), updatedAt: new Date(), updatedById: user.id })
-    .where(eq(policySettings.key, "auto_approve_clean"));
+    .insert(policySettings)
+    .values({
+      key: "receipt_threshold_cents",
+      value: dollars * 100,
+      description: "Receipt required at/above this amount",
+      updatedById: user.id,
+    })
+    .onConflictDoUpdate({
+      target: policySettings.key,
+      set: { value: dollars * 100, updatedAt: new Date(), updatedById: user.id },
+    });
   await done("/admin/policy");
 }

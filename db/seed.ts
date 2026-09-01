@@ -125,10 +125,11 @@ async function seed() {
   await db
     .insert(policySettings)
     .values([
-      { key: "receipt_threshold_cents", value: 7500, description: "Receipt required at/above this charge amount" },
-      { key: "review_threshold_cents", value: 50000, description: "Charges at/above this always surface for review" },
-      { key: "weekly_report_due_dow", value: 1, description: "Day of week weekly reports are due (0=Sun)" },
-      { key: "auto_approve_clean", value: false, description: "Auto-approve items with no flags (off until Allie opts in)" },
+      {
+        key: "receipt_threshold_cents",
+        value: 7500,
+        description: "Receipt required at/above this amount",
+      },
     ])
     .onConflictDoNothing({ target: policySettings.key });
 

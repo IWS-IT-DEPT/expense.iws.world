@@ -2,32 +2,23 @@ import Link from "next/link";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import {
-  cardAccounts,
-  categories,
-  entities,
-  jobs,
-  locations,
-  units,
-  users,
-} from "@/db/schema";
-import { shortDate } from "@/lib/format";
+import { cards, categories, entities, jobs, locations, units, users } from "@/db/schema";
 
 const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
 export default async function AdminOverviewPage() {
-  const [entityRows, accountRows, counts] = await Promise.all([
-    db.query.entities.findMany({ orderBy: [asc(entities.code)], with: { qboConnection: true } }),
-    db.query.cardAccounts.findMany({ orderBy: [asc(cardAccounts.name)], with: { cards: true } }),
+  const [entityRows, counts] = await Promise.all([
+    db.query.entities.findMany({ orderBy: [asc(entities.code)] }),
     Promise.all([
       db.select({ n: sql<number>`count(*)` }).from(users),
       db.select({ n: sql<number>`count(*)` }).from(locations),
       db.select({ n: sql<number>`count(*)` }).from(units),
       db.select({ n: sql<number>`count(*)` }).from(jobs),
       db.select({ n: sql<number>`count(*)` }).from(categories),
+      db.select({ n: sql<number>`count(*) filter (where ${cards.active})` }).from(cards),
     ]),
   ]);
-  const [nUsers, nLoc, nUnit, nJob, nCat] = counts.map((c) => c[0].n);
+  const [nUsers, nLoc, nUnit, nJob, nCat, nCards] = counts.map((c) => c[0].n);
 
   return (
     <div className="space-y-8">
@@ -51,6 +42,7 @@ export default async function AdminOverviewPage() {
 
       <section className="grid gap-3 sm:grid-cols-3">
         <Card href="/admin/users" label="Users" value={nUsers} />
+        <Card href="/admin/cards" label="Registered cards" value={nCards} />
         <Card href="/admin/locations" label="Locations" value={nLoc} />
         <Card href="/admin/units" label="Units" value={nUnit} />
         <Card href="/admin/jobs" label="Jobs" value={nJob} />
@@ -58,36 +50,25 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Entities & QuickBooks</h2>
+        <h2 className="mb-2 font-medium">Entities</h2>
         <ul className="text-sm">
           {entityRows.map((e) => (
-            <li key={e.id} className="flex items-center gap-2 border-t border-black/10 py-1 dark:border-white/10">
+            <li
+              key={e.id}
+              className="flex items-center gap-2 border-t border-black/10 py-1 dark:border-white/10"
+            >
               <span
                 className="inline-block h-3 w-3 rounded-sm"
                 style={{ backgroundColor: e.brandColor ?? "#999" }}
               />
               <span className="font-mono">{e.code}</span>
               <span className="opacity-70">{e.name}</span>
-              <span className="ml-auto text-xs opacity-50">
-                costing {e.costingMode} · QBO {e.qboConnection?.status ?? "disconnected"}
-              </span>
+              <span className="ml-auto text-xs opacity-50">costing: {e.costingMode}</span>
             </li>
           ))}
         </ul>
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-medium">Card accounts</h2>
-        <ul className="text-sm">
-          {accountRows.map((a) => (
-            <li key={a.id} className="border-t border-black/10 py-1 dark:border-white/10">
-              {a.name} · {a.cards.length} card(s) ·{" "}
-              {a.lastImportedAt ? `last import ${shortDate(a.lastImportedAt)}` : "never imported"}
-            </li>
-          ))}
-        </ul>
-        <Link href="/admin/cards" className="text-sm underline">
-          Manage cards →
+        <Link href="/admin/entities" className="mt-1 inline-block text-sm underline">
+          Edit entities →
         </Link>
       </section>
     </div>

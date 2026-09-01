@@ -6,7 +6,7 @@ import { expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate, weekBounds } from "@/lib/format";
-import { checkExpenseLine, isBlocked } from "@/lib/expense-checks";
+import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 
 import { SubmitWeekButton } from "./submit-week-button";
 
@@ -14,6 +14,7 @@ const OPEN = ["draft", "rejected"] as const;
 
 export default async function WeeklyReportPage() {
   const user = await requireUser();
+  const policy = await loadPolicy();
   const { start, end } = weekBounds(new Date());
 
   const [openCards, openItems, thisWeekReport] = await Promise.all([
@@ -59,7 +60,7 @@ export default async function WeeklyReportPage() {
       receiptCount: r.receipts.length,
       costingMode: r.entity?.costingMode as CostingMode | undefined,
       categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-    });
+    }, policy);
   const itemCheck = (r: (typeof openItems)[number]) =>
     checkExpenseLine({
       kind: r.kind,
@@ -73,7 +74,7 @@ export default async function WeeklyReportPage() {
       receiptCount: r.receipts.length,
       costingMode: r.entity?.costingMode as CostingMode | undefined,
       categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
-    });
+    }, policy);
 
   const attention: { label: string; issues: string[] }[] = [];
   for (const r of openCards) {
