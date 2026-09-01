@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 
 import { sendEmail } from "./email";
+import { renderEmail, type EmailContent } from "./email-template";
 import { money } from "./format";
 
 /**
@@ -23,9 +24,10 @@ async function userEmail(userId: string): Promise<{ email: string; name: string 
   return u ?? null;
 }
 
-async function safeSend(input: { to: string; subject: string; text: string }) {
+async function safeSend(to: string, subject: string, content: EmailContent) {
   try {
-    await sendEmail(input);
+    const { html, text } = renderEmail(content);
+    await sendEmail({ to, subject, text, html });
   } catch (err) {
     console.warn("[notify] send failed:", err instanceof Error ? err.message : err);
   }
@@ -35,19 +37,16 @@ async function safeSend(input: { to: string; subject: string; text: string }) {
 export async function notifySentBack(userId: string, label: string, reason: string) {
   const u = await userEmail(userId);
   if (!u) return;
-  await safeSend({
-    to: u.email,
-    subject: `Sent back: ${label}`,
-    text: [
+  await safeSend(u.email, `Sent back: ${label}`, {
+    accent: "amber",
+    preheader: `Accounting sent ${label} back to you`,
+    heading: "An expense was sent back",
+    paragraphs: [
       `Hi ${u.name.split(" ")[0]},`,
-      "",
-      `Accounting sent this back to you:`,
-      `  ${label}`,
-      "",
-      `Reason: ${reason}`,
-      "",
-      `Fix it and resubmit: ${APP_URL}/expenses`,
-    ].join("\n"),
+      `Accounting sent this back for a change: ${label}.`,
+    ],
+    callout: { label: "Reason", text: reason },
+    cta: { label: "Fix and resubmit", url: `${APP_URL}/expenses` },
   });
 }
 
@@ -55,17 +54,15 @@ export async function notifySentBack(userId: string, label: string, reason: stri
 export async function notifyApproved(userId: string, label: string) {
   const u = await userEmail(userId);
   if (!u) return;
-  await safeSend({
-    to: u.email,
-    subject: `Approved: ${label}`,
-    text: [
+  await safeSend(u.email, `Approved: ${label}`, {
+    accent: "green",
+    preheader: `${label} has been approved`,
+    heading: "Approved",
+    paragraphs: [
       `Hi ${u.name.split(" ")[0]},`,
-      "",
-      `Good news — this has been approved:`,
-      `  ${label}`,
-      "",
-      `${APP_URL}/expenses`,
-    ].join("\n"),
+      `Good news — ${label} has been approved. Nothing more for you to do.`,
+    ],
+    cta: { label: "View your expenses", url: `${APP_URL}/expenses` },
   });
 }
 
@@ -75,13 +72,11 @@ export async function notifyAccountingSubmitted(
   description: string,
   totalCents: number,
 ) {
-  await safeSend({
-    to: ACCOUNTING,
-    subject: `New expenses submitted — ${fromName}`,
-    text: [
-      `${fromName} submitted ${description} (${money(totalCents)}).`,
-      "",
-      `Reconcile: ${APP_URL}/reconcile`,
-    ].join("\n"),
+  await safeSend(ACCOUNTING, `New expenses submitted — ${fromName}`, {
+    accent: "blue",
+    preheader: `${fromName} submitted ${description}`,
+    heading: "New expenses to reconcile",
+    paragraphs: [`${fromName} submitted ${description}, totalling ${money(totalCents)}.`],
+    cta: { label: "Open the reconcile queue", url: `${APP_URL}/reconcile` },
   });
 }

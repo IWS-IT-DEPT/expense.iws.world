@@ -4,6 +4,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseItems, pendingExpenses, reminderSends, users } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/email-template";
 import { weekBounds } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -131,16 +132,19 @@ export async function GET(req: Request) {
 
     const pending = Number(cardAgg.n) + Number(itemAgg.n);
     const c = COPY[slot];
-    const text = [
-      `Hi ${u.name.split(" ")[0]},`,
-      "",
-      c.lead,
-      `You have ${pending} expense${pending === 1 ? "" : "s"} not submitted yet.`,
-      "",
-      `Finish and submit them: ${appUrl}/report`,
-    ].join("\n");
+    const { html, text } = renderEmail({
+      accent: slot === "wed_am" ? "amber" : "red",
+      preheader: c.lead,
+      heading: c.subject,
+      paragraphs: [
+        `Hi ${u.name.split(" ")[0]},`,
+        c.lead,
+        `You have ${pending} expense${pending === 1 ? "" : "s"} that ${pending === 1 ? "hasn't" : "haven't"} been submitted yet.`,
+      ],
+      cta: { label: "Finish and submit", url: `${appUrl}/report` },
+    });
 
-    await sendEmail({ to: u.email, subject: c.subject, text });
+    await sendEmail({ to: u.email, subject: c.subject, text, html });
     sent++;
   }
 
