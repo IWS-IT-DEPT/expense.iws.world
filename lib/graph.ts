@@ -42,6 +42,55 @@ async function appToken(): Promise<string> {
 const groupCache = new Map<string, { ids: string[]; expiresAt: number }>();
 const GROUP_TTL_MS = 60_000;
 
+let lastGraphError: string | null = null;
+export const getLastGraphError = () => lastGraphError;
+
+/**
+ * One-shot check of the app-only Graph setup, for the /account diagnostics page:
+ * confirms the client-credentials token carries an application permission role
+ * and that a group read actually succeeds.
+ */
+export async function graphSelfTest(): Promise<{
+  ok: boolean;
+  detail: string;
+  appRoles: string[];
+}> {
+  if (!graphConfigured) {
+    return { ok: false, detail: "not configured (client id / secret / tenant)", appRoles: [] };
+  }
+  try {
+    const token = await appToken();
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(),
+    ) as { roles?: string[] };
+    const appRoles = payload.roles ?? [];
+
+    if (appRoles.length === 0) {
+      return {
+        ok: false,
+        detail:
+          "app-only token carries no application-permission roles. Add Microsoft Graph -> Application permission -> GroupMember.Read.All and grant admin consent. A Delegated permission does nothing for this app-only call.",
+        appRoles,
+      };
+    }
+
+    const probe = await fetch("https://graph.microsoft.com/v1.0/groups?$top=1&$select=id", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!probe.ok) {
+      const body = (await probe.json().catch(() => ({}))) as { error?: { message?: string } };
+      return {
+        ok: false,
+        detail: `groups read failed (${probe.status}): ${body.error?.message ?? "unknown"}`,
+        appRoles,
+      };
+    }
+    return { ok: true, detail: `ok — roles: ${appRoles.join(", ")}`, appRoles };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err), appRoles: [] };
+  }
+}
+
 /**
  * All (transitive) group object ids the user belongs to.
  * Returns `null` when the lookup could not be performed (not configured, no
@@ -63,7 +112,8 @@ export async function getUserGroupIds(userOid: string): Promise<string[] | null>
     for (let i = 0; url && i < 10; i++) {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
-        console.warn(`[graph] memberOf ${res.status}: ${await res.text()}`);
+        lastGraphError = `memberOf ${res.status}: ${await res.text()}`;
+        console.warn(`[graph] ${lastGraphError}`);
         return null;
       }
       const json = (await res.json()) as {
@@ -73,10 +123,12 @@ export async function getUserGroupIds(userOid: string): Promise<string[] | null>
       for (const g of json.value) ids.push(g.id);
       url = json["@odata.nextLink"] ?? null;
     }
+    lastGraphError = null;
     groupCache.set(userOid, { ids, expiresAt: Date.now() + GROUP_TTL_MS });
     return ids;
   } catch (err) {
-    console.warn("[graph] getUserGroupIds failed:", err instanceof Error ? err.message : err);
+    lastGraphError = err instanceof Error ? err.message : String(err);
+    console.warn("[graph] getUserGroupIds failed:", lastGraphError);
     return null;
   }
 }

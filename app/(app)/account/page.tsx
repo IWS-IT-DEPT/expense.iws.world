@@ -1,13 +1,16 @@
 import { signOut } from "@/lib/auth";
-import { getCurrentUser, getIdentityDiagnostics, isAdmin } from "@/lib/current-user";
+import { getCurrentUser, getIdentityDiagnostics } from "@/lib/current-user";
+import { graphSelfTest } from "@/lib/graph";
 
 export default async function AccountPage() {
   const user = await getCurrentUser();
-  const showDiagnostics = user ? isAdmin(user) : false;
-  const diag = showDiagnostics ? await getIdentityDiagnostics() : null;
+  // Diagnostics show for everyone: someone who *expects* elevated access but is
+  // still `cardholder` is exactly who needs to see why.
+  const diag = await getIdentityDiagnostics();
+  const graph = await graphSelfTest();
 
   const matches = (id?: string | null) =>
-    id && diag?.resolvedGroups.includes(id) ? "member" : "not a member";
+    id && diag?.resolvedGroups.includes(id) ? "✓ member" : "not a member";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -23,7 +26,7 @@ export default async function AccountPage() {
         <dd className="font-medium">{user?.role}</dd>
       </dl>
 
-      {showDiagnostics && diag && (
+      {diag && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
             Identity diagnostics
@@ -33,7 +36,7 @@ export default async function AccountPage() {
             <dd className="font-mono text-xs">{diag.oid ?? "—"}</dd>
 
             <dt className="opacity-60">Group source</dt>
-            <dd>{diag.groupSource}</dd>
+            <dd className="font-medium">{diag.groupSource}</dd>
 
             <dt className="opacity-60">Groups in token</dt>
             <dd>
@@ -46,34 +49,47 @@ export default async function AccountPage() {
               {diag.resolvedGroups.length ? diag.resolvedGroups.join(", ") : "none"}
             </dd>
 
-            <dt className="opacity-60">IT group</dt>
+            <dt className="opacity-60">IT → admin</dt>
             <dd>
               <span className="font-mono text-xs">{diag.configuredGroups.it ?? "not set"}</span> —{" "}
               {matches(diag.configuredGroups.it)}
             </dd>
 
-            <dt className="opacity-60">Finance group</dt>
+            <dt className="opacity-60">Finance → accounting</dt>
             <dd>
               <span className="font-mono text-xs">{diag.configuredGroups.finance ?? "not set"}</span>{" "}
               — {matches(diag.configuredGroups.finance)}
             </dd>
 
-            <dt className="opacity-60">HR / payroll group</dt>
+            <dt className="opacity-60">HR → payroll</dt>
             <dd>
               <span className="font-mono text-xs">{diag.configuredGroups.hr ?? "not set"}</span> —{" "}
               {matches(diag.configuredGroups.hr)}
             </dd>
 
             <dt className="opacity-60">Graph fallback</dt>
-            <dd>{diag.graphConfigured ? "configured" : "not configured"}</dd>
+            <dd className={graph.ok ? "" : "text-amber-600 dark:text-amber-400"}>
+              {graph.ok ? "working" : "NOT working"} — {graph.detail}
+            </dd>
           </dl>
+
+          {!graph.ok && graph.appRoles.length === 0 && (
+            <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
+              <strong>Fix:</strong> App registration → API permissions → Add a permission →
+              Microsoft Graph → <strong>Application permissions</strong> →{" "}
+              <code>GroupMember.Read.All</code> → Add, then <strong>Grant admin consent</strong>. A{" "}
+              <em>Delegated</em> permission of the same name does nothing for this. Once the row shows
+              Type <strong>Application</strong> with a green check, reload this page.
+            </p>
+          )}
 
           {diag.groupSource === "none" && (
             <p className="rounded-md border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
-              No group membership could be read. Either the token has no <code>groups</code> claim
-              (check the app registration → Token configuration → groups claim, <strong>ID</strong>{" "}
-              token checked) or the Graph app permission <code>GroupMember.Read.All</code> isn&apos;t
-              consented. If you just changed either, sign out and back in.
+              No group membership could be read from the token either. If <code>IT@iws.world</code>{" "}
+              and <code>IWS-Finance@iws.world</code> are Microsoft 365 groups (they have mailboxes),
+              the groups claim must be set to <strong>&quot;Groups assigned to the application&quot;</strong>{" "}
+              or <strong>&quot;All groups&quot;</strong> — not &quot;Security groups&quot;. Sign out
+              and back in after changing it.
             </p>
           )}
         </section>
