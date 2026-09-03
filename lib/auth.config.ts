@@ -20,6 +20,18 @@ function emailFromProfile(profile: Record<string, unknown> | undefined): string 
   return raw.toLowerCase();
 }
 
+/**
+ * Session lifetimes. Auth.js gates *getting* a session behind Entra (and thus
+ * MFA / Conditional Access); these control how long the app then trusts it.
+ *   - IDLE: sliding — logged out this long after the last activity.
+ *   - ABSOLUTE: hard cap from sign-in regardless of activity, so everyone
+ *     re-authenticates (and re-satisfies MFA) at least daily.
+ * For a fixed re-MFA cadence, pair this with an Entra Conditional Access
+ * "sign-in frequency" policy scoped to this app.
+ */
+const IDLE_SESSION_MAX_S = 8 * 60 * 60; // 8 hours
+const ABSOLUTE_SESSION_MAX_S = 10 * 60 * 60; // 10 hours
+
 /** Decode a JWT payload without verifying (already validated by the OIDC flow). */
 function decodeJwtPayload(jwt: string): Record<string, unknown> {
   try {
@@ -41,7 +53,11 @@ export const authConfig = {
     }),
   ],
   pages: { signIn: "/signin" },
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: IDLE_SESSION_MAX_S,
+    updateAge: 15 * 60, // re-issue the cookie at most every 15 min of activity
+  },
   callbacks: {
     /** Lock sign-in to the company's M365 tenant domain(s). */
     signIn({ profile }) {
@@ -55,6 +71,8 @@ export const authConfig = {
       return !!auth?.user;
     },
     jwt({ token, profile, account }) {
+      if (account) token.authAt = Math.floor(Date.now() / 1000);
+
       // On initial sign-in, pull oid + the "groups" claim. Entra puts groups in
       // the id_token (Token configuration -> groups claim), which isn't always
       // surfaced on `profile`, so decode the id_token directly as the source.
@@ -70,6 +88,14 @@ export const authConfig = {
         // Entra emits _claim_names when the groups list overflows the token.
         token.groupsOverage = !!(claims as Record<string, unknown>)._claim_names;
       }
+
+      // Hard absolute cap — force a fresh sign-in (and MFA) regardless of activity.
+      if (
+        typeof token.authAt === "number" &&
+        Math.floor(Date.now() / 1000) - token.authAt > ABSOLUTE_SESSION_MAX_S
+      ) {
+        return null;
+      }
       return token;
     },
     session({ session, token }) {
@@ -78,6 +104,7 @@ export const authConfig = {
         session.user.groups = (token.groups as string[] | undefined) ?? [];
         session.user.groupsOverage = !!token.groupsOverage;
       }
+      if (typeof token.authAt === "number") session.authAt = token.authAt;
       return session;
     },
   },

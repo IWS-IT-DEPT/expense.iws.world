@@ -10,6 +10,9 @@ import { getUserGroupIds, graphConfigured } from "./graph";
 export type Role = (typeof userRole.enumValues)[number];
 export type CurrentUser = typeof users.$inferSelect;
 
+/** Mirror of ABSOLUTE_SESSION_MAX_S in auth.config — belt-and-suspenders cap. */
+const ABSOLUTE_SESSION_MAX_S = 10 * 60 * 60;
+
 const GROUP_IT = process.env.ENTRA_GROUP_IT?.trim();
 const GROUP_FINANCE = process.env.ENTRA_GROUP_FINANCE?.trim();
 /** HR / payroll team — handles mileage + out-of-pocket reimbursements. */
@@ -71,6 +74,12 @@ async function resolveGroups(
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const session = await auth();
   if (!session?.user?.email) return null;
+  if (
+    typeof session.authAt === "number" &&
+    Math.floor(Date.now() / 1000) - session.authAt > ABSOLUTE_SESSION_MAX_S
+  ) {
+    return null; // session past its hard cap — treat as signed out
+  }
   const email = session.user.email.toLowerCase();
 
   const resolution = await resolveGroups(
