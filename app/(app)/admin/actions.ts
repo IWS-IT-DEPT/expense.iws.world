@@ -110,9 +110,16 @@ export async function inviteUser(fd: FormData) {
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existing) redirect(`/admin/users/${existing.id}`);
 
+  // Roles that come from Microsoft 365 groups can't be pre-set here (they'd be reset at sign-in).
+  const wanted = str(fd, "role") as (typeof userRole.enumValues)[number];
+  const role =
+    (userRole.enumValues as readonly string[]).includes(wanted) &&
+    !(GROUP_SYNC_ENABLED && GROUP_DRIVEN.includes(wanted))
+      ? wanted
+      : "cardholder";
   const [created] = await db
     .insert(users)
-    .values({ email, name: opt(fd, "name") ?? email, role: "cardholder" })
+    .values({ email, name: opt(fd, "name") ?? email, role })
     .returning({ id: users.id });
   const welcomed = bool(fd, "sendWelcome") ? await notifyWelcome(created.id) : false;
   await done("/admin/users");

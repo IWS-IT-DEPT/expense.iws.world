@@ -17,13 +17,39 @@ import { sendPushToUser } from "./push";
 
 const APP_URL = (process.env.APP_URL ?? "").replace(/\/$/, "");
 
-async function userEmail(userId: string): Promise<{ email: string; name: string } | null> {
+async function userEmail(
+  userId: string,
+): Promise<{ email: string; name: string; role: string } | null> {
   const u = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { email: true, name: true },
+    columns: { email: true, name: true, role: true },
   });
   return u ?? null;
 }
+
+/** What each role means, in the words used in the welcome email. */
+const ROLE_INTRO: Record<string, { title: string; text: string }> = {
+  cardholder: {
+    title: "Employee",
+    text: "You can log your own company-card purchases, out-of-pocket expenses and mileage, attach receipts, and submit them. If you're also on the IT, Finance or HR team in Microsoft 365, those extra sections appear in Help on their own the first time you sign in.",
+  },
+  approver: {
+    title: "Approver",
+    text: "On top of logging your own expenses, you review company-card charges after Accounting has checked them and give final approval (Accounting section → Reconcile and Approvals).",
+  },
+  accounting: {
+    title: "Accounting",
+    text: "On top of logging your own expenses, you reconcile company-card charges against the statement, run the card-spend reports, and maintain the shared lists (companies, locations, units, jobs and categories).",
+  },
+  payroll: {
+    title: "Payroll",
+    text: "On top of logging your own expenses, you reconcile and approve everyone's mileage and out-of-pocket reimbursements and run the reimbursement reports (Payroll section).",
+  },
+  admin: {
+    title: "Administrator",
+    text: "You have access to everything: your own expenses, the Accounting and Payroll queues, and Settings (users, roles, companies, QuickBooks setup and email).",
+  },
+};
 
 async function safeSend(to: string | string[], subject: string, content: EmailContent) {
   try {
@@ -119,12 +145,14 @@ export async function notifyWelcome(userId: string): Promise<boolean> {
   const u = await userEmail(userId);
   if (!u) return false;
   const host = APP_URL.replace(/^https?:\/\//, "") || "expense.iws.world";
+  const role = ROLE_INTRO[u.role] ?? ROLE_INTRO.cardholder;
   await safeSend(u.email, "Welcome to IWS Expense — get set up in 2 minutes", {
     accent: "green",
     preheader: "Sign in, add the app to your phone, and find your how-to guide",
     heading: `Welcome to IWS Expense, ${u.name.split(" ")[0]}`,
     paragraphs: [
       "You've been added to IWS Expense, where you log company-card purchases, out-of-pocket expenses and mileage — receipts included.",
+      `Your role: ${role.title}. ${role.text}`,
       `Sign in at ${host} with your Microsoft 365 work account (the same one you use for email). Then put the app on your phone so it's one tap away:`,
     ],
     sections: [
@@ -155,7 +183,7 @@ export async function notifyWelcome(userId: string): Promise<boolean> {
       {
         title: "Learn how to use it",
         steps: [
-          "Once you're signed in, tap \"Help\" at the top of any screen. It shows instructions for exactly what you can do — and adds more sections if you're given extra access (for example reconciling or approving).",
+          `Once you're signed in, tap "Help" at the top of any screen. It opens with the employee guide${u.role === "cardholder" ? "" : ` and has a section for your ${role.title} role`} — and shows more sections if you're later given extra access.`,
           "The same page has the install steps above and a switch to turn on notifications, so you'll know right away if something is sent back.",
         ],
       },

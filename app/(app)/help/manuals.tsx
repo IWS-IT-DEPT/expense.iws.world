@@ -492,8 +492,9 @@ const admin: Manual = {
         </li>
         <li>
           <strong>+ Add user</strong> sets a person up by email ahead of their first sign-in. They still sign in
-          with Microsoft. By default they&apos;re emailed setup instructions — how to sign in, add the app to an
-          iPhone, Android or computer, and where the Help guide is. People who sign in on their own for the first
+          with Microsoft. Pick their role (Cardholder or Approver; Admin, Accounting and Payroll come from Microsoft 365
+          groups). By default they&apos;re emailed setup instructions — what their role lets them do, how to sign
+          in, add the app to an iPhone, Android or computer, and where the Help guide is. People who sign in on their own for the first
           time get the same email, and <strong>Email setup instructions</strong> on a person&apos;s page re-sends it.
         </li>
         <li>

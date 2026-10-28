@@ -1,13 +1,15 @@
 import Link from "next/link";
 
 import { SubmitButton } from "@/app/components/submit-button";
-import { requireRole } from "@/lib/current-user";
+import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
+import { userRole } from "@/db/schema";
 
 import { inputClass } from "../../_ui";
 import { inviteUser } from "../../actions";
 
 export default async function NewUserPage() {
   await requireRole("admin");
+  const roles = GROUP_SYNC_ENABLED ? userRole.enumValues.filter((r) => !GROUP_DRIVEN.includes(r)) : [...userRole.enumValues];
   return (
     <div className="max-w-xl space-y-4">
       <Link href="/admin/users" className="text-sm underline opacity-70">
@@ -26,6 +28,22 @@ export default async function NewUserPage() {
         <label className="block">
           <span className="mb-1 block font-medium">Full name</span>
           <input name="name" placeholder="Jane Smith" className={`${inputClass} w-full`} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block font-medium">Role</span>
+          <select name="role" defaultValue="cardholder" className={inputClass}>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs opacity-60">
+            {GROUP_SYNC_ENABLED
+              ? "Admin, Accounting and Payroll come from their Microsoft 365 group (IT, Finance, HR) and are applied automatically when they first sign in. Only Cardholder and Approver are set here."
+              : "Roles set here are used as-is (Microsoft 365 group sync is off)."}{" "}
+            The setup email describes this role.
+          </span>
         </label>
         <label className="flex items-start gap-2">
           <input type="checkbox" name="sendWelcome" defaultChecked className="mt-1" />
