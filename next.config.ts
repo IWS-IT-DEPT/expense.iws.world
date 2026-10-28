@@ -1,15 +1,9 @@
 import type { NextConfig } from "next";
 
-// Not a full script-src CSP (Next's inline bootstrap scripts need a nonce setup);
-// these directives still block framing, <base>/<object> injection and
-// cross-origin form posts.
-const CSP = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-].join("; ");
+// Enforced CSP is limited to directives that can't affect scripts, styles or
+// form posts (sign-in redirects to login.microsoftonline.com). The script-src
+// policy is in proxy.ts, currently Report-Only.
+const CSP = ["base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'"].join("; ");
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
