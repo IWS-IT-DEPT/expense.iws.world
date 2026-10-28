@@ -53,3 +53,11 @@ optgroup {
   background-color: var(--background);
   color: var(--foreground);
 }
+
+/* Installed app: our own pull-to-refresh replaces the browser's (see pull-to-refresh.tsx). */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: contain;
+  }
+}

@@ -1,3 +1,5 @@
+import { NotifyPanel } from "@/app/components/push-notifications";
+import { pushPublicKey } from "@/lib/push";
 import { signOut } from "@/lib/auth";
 import { getCurrentUser, getIdentityDiagnostics } from "@/lib/current-user";
 import { graphSelfTest } from "@/lib/graph";
@@ -25,6 +27,11 @@ export default async function AccountPage() {
         <dt className="opacity-60">Role</dt>
         <dd className="font-medium">{user?.role}</dd>
       </dl>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">Notifications</h2>
+        <NotifyPanel publicKey={pushPublicKey} />
+      </section>
 
       {diag && (
         <section className="space-y-4">

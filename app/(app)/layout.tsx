@@ -3,11 +3,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth";
+import { pushPublicKey } from "@/lib/push";
 import { canReview, canSeePayroll, canSeeSettings, getCurrentUser, isAdmin } from "@/lib/current-user";
 
 import { InstallBanner } from "../components/install-app";
+import { NotifyBanner } from "../components/push-notifications";
+import { PullToRefresh } from "../components/pull-to-refresh";
 
 import { AppNav, type Zone } from "./app-nav";
+import { BackButton } from "./back-button";
 
 const ME_ZONE: Zone = {
   key: "me",
@@ -76,6 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-black/10 dark:border-white/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+          <BackButton />
           <Link href="/expenses" className="flex items-center gap-2">
             <Image src="/brand/iws.png" alt="IWS" width={28} height={28} priority />
             <span className="font-semibold">Expense</span>
@@ -100,6 +105,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <InstallBanner />
+      <NotifyBanner publicKey={pushPublicKey} />
+      <PullToRefresh />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
     </div>
   );

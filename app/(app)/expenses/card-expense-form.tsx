@@ -9,8 +9,9 @@ import {
   type CodingEntityOption,
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
+import { CancelWorkflow } from "@/app/components/cancel-workflow";
 import { ConfirmAction } from "@/app/components/confirm-action";
-import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
+import { ReceiptStager, centsFromText, uploadStagedReceipts } from "@/app/components/receipt-stager";
 import { SaveBar } from "@/app/components/save-bar";
 
 import {
@@ -32,6 +33,8 @@ export interface CardExpenseFormProps {
   cards: { id: string; label: string }[];
   /** true when the server says this expense passes every check and can be sent to accounting */
   submitReady?: boolean;
+  /** receipt required at/above this amount (cents) — used to prompt for it while logging */
+  receiptThresholdCents?: number;
   initial?: {
     id: string;
     merchant: string;
@@ -53,47 +56,53 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
   const router = useRouter();
   const editing = !!props.initial;
   const [dirty, setDirty] = useState(false);
+  const [staged, setStaged] = useState<File[]>([]);
+  const [amountText, setAmountText] = useState(
+    props.initial ? (props.initial.amountCents / 100).toFixed(2) : "",
+  );
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (prev, fd) => {
       const r = await (editing ? updateCardExpense : createCardExpense)(prev, fd);
-      if (r.ok) {
-        setDirty(false);
-        if (editing) router.refresh(); // re-pull server checks / submitReady
+      if (!r.ok) return r;
+      setDirty(false);
+      if (editing) {
+        router.refresh(); // re-pull server checks / submitReady
+        return r;
       }
+      // Create: send the receipt(s) up with the expense, then open it.
+      if (r.id && staged.length > 0) {
+        const up = await uploadStagedReceipts("pending", r.id, staged);
+        if (!up.ok) return { ...r, uploadError: up.error } as FormState;
+      }
+      router.push(`/expenses/${r.id}`);
+      props.onDone?.();
       return r;
     },
     {},
   );
 
-  // Create flow: after the first save, show the receipt-upload hand-off.
-  if (state.ok && state.id && !editing) {
+  // Create flow: saved, but the receipt didn't make it — don't lose the expense.
+  const uploadError = (state as FormState & { uploadError?: string }).uploadError;
+  if (state.ok && state.id && !editing && uploadError) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-emerald-700 dark:text-emerald-400">Purchase saved.</p>
-        <ReceiptUploadButton
-          purpose="pending"
-          targetId={state.id}
-          label="Add the receipt"
-          onDone={() => {
-            router.refresh();
-            props.onDone?.();
-          }}
-        />
-        <div>
-          <button
-            type="button"
-            onClick={() => {
-              router.push("/expenses");
-              props.onDone?.();
-            }}
-            className="text-xs underline opacity-70 hover:opacity-100"
-          >
-            Done — I&apos;ll add the receipt later
-          </button>
-        </div>
+      <div className="space-y-3 text-sm">
+        <p className="text-emerald-700 dark:text-emerald-400">Purchase saved.</p>
+        <p className="text-red-600">The receipt didn&apos;t upload: {uploadError}</p>
+        <button
+          type="button"
+          onClick={() => router.push(`/expenses/${state.id}`)}
+          className="inline-flex min-h-12 items-center rounded-lg bg-black px-5 font-semibold text-white dark:bg-white dark:text-black"
+        >
+          Open it and add the receipt
+        </button>
       </div>
     );
   }
+
+  const thresholdCents = props.receiptThresholdCents ?? 7500;
+  const cents = centsFromText(amountText);
+  const receiptRequired = !editing && cents !== null && cents >= thresholdCents;
+  const receiptMissing = receiptRequired && staged.length === 0;
 
   const i = props.initial;
   const noCards = props.cards.length === 0;
@@ -102,6 +111,21 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
   return (
     <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
+
+      {!editing ? (
+        <div className="-mb-2">
+          <CancelWorkflow dirty={dirty || staged.length > 0} what="purchase" variant="top" />
+        </div>
+      ) : null}
+
+      {!editing ? (
+        <ReceiptStager
+          files={staged}
+          onChange={setStaged}
+          required={receiptRequired}
+          requiredNote={`A receipt is required for purchases of ${(thresholdCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} or more — add it now while you have it.`}
+        />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -115,6 +139,7 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
             required
             inputMode="decimal"
             defaultValue={i ? (i.amountCents / 100).toFixed(2) : ""}
+            onChange={(e) => setAmountText(e.target.value)}
             placeholder="84.12"
             className={inputClass}
           />
@@ -188,13 +213,25 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
       ) : null}
 
       {!editing ? (
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
-        >
-          {pending ? "Saving…" : "Save purchase"}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="submit"
+            disabled={pending || receiptMissing}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto dark:bg-white dark:text-black"
+          >
+            {pending ? "Saving…" : receiptMissing ? "Add a receipt to save" : "Save purchase"}
+          </button>
+          {receiptMissing ? (
+            <button
+              type="submit"
+              disabled={pending}
+              className="block min-h-11 text-sm underline opacity-70 hover:opacity-100"
+            >
+              Save without a receipt for now (I&apos;ll add it later)
+            </button>
+          ) : null}
+          <CancelWorkflow dirty={dirty || staged.length > 0} what="purchase" />
+        </div>
       ) : dirty ? (
         <SaveBar pending={pending} />
       ) : props.submitReady ? (

@@ -9,7 +9,8 @@ import {
   type CodingEntityOption,
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
-import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
+import { CancelWorkflow } from "@/app/components/cancel-workflow";
+import { ReceiptStager, centsFromText, uploadStagedReceipts } from "@/app/components/receipt-stager";
 import { SaveBar } from "@/app/components/save-bar";
 
 import { createOutOfPocket, updateExpenseItem, type FormState } from "./actions";
@@ -37,49 +38,73 @@ export function OutOfPocketForm(props: {
   jobs: CodingScopedOption[];
   categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
   initial?: ItemFormInitial;
+  receiptThresholdCents?: number;
 }) {
   const router = useRouter();
   const i = props.initial;
   const editing = !!i;
   const [dirty, setDirty] = useState(false);
+  const [staged, setStaged] = useState<File[]>([]);
+  const [amountText, setAmountText] = useState(i ? (i.amountCents / 100).toFixed(2) : "");
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (prev, fd) => {
       const r = await (editing ? updateExpenseItem : createOutOfPocket)(prev, fd);
-      if (r.ok && editing) {
-        setDirty(false);
+      if (!r.ok) return r;
+      setDirty(false);
+      if (editing) {
         router.refresh();
+        return r;
       }
+      if (r.id && staged.length > 0) {
+        const up = await uploadStagedReceipts("item", r.id, staged);
+        if (!up.ok) return { ...r, uploadError: up.error } as FormState;
+      }
+      router.push(`/expenses/${r.id}`);
       return r;
     },
     {},
   );
 
-  if (state.ok && state.id && !editing) {
+  const uploadError = (state as FormState & { uploadError?: string }).uploadError;
+  if (state.ok && state.id && !editing && uploadError) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>
-        <ReceiptUploadButton
-          purpose="item"
-          targetId={state.id}
-          label={editing ? "Add another receipt" : "Add the receipt"}
-          onDone={() => router.refresh()}
-        />
-        <div>
-          <button
-            type="button"
-            onClick={() => router.push("/expenses")}
-            className="text-xs underline opacity-70 hover:opacity-100"
-          >
-            Done
-          </button>
-        </div>
+      <div className="space-y-3 text-sm">
+        <p className="text-emerald-700 dark:text-emerald-400">Saved.</p>
+        <p className="text-red-600">The receipt didn&apos;t upload: {uploadError}</p>
+        <button
+          type="button"
+          onClick={() => router.push(`/expenses/${state.id}`)}
+          className="inline-flex min-h-12 items-center rounded-lg bg-black px-5 font-semibold text-white dark:bg-white dark:text-black"
+        >
+          Open it and add the receipt
+        </button>
       </div>
     );
   }
 
+  const thresholdCents = props.receiptThresholdCents ?? 7500;
+  const cents = centsFromText(amountText);
+  const receiptRequired = !editing && cents !== null && cents >= thresholdCents;
+  const receiptMissing = receiptRequired && staged.length === 0;
+
   return (
     <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
+
+      {!editing ? (
+        <div className="-mb-2">
+          <CancelWorkflow dirty={dirty || staged.length > 0} what="reimbursement" variant="top" />
+        </div>
+      ) : null}
+
+      {!editing ? (
+        <ReceiptStager
+          files={staged}
+          onChange={setStaged}
+          required={receiptRequired}
+          requiredNote={`A receipt is required for expenses of ${(thresholdCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} or more — add it now while you have it.`}
+        />
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Date</span>
@@ -98,6 +123,7 @@ export function OutOfPocketForm(props: {
             required
             inputMode="decimal"
             defaultValue={i ? (i.amountCents / 100).toFixed(2) : ""}
+            onChange={(e) => setAmountText(e.target.value)}
             placeholder="24.60"
             className={inputClass}
           />
@@ -150,13 +176,25 @@ export function OutOfPocketForm(props: {
       ) : null}
 
       {!editing ? (
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
-        >
-          {pending ? "Saving…" : "Save reimbursement"}
-        </button>
+        <div className="space-y-2">
+          <button
+            type="submit"
+            disabled={pending || receiptMissing}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto dark:bg-white dark:text-black"
+          >
+            {pending ? "Saving…" : receiptMissing ? "Add a receipt to save" : "Save reimbursement"}
+          </button>
+          {receiptMissing ? (
+            <button
+              type="submit"
+              disabled={pending}
+              className="block min-h-11 text-sm underline opacity-70 hover:opacity-100"
+            >
+              Save without a receipt for now (I&apos;ll add it later)
+            </button>
+          ) : null}
+          <CancelWorkflow dirty={dirty || staged.length > 0} what="reimbursement" />
+        </div>
       ) : dirty ? (
         <SaveBar pending={pending} />
       ) : null}

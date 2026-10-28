@@ -143,7 +143,7 @@ export function ReceiptUploadButton({
               onDone?.(r);
               close();
             }}
-            onCancel={isCoarse ? undefined : () => setMode("choose")}
+            onCancel={isCoarse ? close : () => setMode("choose")}
           />
         )}
 

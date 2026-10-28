@@ -78,6 +78,13 @@
       "when": 1793199975965,
       "tag": "0010_entity_qbo_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793205523281,
+      "tag": "0011_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }

@@ -73,6 +73,19 @@ const cardholder: Manual = {
         at the top of this page.
       </P>
 
+      <H>Notifications</H>
+      <P>
+        Turn on notifications (on <strong>Your account</strong> or the Help page) to be told when an expense
+        is sent back, and for the Wednesday and Friday reminders. If notifications are on you won&apos;t also
+        get those emails. On iPhone, install the app to your home screen first.
+      </P>
+
+      <H>Pull down to refresh</H>
+      <P>
+        In the installed app, drag down from the top of any screen to refresh it — handy after someone sends
+        something back.
+      </P>
+
       <H>Signing in</H>
       <UL>
         <li>Use <strong>Sign in with Microsoft</strong> with your company account.</li>
@@ -105,8 +118,11 @@ const cardholder: Manual = {
           Add the <strong>coding</strong> (below) and the <strong>receipt</strong> (below).
         </li>
         <li>
-          Save. You can save a purchase as a draft with missing details and finish it later — but it can&apos;t
-          be submitted until it&apos;s complete.
+          Save. Add the <strong>receipt on this same screen</strong> (tap <strong>Scan or add receipt</strong>) —
+          for purchases at or over the receipt amount you need it to save. Changed your mind? Tap{" "}
+          <strong>✕ Cancel</strong> at the top (or Cancel at the bottom); if you&apos;ve entered anything it asks
+          before throwing it away. You can still save a purchase as a draft with missing details and finish it
+          later — it just can&apos;t be submitted until it&apos;s complete.
         </li>
         <li>
           When it&apos;s ready, click <strong>Submit</strong> on its row. It goes straight to Accounting.

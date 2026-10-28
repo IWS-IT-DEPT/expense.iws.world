@@ -49,7 +49,7 @@ export function Modal({
             <button
               type="button"
               onClick={onClose}
-              className="text-sm opacity-60 hover:opacity-100"
+              className="-mr-2 inline-flex h-11 min-w-11 items-center justify-center rounded-lg text-lg opacity-70 hover:opacity-100"
               aria-label="Close"
             >
               ✕

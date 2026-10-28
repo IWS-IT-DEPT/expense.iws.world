@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
 
+import { CancelWorkflow } from "@/app/components/cancel-workflow";
 import { SaveBar } from "@/app/components/save-bar";
 import {
   CodingFields,
@@ -83,6 +84,11 @@ export function MileageForm(props: {
   return (
     <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
+      {!editing ? (
+        <div className="-mb-2">
+          <CancelWorkflow dirty={dirty} what="mileage entry" variant="top" />
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Date</span>
@@ -162,6 +168,7 @@ export function MileageForm(props: {
       ) : null}
 
       {!editing ? (
+        <div className="space-y-2">
         <button
           type="submit"
           disabled={pending}
@@ -169,6 +176,8 @@ export function MileageForm(props: {
         >
           {pending ? "Saving…" : "Save mileage"}
         </button>
+        <CancelWorkflow dirty={dirty} what="mileage entry" />
+        </div>
       ) : dirty ? (
         <SaveBar pending={pending} />
       ) : null}

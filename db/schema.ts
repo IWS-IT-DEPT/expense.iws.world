@@ -646,6 +646,19 @@ export const reminderSends = pgTable(
   (t) => [unique().on(t.userId, t.periodStart, t.slot)],
 );
 
+/** One row per device that turned on push notifications (see lib/push.ts). */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Fixed-window request counters for public endpoints (see lib/rate-limit.ts). */
 export const rateLimits = pgTable(
   "rate_limits",

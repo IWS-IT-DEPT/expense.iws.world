@@ -6,6 +6,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseItems, pendingExpenses, reminderSends, users } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
+import { sendPushToUser } from "@/lib/push";
 import { renderEmail } from "@/lib/email-template";
 import { weekBounds } from "@/lib/format";
 import { APP_TZ } from "@/lib/tz";
@@ -110,6 +111,7 @@ export async function GET(req: Request) {
     );
 
   let sent = 0;
+  let pushed = 0;
   const list: string[] = [];
 
   for (const u of recipients) {
@@ -140,6 +142,19 @@ export async function GET(req: Request) {
 
     const pending = Number(cardAgg.n) + Number(itemAgg.n);
     const c = COPY[slot];
+
+    // Push if they've turned it on; the email only goes to people who didn't get one.
+    const delivered = await sendPushToUser(u.id, {
+      title: c.subject,
+      body: `${pending} expense${pending === 1 ? "" : "s"} not submitted yet. ${c.lead}`,
+      url: "/report",
+      tag: `reminder-${slot}`,
+    });
+    if (delivered > 0) {
+      pushed++;
+      continue;
+    }
+
     const { html, text } = renderEmail({
       accent: slot === "wed_am" ? "amber" : "red",
       preheader: c.lead,
@@ -156,5 +171,5 @@ export async function GET(req: Request) {
     sent++;
   }
 
-  return NextResponse.json({ slot, periodStart: start, considered: recipients.length, sent, ...(dry ? { list } : {}) });
+  return NextResponse.json({ slot, periodStart: start, considered: recipients.length, sent, pushed, ...(dry ? { list } : {}) });
 }

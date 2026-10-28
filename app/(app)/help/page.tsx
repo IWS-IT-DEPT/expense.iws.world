@@ -1,6 +1,8 @@
 import { requireUser } from "@/lib/current-user";
+import { pushPublicKey } from "@/lib/push";
 
 import { InstallPanel } from "../../components/install-app";
+import { NotifyPanel } from "../../components/push-notifications";
 
 import { manualsFor } from "./manuals";
 
@@ -37,6 +39,15 @@ export default async function HelpPage() {
         <p className="text-sm opacity-60">Put IWS Expense on your phone&apos;s home screen or your computer&apos;s Start menu — no app store needed.</p>
         <InstallPanel />
       </section>
+
+      {pushPublicKey ? (
+        <section id="notifications" className="mt-6 scroll-mt-6 rounded-lg border border-black/10 p-4 dark:border-white/15">
+          <h2 className="text-base font-semibold">Notifications</h2>
+          <div className="mt-2">
+            <NotifyPanel publicKey={pushPublicKey} />
+          </div>
+        </section>
+      ) : null}
 
       {manuals.map((m) => (
         <section key={m.id} id={m.id} className="mt-10 scroll-mt-6 border-t border-black/10 pt-6 dark:border-white/15">

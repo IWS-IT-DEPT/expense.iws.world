@@ -15,6 +15,7 @@ export function ConfirmAction({
   confirmLabel,
   run,
   tone = "danger",
+  dismissLabel = "Cancel",
   className = "",
 }: {
   label: string;
@@ -23,6 +24,8 @@ export function ConfirmAction({
   /** runs after the second tap */
   run: () => void | Promise<void>;
   tone?: "danger" | "primary";
+  /** text of the button that closes the question without doing anything */
+  dismissLabel?: string;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,7 +74,7 @@ export function ConfirmAction({
           onClick={() => setOpen(false)}
           className="inline-flex min-h-12 items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium dark:border-white/20"
         >
-          Cancel
+          {dismissLabel}
         </button>
       </div>
     </div>

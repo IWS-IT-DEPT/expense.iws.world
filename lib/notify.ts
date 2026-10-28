@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { sendEmail } from "./email";
 import { renderEmail, type EmailContent } from "./email-template";
 import { money } from "./format";
+import { sendPushToUser } from "./push";
 
 /**
  * Workflow notifications. Each swallows its own errors — a mail hiccup must not
@@ -43,6 +44,14 @@ export async function notifySentBack(
 ) {
   const u = await userEmail(userId);
   if (!u) return;
+  // Push if they've turned it on; otherwise (or if it can't be delivered) email.
+  const delivered = await sendPushToUser(userId, {
+    title: `Sent back: ${label}`,
+    body: `${by}: ${reason}`,
+    url: "/expenses",
+    tag: "sent-back",
+  });
+  if (delivered > 0) return;
   await safeSend(u.email, `Sent back: ${label}`, {
     accent: "amber",
     preheader: `${by} sent ${label} back to you`,

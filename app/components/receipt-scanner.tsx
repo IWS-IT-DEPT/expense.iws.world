@@ -35,13 +35,15 @@ const DEFAULT_CORNERS: Quad = [
 ];
 
 export interface ReceiptScannerProps {
-  endpoint: "/api/receipts" | "/api/receipt-upload";
+  endpoint?: "/api/receipts" | "/api/receipt-upload";
   token?: string;
   purpose: UploadPurpose;
   targetId?: string;
   targetLabel?: string;
   maxPages?: number;
   onComplete?: (r: { receiptCount: number; pendingExpenseId?: string | null }) => void;
+  /** When set, the finished receipt is handed back here instead of being uploaded. */
+  onFile?: (file: File) => void;
   onCancel?: () => void;
 }
 
@@ -53,6 +55,7 @@ export function ReceiptScanner({
   targetLabel,
   maxPages = 8,
   onComplete,
+  onFile,
   onCancel,
 }: ReceiptScannerProps) {
   const [stage, setStage] = useState<Stage>("camera");
@@ -237,6 +240,13 @@ export function ReceiptScanner({
         const pdf = await assembleReceiptPdf(allParts);
         file = new File([pdf], "receipt.pdf", { type: "application/pdf" });
       }
+
+      if (onFile) {
+        setStage("done");
+        onFile(file);
+        return;
+      }
+      if (!endpoint) throw new Error("No upload endpoint configured.");
 
       setStage("uploading");
       const fd = new FormData();
