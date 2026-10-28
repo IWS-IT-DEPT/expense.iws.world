@@ -249,7 +249,7 @@ QBO has **no CSV import for Purchases** — the API is the only real path.
 - [ ] Reimbursement batches → payroll CSV export (`reimbursement_batches`)
 - [ ] QuickBooks Online integration (Phase 2 above)
 - [ ] Statement reconciliation view — link cardholder expenses to imported lines
-- [ ] Timezone-correct week boundaries (`weekBounds` is currently UTC)
+- [x] Timezone-correct week boundaries — everything is US Central (`lib/tz.ts`)
 - [ ] Drop the dead `transactions` / `allocations` / `exception_flags` tables
 
 ## Layout

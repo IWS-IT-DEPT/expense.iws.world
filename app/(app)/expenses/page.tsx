@@ -7,7 +7,8 @@ import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money } from "@/lib/format";
-import { daysOverdue, todayInTz } from "@/lib/overdue";
+import { daysOverdue } from "@/lib/overdue";
+import { todayInTz } from "@/lib/tz";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 
 import { EntityBadge } from "../../components/entity-badge";

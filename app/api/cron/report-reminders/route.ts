@@ -8,13 +8,13 @@ import { expenseItems, pendingExpenses, reminderSends, users } from "@/db/schema
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { weekBounds } from "@/lib/format";
+import { APP_TZ } from "@/lib/tz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Slot = "wed_am" | "fri_am" | "fri_pm";
 
-const APP_TZ = process.env.APP_TZ ?? "America/Chicago";
 
 /** Current weekday (0=Sun) in APP_TZ. */
 function dowInTz(): number {

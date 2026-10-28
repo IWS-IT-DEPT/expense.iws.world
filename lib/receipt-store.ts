@@ -5,6 +5,7 @@ import { expenseItems, pendingExpenses, receipts, transactions } from "@/db/sche
 
 import { canReview } from "./current-user";
 import { blobStore, receiptKey } from "./storage";
+import { todayInTz } from "./tz";
 import { refreshTransactionFlags } from "./txn-flags";
 import type { UploadPurpose } from "./upload-token";
 
@@ -145,7 +146,7 @@ export async function storeReceipts(input: StoreReceiptsInput): Promise<StoreRes
         merchant: "Untitled purchase",
         merchantNormalized: "",
         amountCents: 0,
-        purchaseDate: new Date().toISOString().slice(0, 10),
+        purchaseDate: todayInTz(),
         status: "draft",
         createdById: userId,
       })

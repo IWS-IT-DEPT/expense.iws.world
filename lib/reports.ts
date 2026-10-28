@@ -12,6 +12,7 @@ import { db } from "@/db";
 import { expenseItems, pendingExpenses } from "@/db/schema";
 import { entityColor } from "@/lib/brand";
 import { weekBounds } from "@/lib/format";
+import { todayInTz } from "@/lib/tz";
 
 export type RangeKind = "week" | "month" | "quarter";
 export type SpendScope = "turned_in" | "approved";
@@ -57,14 +58,14 @@ export interface Period {
 
 export function resolvePeriod(range: RangeKind, anchor?: string): Period {
   const base =
-    anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? parseYmd(anchor) : parseYmd(ymd(new Date()));
+    anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? parseYmd(anchor) : parseYmd(todayInTz());
 
   let start: Date;
   let end: Date;
   let label: string;
 
   if (range === "week") {
-    const wb = weekBounds(base);
+    const wb = weekBounds(ymd(base));
     start = parseYmd(wb.start);
     end = parseYmd(wb.end);
     label = `${fmtDay(start)} – ${fmtDay(end)}, ${end.getUTCFullYear()}`;
@@ -93,7 +94,7 @@ export function resolvePeriod(range: RangeKind, anchor?: string): Period {
         ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
         : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 3, 1));
 
-  const today = ymd(new Date());
+  const today = todayInTz();
   return {
     range,
     start: ymd(start),

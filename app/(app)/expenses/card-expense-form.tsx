@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
 
 import {
@@ -122,7 +123,7 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
             name="purchaseDate"
             type="date"
             required
-            defaultValue={i?.purchaseDate ?? new Date().toISOString().slice(0, 10)}
+            defaultValue={i?.purchaseDate ?? todayInTz()}
             className={inputClass}
           />
         </label>

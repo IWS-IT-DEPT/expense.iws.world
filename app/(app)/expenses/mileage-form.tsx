@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
 
 import {
@@ -80,7 +81,7 @@ export function MileageForm(props: {
             name="itemDate"
             type="date"
             required
-            defaultValue={i?.itemDate ?? new Date().toISOString().slice(0, 10)}
+            defaultValue={i?.itemDate ?? todayInTz()}
             className={inputClass}
           />
         </label>

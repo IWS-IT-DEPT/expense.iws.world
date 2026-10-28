@@ -1,14 +1,6 @@
-const APP_TZ = process.env.APP_TZ ?? "America/Chicago";
+import { todayInTz } from "./tz";
 
-/** Today's calendar date (YYYY-MM-DD) in APP_TZ. */
-export function todayInTz(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
+export { todayInTz };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

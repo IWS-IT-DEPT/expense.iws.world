@@ -2,6 +2,7 @@
  * Renders the spend datasets from `lib/reports.ts` into a multi-sheet Excel
  * workbook or a paginated PDF. Node-only (used by `app/api/reports/export`).
  */
+import { formatDateTime } from "@/lib/tz";
 import ExcelJS from "exceljs";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 
@@ -130,7 +131,7 @@ export async function buildPdf(
     color: rgb(0.4, 0.4, 0.4),
   });
   y -= 13;
-  write(`Generated ${new Date().toLocaleString("en-US")}`, MARGIN, {
+  write(`Generated ${formatDateTime(new Date())}`, MARGIN, {
     size: 9,
     color: rgb(0.55, 0.55, 0.55),
   });

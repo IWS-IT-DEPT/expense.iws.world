@@ -5,12 +5,15 @@ import { errorLogs } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 
 import { Section } from "../_ui";
+import { APP_TZ } from "@/lib/tz";
 import { clearResolvedErrors, reopenError, resolveError } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 function when(d: Date): string {
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TZ,
+    timeZoneName: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
