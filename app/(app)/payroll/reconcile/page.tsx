@@ -39,7 +39,7 @@ function ReceiptStrip({ receipts }: { receipts: Rec[] }) {
 }
 
 export default async function PayrollReconcilePage() {
-  await requireRole("payroll", "admin");
+  const me = await requireRole("payroll", "admin");
 
   const items = await db.query.expenseItems.findMany({
     where: eq(expenseItems.status, "submitted"),
@@ -77,7 +77,14 @@ export default async function PayrollReconcilePage() {
           return (
             <div key={uid} className="rounded-lg border border-black/10 dark:border-white/15">
               <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-black/10 px-4 py-2 text-sm dark:border-white/15">
-                <span className="font-medium">{u.name}</span>
+                <span className="font-medium">
+                  {u.name}
+                  {uid === me.id ? (
+                    <span className="ml-2 rounded bg-sky-600/15 px-1.5 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+                      your own reimbursements
+                    </span>
+                  ) : null}
+                </span>
                 <span>
                   {u.lines.length} line{u.lines.length > 1 ? "s" : ""} ·{" "}
                   {u.lines.filter((l) => l.kind === "out_of_pocket").length} OOP ·{" "}

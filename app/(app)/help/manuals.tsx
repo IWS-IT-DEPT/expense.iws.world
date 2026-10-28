@@ -416,7 +416,11 @@ const payroll: Manual = {
         You can&apos;t change an amount. The employee&apos;s entry is the request — if you disagree, send it back.
         When every line in a weekly report is settled, the report moves to <em>Reconciled</em> automatically.
       </P>
-      <Note>You can&apos;t reconcile or approve your own reimbursements.</Note>
+      <Note>
+        You can reconcile your <strong>own</strong> reimbursements too — they&apos;re marked &ldquo;your own
+        reimbursements&rdquo; and noted in the audit trail. Final approval of the report has to come from someone
+        else.
+      </Note>
 
       <H>2. Approvals — release for payment</H>
       <UL>

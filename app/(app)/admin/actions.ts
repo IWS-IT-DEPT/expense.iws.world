@@ -32,7 +32,7 @@ import {
   GROUP_ROLES,
   getGroupConfig,
   invalidateGroupConfig,
-  lookupRoleByEmail,
+  diagnoseEmail,
   settingKey,
   syncUserRoleFromM365,
 } from "@/lib/role-groups";
@@ -200,19 +200,20 @@ export async function saveRoleGroups(fd: FormData) {
 /** "Which role would this person get?" — reads Microsoft 365 only, changes nothing. */
 export async function checkEmailRole(
   fd: FormData,
-): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; message: string; lines: string[] } | { ok: false; error: string; lines: string[] }> {
   await requireRole("admin");
   const email = str(fd, "email").toLowerCase();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a full email address." };
-  const r = await lookupRoleByEmail(email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a full email address.", lines: [] };
+  const r = await diagnoseEmail(email);
   if (!r.checked) {
-    return { ok: false, error: "Couldn't read Microsoft 365 (see the connection status above)." };
+    return { ok: false, error: "Couldn't read Microsoft 365 (see the connection status above).", lines: r.lines };
   }
   return {
     ok: true,
     message: r.role
       ? `${email} is in the group for ${r.role} — they'll get the ${r.role} role.`
       : `${email} isn't in any mapped group — they'll be a cardholder (or the role you choose, if it isn't group-driven).`,
+    lines: r.lines,
   };
 }
 

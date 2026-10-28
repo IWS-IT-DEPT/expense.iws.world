@@ -139,46 +139,99 @@ export async function getUserGroupIds(userOid: string): Promise<string[] | null>
   }
 }
 
+export interface GroupScan {
+  found: boolean;
+  oid?: string;
+  /** which property matched, e.g. "mail", "userPrincipalName", "proxyAddresses" */
+  matchedOn?: string;
+  /** how many members Microsoft returned */
+  scanned: number;
+  /** members that came back with no email and no UPN at all (a permission-visibility problem) */
+  noIdentity: number;
+  /** a few members whose address shares the same name part — to spot a different spelling/domain */
+  near: string[];
+}
+
+interface GraphMember {
+  id: string;
+  displayName?: string | null;
+  mail?: string | null;
+  userPrincipalName?: string | null;
+  otherMails?: string[] | null;
+  proxyAddresses?: string[] | null;
+}
+
 /**
- * Is this email address (UPN or mail) a member — directly or through nested
- * groups — of the group? `null` when the lookup couldn't be done.
+ * Scan a group's (nested) user members for this email address. Matches the
+ * primary email, the UPN, other emails and SMTP aliases, case-insensitively.
+ * `null` when Microsoft couldn't be read.
  */
-export async function isEmailInGroup(
-  groupId: string,
-  email: string,
-): Promise<{ found: boolean; oid?: string } | null> {
+export async function scanGroupForEmail(groupId: string, email: string): Promise<GroupScan | null> {
   if (!graphConfigured) return null;
   const want = email.trim().toLowerCase();
+  const wantLocal = want.split("@")[0];
+  const out: GroupScan = { found: false, scanned: 0, noIdentity: 0, near: [] };
+
   try {
     const token = await appToken();
-    let url:
-      | string
-      | null = `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/transitiveMembers/microsoft.graph.user?$select=id,mail,userPrincipalName&$top=999`;
-    for (let i = 0; url && i < 30; i++) {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const base = `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/transitiveMembers/microsoft.graph.user`;
+    let url: string | null = `${base}?$select=id,displayName,mail,userPrincipalName,otherMails,proxyAddresses&$top=999`;
+    let triedBasic = false;
+
+    for (let page = 0; url && page < 30; page++) {
+      let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 400 && !triedBasic && page === 0) {
+        // some tenants reject the extra properties — retry with the basics
+        triedBasic = true;
+        url = `${base}?$select=id,displayName,mail,userPrincipalName&$top=999`;
+        res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      }
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) cachedToken = null;
         lastGraphError = `group members ${res.status}: ${await res.text()}`;
         console.warn(`[graph] ${lastGraphError}`);
         return null;
       }
-      const json = (await res.json()) as {
-        value: { id: string; mail?: string | null; userPrincipalName?: string | null }[];
-        "@odata.nextLink"?: string;
-      };
+      const json = (await res.json()) as { value: GraphMember[]; "@odata.nextLink"?: string };
+
       for (const m of json.value) {
-        if (m.mail?.toLowerCase() === want || m.userPrincipalName?.toLowerCase() === want) {
-          return { found: true, oid: m.id };
+        out.scanned++;
+        const candidates: [string, string][] = [];
+        if (m.mail) candidates.push(["mail", m.mail]);
+        if (m.userPrincipalName) candidates.push(["userPrincipalName", m.userPrincipalName]);
+        for (const o of m.otherMails ?? []) candidates.push(["otherMails", o]);
+        for (const p of m.proxyAddresses ?? []) {
+          if (/^smtp:/i.test(p)) candidates.push(["proxyAddresses", p.slice(5)]);
+        }
+        if (!m.mail && !m.userPrincipalName) out.noIdentity++;
+
+        for (const [field, value] of candidates) {
+          if (value.toLowerCase() === want) {
+            return { ...out, found: true, oid: m.id, matchedOn: field };
+          }
+        }
+        if (out.near.length < 5 && wantLocal) {
+          const hit = candidates.find(([, v]) => v.toLowerCase().split("@")[0] === wantLocal);
+          if (hit) out.near.push(hit[1]);
         }
       }
       url = json["@odata.nextLink"] ?? null;
     }
     lastGraphError = null;
-    return { found: false };
+    return out;
   } catch (err) {
     lastGraphError = err instanceof Error ? err.message : String(err);
     return null;
   }
+}
+
+/** Is this address a member of the group? `null` when the lookup couldn't be done. */
+export async function isEmailInGroup(
+  groupId: string,
+  email: string,
+): Promise<{ found: boolean; oid?: string } | null> {
+  const r = await scanGroupForEmail(groupId, email);
+  return r ? { found: r.found, oid: r.oid } : null;
 }
 
 /** Display name of a group (so the settings page can show "Finance & Accounting" next to its id). */

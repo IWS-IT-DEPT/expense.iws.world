@@ -43,7 +43,7 @@ const ROLE_INTRO: Record<string, { title: string; text: string }> = {
   },
   payroll: {
     title: "Payroll",
-    text: "On top of logging your own expenses, you reconcile and approve everyone's mileage and out-of-pocket reimbursements and run the reimbursement reports (Payroll section).",
+    text: "On top of logging your own expenses, you reconcile and approve everyone's mileage and out-of-pocket reimbursements (your own lines too — approval of your own report still comes from someone else) and run the reimbursement reports (Payroll section).",
   },
   admin: {
     title: "Administrator",

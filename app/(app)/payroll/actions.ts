@@ -67,8 +67,9 @@ export async function reconcileItems(fd: FormData): Promise<void> {
     where: and(inArray(expenseItems.id, ids), eq(expenseItems.status, "submitted")),
     columns: { id: true, reportId: true, userId: true },
   });
-  // Segregation of duties: nobody reconciles their own reimbursements.
-  const targets = candidates.filter((t) => t.userId !== user.id);
+  // Reviewers may reconcile their own lines (flagged in the audit trail); final
+  // approval of the report still has to come from someone else.
+  const targets = candidates;
   if (targets.length === 0) return;
 
   await db
@@ -89,6 +90,7 @@ export async function reconcileItems(fd: FormData): Promise<void> {
       subjectId: t.id,
       action: "review",
       actorId: user.id,
+      note: t.userId === user.id ? "self-reconciled" : null,
     });
   }
 

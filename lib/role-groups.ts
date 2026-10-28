@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { policySettings, userRole, users } from "@/db/schema";
 
-import { graphConfigured, isEmailInGroup } from "./graph";
+import { getGroupName, graphConfigured, isEmailInGroup, scanGroupForEmail } from "./graph";
 
 export type Role = (typeof userRole.enumValues)[number];
 
@@ -162,4 +162,43 @@ export async function syncUserRoleFromM365(
     }
   }
   return { role, changed: role !== u.role, source };
+}
+
+/** Plain-language report of what Microsoft 365 says about an address, group by group. */
+export async function diagnoseEmail(email: string): Promise<{ role: Role | null; checked: boolean; lines: string[] }> {
+  const cfg = await getGroupConfig();
+  const lines: string[] = [];
+  if (!graphConfigured) return { role: null, checked: false, lines: ["Microsoft 365 isn't configured for the app."] };
+  if (cfg.driven.length === 0) return { role: null, checked: false, lines: ["No roles are mapped to groups yet."] };
+
+  let role: Role | null = null;
+  let failed = false;
+  for (const r of GROUP_ROLES) {
+    const g = cfg.groups[r];
+    if (!g) continue;
+    const name = (await getGroupName(g)) ?? g;
+    const scan = await scanGroupForEmail(g, email);
+    if (!scan) {
+      failed = true;
+      lines.push(`${r} ← "${name}": couldn't read this group's members from Microsoft.`);
+      continue;
+    }
+    if (scan.found) {
+      lines.push(`${r} ← "${name}": FOUND (matched on ${scan.matchedOn}; ${scan.scanned} members scanned before the match).`);
+      role ??= r;
+      continue;
+    }
+    let msg = `${r} ← "${name}": not found among ${scan.scanned} member${scan.scanned === 1 ? "" : "s"}.`;
+    if (scan.scanned > 0 && scan.noIdentity === scan.scanned) {
+      msg += ` Microsoft returned every member WITHOUT an email or UPN, so nobody can be matched by address — the app registration needs the application permission User.ReadBasic.All (with admin consent) alongside GroupMember.Read.All.`;
+    } else if (scan.scanned === 0) {
+      msg += ` The group appears empty to the app (nested groups are included).`;
+    } else if (scan.near.length) {
+      msg += ` Similar addresses in this group: ${scan.near.join(", ")} — if that's the same person, add them with that exact address.`;
+    } else if (scan.noIdentity > 0) {
+      msg += ` (${scan.noIdentity} member(s) came back with no email/UPN.)`;
+    }
+    lines.push(msg);
+  }
+  return { role, checked: !failed || role !== null, lines };
 }
