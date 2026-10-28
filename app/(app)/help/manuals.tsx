@@ -496,6 +496,11 @@ const admin: Manual = {
           expenses are the company&apos;s record.
         </li>
         <li>
+          <strong>Nobody can sign in unless you&apos;ve added them.</strong> Having a company Microsoft 365 account
+          isn&apos;t enough — they see &ldquo;ask IT to add you&rdquo; and nothing is created. And if their
+          Microsoft 365 account is disabled or deleted they&apos;re locked out within about 30 seconds.
+        </li>
+        <li>
           <strong>+ Add user</strong> sets a person up by email ahead of their first sign-in. They still sign in
           with Microsoft. Pick their role (Cardholder or Approver; Admin, Accounting and Payroll come from Microsoft 365
           groups). By default they&apos;re emailed setup instructions — what their role lets them do, how to sign

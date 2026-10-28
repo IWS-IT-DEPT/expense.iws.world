@@ -63,6 +63,26 @@ const PAYROLL_ZONE: Zone = {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
+  if (!user.active) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
+        <h1 className="text-lg font-semibold">Your account is turned off</h1>
+        <p className="text-sm opacity-70">
+          You can&apos;t use IWS Expense right now. If you think this is a mistake, contact IT.
+        </p>
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: "/signin" });
+          }}
+        >
+          <SubmitButton className="rounded-md border border-black/15 px-4 py-2 text-sm dark:border-white/20">
+            Sign out
+          </SubmitButton>
+        </form>
+      </main>
+    );
+  }
 
   const zones: Zone[] = [ME_ZONE];
   if (canReview(user)) zones.push(ACCOUNTING_ZONE);

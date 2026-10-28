@@ -5,9 +5,8 @@ import { db } from "@/db";
 import { userRole, users } from "@/db/schema";
 
 import { auth } from "./auth";
-import { getUserGroupIds, graphConfigured } from "./graph";
+import { getAccountStatus, getUserGroupIds, graphConfigured } from "./graph";
 import { getGroupConfig, roleFromGroupIds, type GroupConfig } from "./role-groups";
-import { notifyWelcome } from "./notify";
 
 export type Role = (typeof userRole.enumValues)[number];
 export type CurrentUser = typeof users.$inferSelect;
@@ -26,7 +25,7 @@ export interface GroupResolution {
   role: Role | null;
 }
 
-/** Resolve current group membership: token claim first, Graph as the fallback. */
+/** Resolve current group membership: live from Microsoft 365 first, the sign-in token as the fallback. */
 async function resolveGroups(
   email: string,
   oid: string | undefined,
@@ -37,12 +36,14 @@ async function resolveGroups(
   if (BOOTSTRAP_ADMINS.includes(email)) {
     return { groups: [], source: "bootstrap", role: "admin" };
   }
-  if (tokenGroups.length > 0 && !overage) {
-    return { groups: tokenGroups, source: "token", role: roleFromGroupIds(cfg, tokenGroups) };
-  }
+  // Live group membership first (≤60s old), so removing someone from a group takes
+  // effect now rather than at their next sign-in; the token's list is the fallback.
   if (graphConfigured && oid) {
     const g = await getUserGroupIds(oid);
     if (g !== null) return { groups: g, source: "graph", role: roleFromGroupIds(cfg, g) };
+  }
+  if (tokenGroups.length > 0 && !overage) {
+    return { groups: tokenGroups, source: "token", role: roleFromGroupIds(cfg, tokenGroups) };
   }
   // No reliable signal (claim not configured / overage / Graph unavailable).
   return {
@@ -53,8 +54,8 @@ async function resolveGroups(
 }
 
 /**
- * Resolves the signed-in Entra identity to a row in `users`, provisioning on
- * first login and syncing the role from Entra group membership on every request
+ * Resolves the signed-in Entra identity to a row in `users` (never creating one,
+ * except for break-glass admins) and syncing the role from Entra group membership on every request
  * (via `resolveGroups`). Cached per request.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -68,6 +69,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   }
   const email = session.user.email.toLowerCase();
 
+  // Locked out the moment Microsoft 365 turns the account off (or deletes it) — not when
+  // the app's own session eventually expires. ("unknown" = couldn't ask; don't block.)
+  if (session.user.oid) {
+    const status = await getAccountStatus(session.user.oid);
+    if (status === "disabled" || status === "gone") return null;
+  }
+
   const cfg = await getGroupConfig();
   const resolution = await resolveGroups(
     email,
@@ -77,7 +85,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     cfg,
   );
 
-  const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+  let existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+  // Signed in under an alias address? Fall back to the Microsoft id we've bound to the row.
+  if (!existing && session.user.oid) {
+    existing = await db.query.users.findFirst({ where: eq(users.entraOid, session.user.oid) });
+  }
 
   if (existing) {
     const patch: Partial<typeof users.$inferInsert> = {};
@@ -102,17 +114,18 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     return updated;
   }
 
+  // No app account. Nobody is created on the fly — an admin must add them first —
+  // except the break-glass admins, so a fresh install can never lock everyone out.
+  if (resolution.source !== "bootstrap") return null;
   const [created] = await db
     .insert(users)
     .values({
       email,
       name: session.user.name ?? email,
       entraOid: session.user.oid ?? null,
-      role: resolution.role ?? "cardholder",
+      role: "admin",
     })
     .returning();
-  // Self-provisioned on first sign-in: send the same setup email an admin-added person gets.
-  await notifyWelcome(created.id).catch(() => {});
   return created;
 });
 

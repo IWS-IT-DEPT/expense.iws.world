@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/current-user";
-import { getGroupName, getLastGraphError, graphConfigured, graphSelfTest } from "@/lib/graph";
+import { getAccountStatus, getGroupName, getLastGraphError, graphConfigured, graphSelfTest } from "@/lib/graph";
 import { GROUP_ROLES, getGroupConfig, type Role } from "@/lib/role-groups";
 
 import { DirtyForm } from "../_dirty-form";
@@ -24,8 +24,9 @@ export default async function RolesPage({
 }: {
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
-  await requireRole("admin");
+  const me = await requireRole("admin");
   const sp = await searchParams;
+  const lockout = me.entraOid ? await getAccountStatus(me.entraOid) : "unknown";
   const cfg = await getGroupConfig();
   const [test, ...names] = await Promise.all([
     graphSelfTest(),
@@ -49,6 +50,11 @@ export default async function RolesPage({
         <p className="font-medium">Microsoft 365 connection</p>
         <p className={test.ok ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>
           {test.ok ? "✓ Connected — the app can read group membership." : `⚠ ${test.detail}`}
+        </p>
+        <p className={`mt-2 ${lockout === "enabled" ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+          {lockout === "enabled"
+            ? "✓ Instant lock-out is working — a disabled or deleted Microsoft 365 account is blocked within about 30 seconds."
+            : "⚠ Instant lock-out can't be confirmed. It needs the application permission User.Read.All (with admin consent); until then a disabled Microsoft 365 account stays signed in to the app until its session expires (up to 10 hours). You can still turn someone off immediately by unticking Active on their user page."}
         </p>
         {!graphConfigured ? null : getLastGraphError() ? (
           <p className="mt-1 text-xs opacity-70">Last error: {getLastGraphError()}</p>

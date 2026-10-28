@@ -23,7 +23,12 @@ export async function POST(req: Request) {
   if (!(await rateLimit(`upload:ip:${clientIp(req)}`, 60, 10 * 60))) {
     return NextResponse.json({ error: "Too many requests." }, { status: 429 });
   }
-  const form = await req.formData();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Bad request." }, { status: 400 });
+  }
   const token = String(form.get("token") || "");
   const payload = verifyUploadToken(token);
   if (!payload) return NextResponse.json({ error: "Link expired." }, { status: 401 });
@@ -69,8 +74,13 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  if (!(await rateLimit(`upload-poll:ip:${clientIp(req)}`, 240, 10 * 60))) {
+    return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  }
   const nonce = new URL(req.url).searchParams.get("nonce");
-  if (!nonce) return NextResponse.json({ error: "Missing nonce" }, { status: 400 });
+  if (!nonce || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nonce)) {
+    return NextResponse.json({ error: "Missing or invalid nonce" }, { status: 400 });
+  }
 
   const session = await db.query.receiptUploadSessions.findFirst({
     where: eq(receiptUploadSessions.id, nonce),

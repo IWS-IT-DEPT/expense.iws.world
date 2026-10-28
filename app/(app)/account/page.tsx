@@ -7,10 +7,11 @@ import { graphSelfTest } from "@/lib/graph";
 
 export default async function AccountPage() {
   const user = await getCurrentUser();
-  // Diagnostics show for everyone: someone who *expects* elevated access but is
-  // still `cardholder` is exactly who needs to see why.
-  const diag = await getIdentityDiagnostics();
-  const graph = await graphSelfTest();
+  // Identity diagnostics expose tenant/app/group ids and Graph error text, so they're
+  // admin-only. Everyone else just sees their role and is told to ask IT.
+  const isAdminUser = user?.role === "admin";
+  const diag = isAdminUser ? await getIdentityDiagnostics() : null;
+  const graph = isAdminUser ? await graphSelfTest() : null;
 
   const matches = (id?: string | null) =>
     id && diag?.resolvedGroups.includes(id) ? "✓ member" : "not a member";
@@ -34,7 +35,14 @@ export default async function AccountPage() {
         <NotifyPanel publicKey={pushPublicKey} />
       </section>
 
-      {diag && (
+      {!isAdminUser ? (
+        <p className="rounded-md border border-black/10 p-3 text-sm opacity-80 dark:border-white/15">
+          Think you should have more access than <strong>{user?.role}</strong>? Access comes from your Microsoft
+          365 groups — ask IT to check your group membership, then sign out and back in.
+        </p>
+      ) : null}
+
+      {diag && graph && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
             Identity diagnostics

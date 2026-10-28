@@ -8,8 +8,28 @@ import { getCurrentUser } from "@/lib/current-user";
 
 export const runtime = "nodejs";
 
+/**
+ * The server later POSTs to whatever endpoint is stored, so only accept the
+ * browsers' real push services over https — never an arbitrary (or internal) URL.
+ */
+const PUSH_HOSTS = [
+  /^fcm\.googleapis\.com$/,
+  /^android\.googleapis\.com$/,
+  /(^|\.)push\.services\.mozilla\.com$/,
+  /(^|\.)push\.apple\.com$/,
+  /(^|\.)notify\.windows\.com$/,
+];
+function isPushServiceUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && !u.port && PUSH_HOSTS.some((r) => r.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 const SubscribeBody = z.object({
-  endpoint: z.url().max(2000),
+  endpoint: z.url().max(2000).refine(isPushServiceUrl, "Not a push service address"),
   keys: z.object({ p256dh: z.string().min(10).max(200), auth: z.string().min(6).max(100) }),
 });
 

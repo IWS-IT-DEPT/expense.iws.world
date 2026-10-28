@@ -12,7 +12,7 @@ const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS ?? "")
   .map((d) => d.trim().toLowerCase())
   .filter(Boolean);
 
-function emailFromProfile(profile: Record<string, unknown> | undefined): string {
+export function emailFromProfile(profile: Record<string, unknown> | undefined): string {
   const raw =
     (profile?.email as string | undefined) ??
     (profile?.preferred_username as string | undefined) ??
@@ -31,6 +31,11 @@ function emailFromProfile(profile: Record<string, unknown> | undefined): string 
  */
 const IDLE_SESSION_MAX_S = 8 * 60 * 60; // 8 hours
 const ABSOLUTE_SESSION_MAX_S = 10 * 60 * 60; // 10 hours
+
+/** Our Entra tenant id, parsed from the issuer URL (…/<tenant-id>/v2.0). */
+const TENANT_ID = (process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER ?? "").match(
+  /login\.microsoftonline\.com\/([0-9a-f-]{36})\//i,
+)?.[1]?.toLowerCase();
 
 /** Decode a JWT payload without verifying (already validated by the OIDC flow). */
 function decodeJwtPayload(jwt: string): Record<string, unknown> {
@@ -63,6 +68,10 @@ export const authConfig = {
     signIn({ profile }) {
       const email = emailFromProfile(profile as Record<string, unknown>);
       if (!email) return false;
+      // The email claim isn't verified, so never trust it from another directory
+      // (e.g. an invited guest whose home tenant lets them set any address).
+      const tid = (profile as Record<string, unknown> | undefined)?.tid;
+      if (TENANT_ID && typeof tid === "string" && tid.toLowerCase() !== TENANT_ID) return false;
       if (allowedDomains.length === 0) return process.env.NODE_ENV !== "production"; // open only in dev
       return allowedDomains.some((d) => email.endsWith(`@${d}`));
     },

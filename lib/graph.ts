@@ -291,3 +291,44 @@ export async function findUserOidByEmail(email: string): Promise<UserLookup> {
     return { status: "error", detail: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export type AccountStatus = "enabled" | "disabled" | "gone" | "unknown";
+
+const statusCache = new Map<string, { status: AccountStatus; expiresAt: number }>();
+const STATUS_TTL_MS = 30_000;
+
+/**
+ * Is this Microsoft 365 account still switched on? Used on every request so a
+ * disabled or deleted account is locked out within ~30 seconds, not when its
+ * app session eventually expires. `unknown` (not configured, no permission,
+ * Microsoft unreachable) is treated by callers as "don't block" — it must never
+ * take the whole app down — and is surfaced on the Roles & groups page instead.
+ * Needs the User.Read.All application permission.
+ */
+export async function getAccountStatus(oid: string): Promise<AccountStatus> {
+  if (!graphConfigured || !oid) return "unknown";
+  const hit = statusCache.get(oid);
+  if (hit && hit.expiresAt > Date.now()) return hit.status;
+
+  let status: AccountStatus = "unknown";
+  try {
+    const token = await appToken();
+    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(oid)}?$select=id,accountEnabled`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const j = (await res.json()) as { accountEnabled?: boolean };
+      status = j.accountEnabled === false ? "disabled" : "enabled";
+    } else if (res.status === 404) {
+      status = "gone";
+    } else {
+      if (res.status === 401) cachedToken = null;
+      lastGraphError = `account status ${res.status}`;
+    }
+  } catch (err) {
+    lastGraphError = err instanceof Error ? err.message : String(err);
+  }
+  // Don't cache "unknown" for long — retry soon.
+  statusCache.set(oid, { status, expiresAt: Date.now() + (status === "unknown" ? 10_000 : STATUS_TTL_MS) });
+  return status;
+}
