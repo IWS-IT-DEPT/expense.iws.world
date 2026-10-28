@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
@@ -58,15 +60,21 @@ const COPY: Record<Slot, { subject: string; lead: string }> = {
 };
 
 export async function GET(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = Buffer.from(req.headers.get("authorization") ?? "");
+  const expected = Buffer.from(`Bearer ${process.env.CRON_SECRET ?? ""}`);
+  if (
+    !process.env.CRON_SECRET ||
+    auth.length !== expected.length ||
+    !timingSafeEqual(auth, expected)
+  ) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const url = new URL(req.url);
   const dry = url.searchParams.has("dry");
+  const slotParam = url.searchParams.get("slot");
   const slot =
-    (url.searchParams.get("slot") as Slot | null) ?? slotForWindow(url.searchParams.get("window"));
+    slotParam && slotParam in COPY ? (slotParam as Slot) : slotForWindow(url.searchParams.get("window"));
   if (!slot) {
     return NextResponse.json({ skipped: "no slot", tz: APP_TZ, dow: dowInTz() });
   }

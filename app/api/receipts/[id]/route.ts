@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-  if (!user) return new Response("Not authenticated", { status: 401 });
+  if (!user || !user.active) return new Response("Not authenticated", { status: 401 });
 
   const { id } = await params;
   const receipt = await db.query.receipts.findFirst({
@@ -48,6 +48,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       "Content-Type": blob.contentType,
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
       "Cache-Control": "private, max-age=60",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
     },
   });
 }

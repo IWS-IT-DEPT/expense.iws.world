@@ -63,10 +63,12 @@ export async function reconcileItems(fd: FormData): Promise<void> {
   const ids = raw ? raw.split(",").filter(Boolean) : [];
   if (ids.length === 0) return;
 
-  const targets = await db.query.expenseItems.findMany({
+  const candidates = await db.query.expenseItems.findMany({
     where: and(inArray(expenseItems.id, ids), eq(expenseItems.status, "submitted")),
-    columns: { id: true, reportId: true },
+    columns: { id: true, reportId: true, userId: true },
   });
+  // Segregation of duties: nobody reconciles their own reimbursements.
+  const targets = candidates.filter((t) => t.userId !== user.id);
   if (targets.length === 0) return;
 
   await db
@@ -131,6 +133,7 @@ export async function approveReport(fd: FormData): Promise<void> {
 
   const report = await db.query.expenseReports.findFirst({ where: eq(expenseReports.id, reportId) });
   if (!report || report.status !== "reconciled") return;
+  if (report.userId === user.id) return; // segregation of duties
 
   await db
     .update(expenseReports)

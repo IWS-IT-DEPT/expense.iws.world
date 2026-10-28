@@ -63,7 +63,7 @@ export const authConfig = {
     signIn({ profile }) {
       const email = emailFromProfile(profile as Record<string, unknown>);
       if (!email) return false;
-      if (allowedDomains.length === 0) return true; // dev convenience
+      if (allowedDomains.length === 0) return process.env.NODE_ENV !== "production"; // open only in dev
       return allowedDomains.some((d) => email.endsWith(`@${d}`));
     },
     /** Gate every matched route on an authenticated session. */

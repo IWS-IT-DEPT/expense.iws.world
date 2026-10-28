@@ -20,6 +20,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -643,6 +644,17 @@ export const reminderSends = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.userId, t.periodStart, t.slot)],
+);
+
+/** Fixed-window request counters for public endpoints (see lib/rate-limit.ts). */
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(1),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
 );
 
 /* --------------------------------------------------- workflow + exceptions -- */

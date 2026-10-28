@@ -19,7 +19,7 @@ const PURPOSES: UploadPurpose[] = ["txn", "pending", "bank", "item"];
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (!user || !user.active) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const origin = req.headers.get("origin");
   if (origin) {
