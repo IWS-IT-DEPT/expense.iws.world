@@ -288,7 +288,8 @@ const accounting: Manual = {
         </li>
       </OL>
       <Note>
-        You can&apos;t reconcile your own expenses. Someone else on the team has to.
+        You can reconcile your <strong>own</strong> card charges too — they&apos;re marked &ldquo;your own charge&rdquo;
+        and noted in the audit trail. Final approval always has to come from someone else.
       </Note>
       <P>
         Confirmed charges move to <em>Reconciled</em> and wait for an Approver. Accounting does not give final
@@ -455,7 +456,7 @@ const admin: Manual = {
     <>
       <P>
         Admins can open every section: Employee, Accounting, Payroll and <strong>Settings</strong>. Admins can
-        also act as approvers and as payroll — but never on their own expenses.
+        also act as approvers and as payroll — but nobody can approve their own charges or reimbursements.
       </P>
 
       <H>How roles are assigned</H>
@@ -562,7 +563,7 @@ const admin: Manual = {
           <strong>Mileage won&apos;t save.</strong> No IRS rate exists on or before that date — add one.
         </li>
         <li>
-          <strong>Nobody can approve something.</strong> Reviewers can&apos;t act on their own expenses; make
+          <strong>Nobody can approve something.</strong> Nobody can approve their own expenses; make
           sure at least two people hold each reviewing role.
         </li>
         <li>

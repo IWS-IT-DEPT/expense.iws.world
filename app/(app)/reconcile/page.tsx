@@ -43,7 +43,7 @@ export default async function ReconcilePage({
 }: {
   searchParams: Promise<{ sort?: string }>;
 }) {
-  await requireRole("accounting", "approver", "admin");
+  const me = await requireRole("accounting", "approver", "admin");
   const { sort } = await searchParams;
   const newestFirst = sort === "desc";
   const dir = newestFirst ? desc : asc;
@@ -106,7 +106,14 @@ export default async function ReconcilePage({
                 <span className="font-medium">{shortDate(l.purchaseDate)}</span>
                 <span className="font-medium">{l.merchant}</span>
                 <span>{money(l.amountCents)}</span>
-                <span className="opacity-70">{l.user.name}</span>
+                <span className="opacity-70">
+                  {l.user.name}
+                  {l.userId === me.id ? (
+                    <span className="ml-2 rounded bg-sky-600/15 px-1.5 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+                      your own charge
+                    </span>
+                  ) : null}
+                </span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 opacity-80">
                 <span className="opacity-70">

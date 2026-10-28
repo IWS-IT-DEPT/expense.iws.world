@@ -21,7 +21,7 @@ function parseAmountCents(raw: string): number | null {
   return Math.round(n * 100);
 }
 
-/** Accounting confirms a submitted card charge against the statement. */
+/** Accounting confirms a submitted card charge against the statement (their own charges included). */
 export async function reconcileLine(_prev: LineActionState, fd: FormData): Promise<LineActionState> {
   const user = await requireRole("accounting", "approver", "admin");
   const id = String(fd.get("lineId") || "");
@@ -33,7 +33,6 @@ export async function reconcileLine(_prev: LineActionState, fd: FormData): Promi
   const line = await db.query.pendingExpenses.findFirst({ where: eq(pendingExpenses.id, id) });
   if (!line) return { error: "Line not found." };
   if (line.status !== "submitted") return { error: "That line isn't awaiting reconcile." };
-  if (line.userId === user.id) return { error: "You can't reconcile your own expense." };
 
   await db
     .update(pendingExpenses)
@@ -53,7 +52,12 @@ export async function reconcileLine(_prev: LineActionState, fd: FormData): Promi
     subjectId: id,
     action: "review",
     actorId: user.id,
-    note: actualAmount || actualDate ? "corrected" : null,
+    // Reconciling your own charge is allowed; it's flagged here so the trail shows it
+    // (final approval still has to come from someone else).
+    note:
+      [actualAmount || actualDate ? "corrected" : null, line.userId === user.id ? "self-reconciled" : null]
+        .filter(Boolean)
+        .join(", ") || null,
   });
 
   revalidatePath("/reconcile");

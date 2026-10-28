@@ -39,7 +39,7 @@ const ROLE_INTRO: Record<string, { title: string; text: string }> = {
   },
   accounting: {
     title: "Accounting",
-    text: "On top of logging your own expenses, you reconcile company-card charges against the statement, run the card-spend reports, and maintain the shared lists (companies, locations, units, jobs and categories).",
+    text: "On top of logging your own expenses, you reconcile company-card charges against the statement (your own too — approval still comes from someone else), run the card-spend reports, and maintain the shared lists (companies, locations, units, jobs and categories).",
   },
   payroll: {
     title: "Payroll",

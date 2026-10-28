@@ -16,8 +16,8 @@ export const graphConfigured = !!(CLIENT_ID && CLIENT_SECRET && TENANT);
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
-async function appToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
+async function appToken(force = false): Promise<string> {
+  if (!force && cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
   if (!graphConfigured) throw new Error("Graph not configured");
 
   const res = await fetch(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, {
@@ -59,17 +59,22 @@ export async function graphSelfTest(): Promise<{
     return { ok: false, detail: "not configured (client id / secret / tenant)", appRoles: [] };
   }
   try {
-    const token = await appToken();
+    // Always a brand-new token: a cached one from before consent was granted would keep reporting old results.
+    cachedToken = null;
+    const token = await appToken(true);
     const payload = JSON.parse(
       Buffer.from(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(),
-    ) as { roles?: string[] };
+    ) as { roles?: string[]; appid?: string; tid?: string };
     const appRoles = payload.roles ?? [];
+    const who = `token is for app ${payload.appid ?? "?"} in tenant ${payload.tid ?? "?"}`;
 
     if (appRoles.length === 0) {
       return {
         ok: false,
         detail:
-          "app-only token carries no application-permission roles. Add Microsoft Graph -> Application permission -> GroupMember.Read.All and grant admin consent. A Delegated permission does nothing for this app-only call.",
+          `a brand-new app-only token carries no application-permission roles (${who}). On THAT app registration check: ` +
+          "API permissions → Microsoft Graph → GroupMember.Read.All must be listed with Type \"Application\" (not \"Delegated\"), and its Status must show a green check \"Granted for <your org>\" (click \"Grant admin consent\" if not). " +
+          "Also confirm the client secret in AUTH_MICROSOFT_ENTRA_ID_SECRET belongs to that same app (client ID " + (CLIENT_ID ?? "?") + ") — a secret from a different registration gives a token with no roles.",
         appRoles,
       };
     }
@@ -112,6 +117,7 @@ export async function getUserGroupIds(userOid: string): Promise<string[] | null>
     for (let i = 0; url && i < 10; i++) {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) cachedToken = null;
         lastGraphError = `memberOf ${res.status}: ${await res.text()}`;
         console.warn(`[graph] ${lastGraphError}`);
         return null;
@@ -151,6 +157,7 @@ export async function isEmailInGroup(
     for (let i = 0; url && i < 30; i++) {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) cachedToken = null;
         lastGraphError = `group members ${res.status}: ${await res.text()}`;
         console.warn(`[graph] ${lastGraphError}`);
         return null;
