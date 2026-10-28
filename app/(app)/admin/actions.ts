@@ -27,7 +27,7 @@ import {
   users,
 } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
-import { requireRole } from "@/lib/current-user";
+import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const opt = (fd: FormData, k: string) => str(fd, k) || null;
@@ -55,32 +55,62 @@ const countExpr = () => sql<number>`count(*)`;
 /* -------------------------------------------------------------------- users */
 
 export async function updateUser(fd: FormData) {
-  await requireRole("admin");
+  const me = await requireRole("admin");
   const id = str(fd, "id");
-  const role = str(fd, "role");
+  if (!id) return;
+  const existing = await db.query.users.findFirst({ where: eq(users.id, id) });
+  if (!existing) return;
+
   const allowed = userRole.enumValues as readonly string[];
+  const requestedRole = str(fd, "role");
+  let role = (allowed.includes(requestedRole) ? requestedRole : existing.role) as (typeof userRole.enumValues)[number];
+  let active = bool(fd, "active");
+
+  if (me.id === existing.id) {
+    // Never let an admin lock themselves (or everyone) out.
+    role = existing.role;
+    active = true;
+  }
+  // With Entra group sync on, these roles belong to the groups — a hand-set one is reset on next login.
+  if (GROUP_SYNC_ENABLED && role !== existing.role && (GROUP_DRIVEN.includes(role) || GROUP_DRIVEN.includes(existing.role))) {
+    role = existing.role;
+  }
+
+  // Risky changes need the person's email typed (the form asks; enforced here too).
+  const deactivating = existing.active && !active;
+  const adminChange = role !== existing.role && (role === "admin" || existing.role === "admin");
+  if ((deactivating || adminChange) && str(fd, "confirmEmail").toLowerCase() !== existing.email) return;
+
+  const name = str(fd, "name");
   await db
     .update(users)
     .set({
-      role: allowed.includes(role) ? (role as (typeof userRole.enumValues)[number]) : "cardholder",
+      ...(name ? { name } : {}),
+      role,
       homeEntityId: opt(fd, "homeEntityId"),
       homeLocationId: opt(fd, "homeLocationId"),
       mileageEligible: bool(fd, "mileageEligible"),
-      active: bool(fd, "active"),
+      active,
     })
     .where(eq(users.id, id));
+  revalidatePath(`/admin/users/${id}`);
   await done("/admin/users");
 }
 
 export async function inviteUser(fd: FormData) {
   await requireRole("admin");
   const email = str(fd, "email").toLowerCase();
-  if (!email) return;
-  await db
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+
+  const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
+  if (existing) redirect(`/admin/users/${existing.id}`);
+
+  const [created] = await db
     .insert(users)
     .values({ email, name: opt(fd, "name") ?? email, role: "cardholder" })
-    .onConflictDoNothing({ target: users.email });
+    .returning({ id: users.id });
   await done("/admin/users");
+  redirect(`/admin/users/${created.id}`);
 }
 
 /* ----------------------------------------------------------------- entities */

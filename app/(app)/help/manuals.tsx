@@ -479,14 +479,20 @@ const admin: Manual = {
 
       <H>Settings → Users</H>
       <UL>
-        <li>Set a person&apos;s role (for approvers), home entity and location, and whether they&apos;re mileage-eligible.</li>
         <li>
-          Untick <strong>Active</strong> to disable an account — they&apos;re locked out of receipts, uploads and
-          exports immediately.
+          The Users tab is a searchable list. <strong>Click a person</strong> to open their page: change their
+          name, role (for approvers), home entity and location, and whether they can log mileage. The Save bar
+          appears only once you&apos;ve changed something.
         </li>
         <li>
-          <strong>Invite</strong> adds a person by email ahead of their first sign-in. They still sign in with
-          Microsoft.
+          Untick <strong>Active</strong> to disable an account — they&apos;re locked out of receipts, uploads and
+          exports immediately. Deactivating someone, or granting/removing admin, makes you type their email to
+          confirm. You can&apos;t deactivate or demote yourself. People can&apos;t be deleted, because their
+          expenses are the company&apos;s record.
+        </li>
+        <li>
+          <strong>+ Add user</strong> sets a person up by email ahead of their first sign-in. They still sign in
+          with Microsoft.
         </li>
         <li>
           Only people whose email is on an allowed company domain can sign in at all (set by the

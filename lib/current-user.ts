@@ -17,7 +17,7 @@ const GROUP_IT = process.env.ENTRA_GROUP_IT?.trim();
 const GROUP_FINANCE = process.env.ENTRA_GROUP_FINANCE?.trim();
 /** HR / payroll team — handles mileage + out-of-pocket reimbursements. */
 const GROUP_PAYROLL = process.env.ENTRA_GROUP_HR?.trim();
-const GROUP_SYNC_ENABLED = !!(GROUP_IT && GROUP_FINANCE);
+export const GROUP_SYNC_ENABLED = !!(GROUP_IT && GROUP_FINANCE);
 
 const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
   .split(",")
@@ -25,7 +25,7 @@ const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
   .filter(Boolean);
 
 /** admin/accounting/payroll come from Entra groups; approver/cardholder are set manually. */
-const GROUP_DRIVEN: Role[] = ["admin", "accounting", "payroll"];
+export const GROUP_DRIVEN: Role[] = ["admin", "accounting", "payroll"];
 
 /** Map Entra group membership to a role. Highest privilege wins. */
 export function roleFromGroups(groupIds: string[]): Role | null {
