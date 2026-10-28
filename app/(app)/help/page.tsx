@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/current-user";
 
+import { InstallPanel } from "../../components/install-app";
+
 import { manualsFor } from "./manuals";
 
 export const metadata = { title: "Help · IWS Expense" };
@@ -29,6 +31,12 @@ export default async function HelpPage() {
           ))}
         </nav>
       )}
+
+      <section id="install-app" className="mt-8 scroll-mt-6 rounded-lg border border-black/10 p-4 dark:border-white/15">
+        <h2 className="text-base font-semibold">Install the app on your phone</h2>
+        <p className="text-sm opacity-60">Put IWS Expense on your home screen — no app store needed.</p>
+        <InstallPanel />
+      </section>
 
       {manuals.map((m) => (
         <section key={m.id} id={m.id} className="mt-10 scroll-mt-6 border-t border-black/10 pt-6 dark:border-white/15">

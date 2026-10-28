@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { signOut } from "@/lib/auth";
 import { canReview, canSeePayroll, canSeeSettings, getCurrentUser, isAdmin } from "@/lib/current-user";
 
+import { InstallBanner } from "../components/install-app";
+
 import { AppNav, type Zone } from "./app-nav";
 
 const ME_ZONE: Zone = {
@@ -97,6 +99,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </div>
       </header>
+      <InstallBanner />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
     </div>
   );

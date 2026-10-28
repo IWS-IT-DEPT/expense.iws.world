@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline · IWS Expense</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #fff; color: #1a1a1a; text-align: center; padding: 24px; }
+      img { width: 72px; height: 72px; }
+      h1 { font-size: 20px; margin: 16px 0 8px; }
+      p { font-size: 15px; line-height: 1.5; opacity: .75; max-width: 320px; margin: 0 auto 20px; }
+      button { background: #2f9e5a; color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font-size: 15px; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="IWS" />
+      <h1>You're offline</h1>
+      <p>IWS Expense needs a connection. Nothing you've submitted is lost — try again when you have signal.</p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

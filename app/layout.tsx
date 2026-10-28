@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+import { PwaRegister } from "./components/install-app";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,6 +17,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "IWS Expense",
   description: "Expense tracking and reporting for the IWS group of companies",
+  applicationName: "IWS Expense",
+  // iPhone "Add to Home Screen": own title/icon, full-screen.
+  appleWebApp: { capable: true, title: "IWS Expense", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2f9e5a",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -23,7 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

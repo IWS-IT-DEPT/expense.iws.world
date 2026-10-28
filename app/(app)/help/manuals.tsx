@@ -64,6 +64,15 @@ const cardholder: Manual = {
         Wednesday morning, Friday morning and Friday afternoon if anything is still unsubmitted.
       </Note>
 
+      <H>Put it on your phone</H>
+      <P>
+        You can install IWS Expense on your home screen so it opens like an app. See{" "}
+        <a href="#install-app" className="underline">
+          Install the app on your phone
+        </a>{" "}
+        at the top of this page.
+      </P>
+
       <H>Signing in</H>
       <UL>
         <li>Use <strong>Sign in with Microsoft</strong> with your company account.</li>
