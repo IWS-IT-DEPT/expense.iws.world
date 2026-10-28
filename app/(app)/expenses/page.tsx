@@ -3,18 +3,16 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
-import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
 import { todayInTz } from "@/lib/tz";
-import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
+import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 
 import { EntityBadge } from "../../components/entity-badge";
-import { submitCardExpense, voidCardExpense, voidExpenseItem } from "./actions";
 import { cardLabel } from "./coding-options";
-import { btn, EDITABLE, Empty, Row, rowAction, rowActionPrimary, Section } from "./expense-row";
+import { btn, EDITABLE, Empty, Row, Section } from "./expense-row";
 
 
 export default async function ExpensesPage() {
@@ -107,24 +105,25 @@ export default async function ExpensesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-3">
         <h1 className="text-lg font-semibold">My Expenses</h1>
-        <div className="flex flex-wrap gap-2 text-sm">
+        <div className="grid gap-2 sm:flex sm:flex-wrap">
           <Link href="/expenses/new" className={btn}>
             + Log a Purchase
           </Link>
           <Link href="/expenses/out-of-pocket" className={btn}>
             + Out of Pocket
           </Link>
-          <Link href="/expenses/history" className={btn}>
-            History
-          </Link>
           {user.mileageEligible && (
             <Link href="/expenses/mileage" className={btn}>
               + Mileage
             </Link>
           )}
+          <Link href="/expenses/history" className={btn}>
+            History
+          </Link>
         </div>
+        <p className="text-xs opacity-60">Tap any expense to open it — edit, add a receipt, submit or discard from there.</p>
       </div>
 
       <Section title={`Card purchases (${cards.length})`}>
@@ -134,6 +133,7 @@ export default async function ExpensesPage() {
           cards.map(({ r, checks }) => (
             <Row
               key={r.id}
+              href={`/expenses/${r.id}`}
               title={r.merchant}
               amount={money(r.amountCents)}
               date={r.purchaseDate}
@@ -154,36 +154,7 @@ export default async function ExpensesPage() {
                 </>
               }
               receipts={r.receipts.length}
-              checks={checks.map((c) => c.message)}
-              editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
-              submitForm={
-                EDITABLE.has(r.status) && !isBlocked(checks) ? (
-                  <form action={submitCardExpense} className="contents">
-                    <input type="hidden" name="id" value={r.id} />
-                    <button className={rowActionPrimary}>Submit</button>
-                  </form>
-                ) : null
-              }
-              upload={
-                EDITABLE.has(r.status) ? (
-                  <ReceiptUploadButton
-                    purpose="pending"
-                    targetId={r.id}
-                    label="Add receipt"
-                    className={rowAction}
-                  />
-                ) : null
-              }
-              voidForm={
-                r.status === "draft" || r.status === "rejected" ? (
-                  <form action={voidCardExpense} className="contents">
-                    <input type="hidden" name="id" value={r.id} />
-                    <button className={rowAction}>
-                      {r.status === "draft" ? "Delete" : "Discard"}
-                    </button>
-                  </form>
-                ) : null
-              }
+              needs={EDITABLE.has(r.status) ? checks.map((c) => c.message) : []}
             />
           ))
         )}
@@ -196,6 +167,7 @@ export default async function ExpensesPage() {
           items.map(({ r, checks }) => (
             <Row
               key={r.id}
+              href={`/expenses/${r.id}`}
               title={r.kind === "mileage" ? `Mileage · ${r.miles ?? "?"} mi` : "Out of pocket"}
               amount={money(r.amountCents)}
               date={r.itemDate}
@@ -213,26 +185,7 @@ export default async function ExpensesPage() {
                 </>
               }
               receipts={r.receipts.length}
-              checks={checks.map((c) => c.message)}
-              editHref={EDITABLE.has(r.status) ? `/expenses/${r.id}` : undefined}
-              upload={
-                EDITABLE.has(r.status) && r.kind !== "mileage" ? (
-                  <ReceiptUploadButton
-                    purpose="item"
-                    targetId={r.id}
-                    label="Add receipt"
-                    className={rowAction}
-                  />
-                ) : null
-              }
-              voidForm={
-                r.status === "draft" || r.status === "rejected" ? (
-                  <form action={voidExpenseItem} className="contents">
-                    <input type="hidden" name="id" value={r.id} />
-                    <button className={rowAction}>Delete</button>
-                  </form>
-                ) : null
-              }
+              needs={EDITABLE.has(r.status) ? checks.map((c) => c.message) : []}
             />
           ))
         )}

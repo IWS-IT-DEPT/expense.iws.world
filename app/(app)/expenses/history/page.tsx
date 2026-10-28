@@ -86,6 +86,7 @@ export default async function ExpenseHistoryPage({
               return (
                 <Row
                   key={r.id}
+                  href={`/expenses/${r.id}`}
                   title={r.merchant}
                   amount={money(r.actualAmountCents ?? r.amountCents)}
                   date={r.actualPurchaseDate ?? r.purchaseDate}
@@ -103,7 +104,6 @@ export default async function ExpenseHistoryPage({
                     </>
                   }
                   receipts={r.receipts.length}
-                  checks={[]}
                 />
               );
             }
@@ -112,6 +112,7 @@ export default async function ExpenseHistoryPage({
             return (
               <Row
                 key={r.id}
+                href={`/expenses/${r.id}`}
                 title={r.kind === "mileage" ? `Mileage · ${r.miles ?? "?"} mi` : "Out of pocket"}
                 amount={money(r.amountCents)}
                 date={r.itemDate}
@@ -123,7 +124,6 @@ export default async function ExpenseHistoryPage({
                   </>
                 }
                 receipts={r.receipts.length}
-                checks={[]}
               />
             );
           })}

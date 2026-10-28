@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { submitWeek, type SubmitState } from "./actions";
+import { ConfirmAction } from "@/app/components/confirm-action";
 
+import { submitWeek } from "./actions";
+
+/** Send this week's reimbursements to Payroll — behind a confirm step. */
 export function SubmitWeekButton({
   periodStart,
   periodEnd,
@@ -17,30 +20,38 @@ export function SubmitWeekButton({
   count: number;
 }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState<SubmitState, FormData>(
-    async (prev, fd) => {
-      const r = await submitWeek(prev, fd);
-      if (r.ok) router.refresh();
-      return r;
-    },
-    {},
-  );
+  const [error, setError] = useState<string | null>(null);
+
+  if (count === 0) return null;
+  if (disabled) {
+    return <p className="text-sm text-amber-700 dark:text-amber-400">Finish the flagged items above first — tap one to fix it.</p>;
+  }
 
   return (
-    <form action={action} className="space-y-2">
-      <input type="hidden" name="periodStart" value={periodStart} />
-      <input type="hidden" name="periodEnd" value={periodEnd} />
-      <button
-        type="submit"
-        disabled={disabled || pending || count === 0}
-        className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
-      >
-        {pending ? "Submitting…" : `Submit ${count} reimbursement${count === 1 ? "" : "s"}`}
-      </button>
-      {disabled && count > 0 ? (
-        <p className="text-xs opacity-60">Fix the flagged items first.</p>
-      ) : null}
-      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
-    </form>
+    <div className="space-y-2">
+      <ConfirmAction
+        tone="primary"
+        label={`Submit ${count} reimbursement${count === 1 ? "" : "s"} to Payroll`}
+        confirmLabel="Yes, submit to Payroll"
+        question={
+          <>
+            Send <strong>{count}</strong> reimbursement{count === 1 ? "" : "s"} to Payroll as this week&apos;s
+            report? They can&apos;t be edited after this unless Payroll sends them back.
+          </>
+        }
+        run={async () => {
+          const fd = new FormData();
+          fd.set("periodStart", periodStart);
+          fd.set("periodEnd", periodEnd);
+          const r = await submitWeek({}, fd);
+          if (r.error) setError(r.error);
+          else {
+            setError(null);
+            router.refresh();
+          }
+        }}
+      />
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+    </div>
   );
 }

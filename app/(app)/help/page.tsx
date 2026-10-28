@@ -33,8 +33,8 @@ export default async function HelpPage() {
       )}
 
       <section id="install-app" className="mt-8 scroll-mt-6 rounded-lg border border-black/10 p-4 dark:border-white/15">
-        <h2 className="text-base font-semibold">Install the app on your phone</h2>
-        <p className="text-sm opacity-60">Put IWS Expense on your home screen — no app store needed.</p>
+        <h2 className="text-base font-semibold">Install the app</h2>
+        <p className="text-sm opacity-60">Put IWS Expense on your phone&apos;s home screen or your computer&apos;s Start menu — no app store needed.</p>
         <InstallPanel />
       </section>
 

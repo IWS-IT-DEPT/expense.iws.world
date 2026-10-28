@@ -7,25 +7,18 @@ import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate, weekBounds } from "@/lib/format";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
-import {
-  submitAllReadyCardExpenses,
-  submitCardExpense,
-} from "@/app/(app)/expenses/actions";
+import { Row } from "@/app/(app)/expenses/expense-row";
+import { daysOverdue } from "@/lib/overdue";
+import { todayInTz } from "@/lib/tz";
 
+import { SubmitReadyButton } from "./submit-ready-button";
 import { SubmitWeekButton } from "./submit-week-button";
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "not submitted",
-  rejected: "sent back",
-  submitted: "with accounting",
-  reconciled: "reconciled",
-  approved: "approved",
-};
 
 export default async function WeeklyReportPage() {
   const user = await requireUser();
   const policy = await loadPolicy();
   const { start, end } = weekBounds(new Date());
+  const today = todayInTz();
 
   const [weekCards, openItems, thisWeekReport] = await Promise.all([
     db.query.pendingExpenses.findMany({
@@ -112,18 +105,9 @@ export default async function WeeklyReportPage() {
       </div>
 
       <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-            Card purchases ({weekCards.length})
-          </h2>
-          {readyCount > 0 ? (
-            <form action={submitAllReadyCardExpenses}>
-              <button className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black">
-                Submit {readyCount} ready
-              </button>
-            </form>
-          ) : null}
-        </div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
+          Card purchases ({weekCards.length})
+        </h2>
 
         {weekCards.length === 0 ? (
           <p className="text-sm opacity-60">
@@ -134,82 +118,33 @@ export default async function WeeklyReportPage() {
             .
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[32rem] text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide opacity-50">
-                  <th className="pb-1 pr-3 font-medium">Date</th>
-                  <th className="pb-1 pr-3 font-medium">Merchant</th>
-                  <th className="pb-1 pl-3 text-right font-medium">Amount</th>
-                  <th className="pb-1 pl-3 text-right font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {weekCards.map((c) => {
-                  const editable = c.status === "draft" || c.status === "rejected";
-                  const rejected = c.status === "rejected";
-                  const blocked = editable && isBlocked(cardCheck(c));
-                  return (
-                    <tr
-                      key={c.id}
-                      className={`border-t border-black/5 dark:border-white/10 ${
-                        rejected ? "bg-red-500/5" : ""
-                      }`}
-                    >
-                      <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
-                        {shortDate(c.purchaseDate)}
-                      </td>
-                      <td
-                        className={`py-1.5 pr-3 ${
-                          rejected
-                            ? "text-red-600 dark:text-red-400"
-                            : blocked
-                              ? "text-amber-600 dark:text-amber-400"
-                              : ""
-                        }`}
-                      >
-                        {c.merchant}
-                      </td>
-                      <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums">
-                        {money(c.amountCents)}
-                      </td>
-                      <td className="py-1.5 pl-3 text-right">
-                        <div className="flex items-center justify-end gap-2 text-xs">
-                          {rejected ? (
-                            <span className="rounded bg-red-500/15 px-1.5 py-0.5 font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
-                              sent back
-                            </span>
-                          ) : null}
-                          {editable && blocked ? (
-                            <Link
-                              href={`/expenses/${c.id}`}
-                              className="text-amber-600 underline dark:text-amber-400"
-                            >
-                              needs info
-                            </Link>
-                          ) : editable && !blocked ? (
-                            <form action={submitCardExpense}>
-                              <input type="hidden" name="id" value={c.id} />
-                              <button className="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white">
-                                submit
-                              </button>
-                            </form>
-                          ) : (
-                            <span className="opacity-70">{STATUS_LABEL[c.status] ?? c.status}</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {weekCards.map((c) => {
+              const editable = c.status === "draft" || c.status === "rejected";
+              return (
+                <Row
+                  key={c.id}
+                  href={`/expenses/${c.id}`}
+                  title={c.merchant}
+                  amount={money(c.amountCents)}
+                  date={c.purchaseDate}
+                  overdueDays={editable ? daysOverdue(c.purchaseDate, today) : 0}
+                  status={c.status}
+                  rejected={c.status === "rejected"}
+                  reason={c.rejectionReason ?? undefined}
+                  sub={<>{c.category?.name ?? "No category yet"}</>}
+                  receipts={c.receipts.length}
+                  needs={editable ? cardCheck(c).map((x) => x.message) : []}
+                />
+              );
+            })}
           </div>
         )}
+        {readyCount > 0 ? <SubmitReadyButton count={readyCount} /> : null}
         {needsFixCount > 0 ? (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             {needsFixCount} purchase{needsFixCount > 1 ? "s need" : " needs"} more info before it can
-            be submitted.
+            be submitted — tap it to finish.
           </p>
         ) : null}
       </section>
@@ -221,65 +156,22 @@ export default async function WeeklyReportPage() {
         {openItems.length === 0 ? (
           <p className="text-sm opacity-60">No out-of-pocket or mileage this week.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[32rem] text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide opacity-50">
-                  <th className="pb-1 pr-3 font-medium">Date</th>
-                  <th className="pb-1 pr-3 font-medium">Type</th>
-                  <th className="pb-1 pl-3 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...oop, ...mileage].map((i) => {
-                  const blocked = isBlocked(itemCheck(i));
-                  const rejected = i.status === "rejected";
-                  return (
-                    <tr
-                      key={i.id}
-                      className={`border-t border-black/5 dark:border-white/10 ${
-                        rejected ? "bg-red-500/5" : ""
-                      }`}
-                    >
-                      <td className="whitespace-nowrap py-1.5 pr-3 tabular-nums opacity-70">
-                        {shortDate(i.itemDate)}
-                      </td>
-                      <td
-                        className={`py-1.5 pr-3 ${
-                          rejected
-                            ? "text-red-600 dark:text-red-400"
-                            : blocked
-                              ? "text-amber-600 dark:text-amber-400"
-                              : ""
-                        }`}
-                      >
-                        {rejected ? (
-                          <span className="mr-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
-                            sent back
-                          </span>
-                        ) : blocked ? (
-                          "⚠ "
-                        ) : null}
-                        {i.kind === "mileage"
-                          ? `Mileage · ${i.miles ?? "?"} mi`
-                          : "Out of pocket"}
-                        {blocked ? (
-                          <>
-                            {" "}
-                            <Link href={`/expenses/${i.id}`} className="underline">
-                              fix
-                            </Link>
-                          </>
-                        ) : null}
-                      </td>
-                      <td className="whitespace-nowrap py-1.5 pl-3 text-right tabular-nums">
-                        {money(i.amountCents)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {[...oop, ...mileage].map((i) => (
+              <Row
+                key={i.id}
+                href={`/expenses/${i.id}`}
+                title={i.kind === "mileage" ? `Mileage · ${i.miles ?? "?"} mi` : "Out of pocket"}
+                amount={money(i.amountCents)}
+                date={i.itemDate}
+                overdueDays={daysOverdue(i.itemDate, today)}
+                status={i.status}
+                rejected={i.status === "rejected"}
+                sub={<>{i.category?.name ?? "No category yet"}</>}
+                receipts={i.receipts.length}
+                needs={itemCheck(i).map((x) => x.message)}
+              />
+            ))}
           </div>
         )}
         {openItems.length > 0 ? (

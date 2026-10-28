@@ -9,7 +9,9 @@ import {
   type CodingEntityOption,
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
+import { ConfirmAction } from "@/app/components/confirm-action";
 import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
+import { SaveBar } from "@/app/components/save-bar";
 
 import {
   createCardExpense,
@@ -185,32 +187,36 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
         <p className="text-sm text-emerald-700 dark:text-emerald-400">Changes saved.</p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
+      {!editing ? (
         <button
           type="submit"
-          disabled={pending || (editing && !dirty)}
-          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-black"
+          disabled={pending}
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
         >
-          {pending ? "Saving…" : editing ? "Save changes" : "Save purchase"}
+          {pending ? "Saving…" : "Save purchase"}
         </button>
-
-        {editing && props.submitReady ? (
-          dirty ? (
-            <span className="text-xs opacity-70">
-              Save your changes before submitting to accounting.
-            </span>
-          ) : (
-            <button
-              type="submit"
-              formAction={submitCardExpense}
-              disabled={pending}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Submit to accounting
-            </button>
-          )
-        ) : null}
-      </div>
+      ) : dirty ? (
+        <SaveBar pending={pending} />
+      ) : props.submitReady ? (
+        <ConfirmAction
+          tone="primary"
+          label="Submit to accounting"
+          confirmLabel="Yes, submit it"
+          question={
+            <>
+              Send <strong>{i?.merchant}</strong> to accounting? You won&apos;t be able to change it after
+              this unless they send it back.
+            </>
+          }
+          run={async () => {
+            const fd = new FormData();
+            fd.set("id", i!.id);
+            await submitCardExpense(fd);
+            router.push("/expenses");
+            router.refresh();
+          }}
+        />
+      ) : null}
     </form>
   );
 }

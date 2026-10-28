@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
 
@@ -10,6 +10,7 @@ import {
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
 import { ReceiptUploadButton } from "@/app/components/receipt-upload-button";
+import { SaveBar } from "@/app/components/save-bar";
 
 import { createOutOfPocket, updateExpenseItem, type FormState } from "./actions";
 
@@ -40,12 +41,20 @@ export function OutOfPocketForm(props: {
   const router = useRouter();
   const i = props.initial;
   const editing = !!i;
+  const [dirty, setDirty] = useState(false);
   const [state, action, pending] = useActionState<FormState, FormData>(
-    editing ? updateExpenseItem : createOutOfPocket,
+    async (prev, fd) => {
+      const r = await (editing ? updateExpenseItem : createOutOfPocket)(prev, fd);
+      if (r.ok && editing) {
+        setDirty(false);
+        router.refresh();
+      }
+      return r;
+    },
     {},
   );
 
-  if (state.ok && state.id) {
+  if (state.ok && state.id && !editing) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-emerald-700 dark:text-emerald-400">Saved.</p>
@@ -69,7 +78,7 @@ export function OutOfPocketForm(props: {
   }
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -136,13 +145,21 @@ export function OutOfPocketForm(props: {
 
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-      >
-        {pending ? "Saving…" : editing ? "Save changes" : "Save reimbursement"}
-      </button>
+      {editing && state.ok && !dirty ? (
+        <p className="text-sm text-emerald-700 dark:text-emerald-400">Changes saved.</p>
+      ) : null}
+
+      {!editing ? (
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
+        >
+          {pending ? "Saving…" : "Save reimbursement"}
+        </button>
+      ) : dirty ? (
+        <SaveBar pending={pending} />
+      ) : null}
     </form>
   );
 }

@@ -69,6 +69,12 @@ export function PwaRegister() {
   return null;
 }
 
+/** "your phone" / "your iPad" / "your computer" for banner copy. */
+function deviceWord(platform: Platform): string {
+  if (platform === "ios" || platform === "android") return "phone";
+  return "computer";
+}
+
 const DISMISS_KEY = "iws-install-banner-dismissed";
 const DISMISS_EVENT = "iws-install-banner";
 
@@ -90,14 +96,21 @@ export function InstallBanner() {
   const { available, install } = useInstallPrompt();
   const dismissed = useSyncExternalStore(subscribeDismissed, readDismissed, () => true);
 
+  // Phones always get the banner (iPhone has no prompt API, so it links to the how-to).
+  // Desktop only when the browser offers installing (Chrome/Edge) — nothing to promise otherwise.
   const canInstall = available || platform === "ios" || platform === "android";
   if (!canInstall || platform === "installed" || dismissed) return null;
+  const device = deviceWord(platform);
 
   return (
     <div className="border-b border-emerald-600/30 bg-emerald-600/10 px-4 py-2 text-sm">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-medium">Install IWS Expense on your phone</span>
-        <span className="opacity-70">One tap from your home screen, full screen, no browser bar.</span>
+        <span className="font-medium">Install IWS Expense on your {device}</span>
+        <span className="opacity-70">
+          {device === "phone"
+            ? "One tap from your home screen, full screen, no browser bar."
+            : "Opens in its own window with a Start menu and taskbar icon — no browser tabs."}
+        </span>
         <span className="ml-auto flex items-center gap-3">
           {available ? (
             <button onClick={install} className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white">
@@ -173,16 +186,27 @@ export function InstallPanel() {
         </ol>
       </div>
 
-      <div>
-        <h3 className="font-semibold">Computer</h3>
-        <p>
-          In Chrome or Edge, click the install icon at the right end of the address bar (or menu →{" "}
-          <strong>Install IWS Expense</strong>).
-        </p>
+      <div className={platform === "other" ? "rounded-lg border border-emerald-600/40 p-3" : "p-0"}>
+        <h3 className="font-semibold">Windows / Mac computer</h3>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">
+          <li>
+            Open <strong>expense.iws.world</strong> in <strong>Microsoft Edge</strong> or{" "}
+            <strong>Chrome</strong> and sign in.
+          </li>
+          <li>
+            Click <strong>Install</strong> above, or the install icon (a small screen with a down arrow) at
+            the right end of the address bar, or menu → <strong>Apps → Install IWS Expense</strong>.
+          </li>
+          <li>
+            It opens in its own window and appears in the <strong>Start menu</strong> and taskbar — right-click
+            it to pin it. Safari on Mac: <strong>File → Add to Dock</strong>.
+          </li>
+        </ol>
+        <p className="mt-1 text-xs opacity-60">Firefox can&apos;t install web apps — use Edge or Chrome.</p>
       </div>
 
       <ul className="list-disc space-y-1 pl-5 opacity-80">
-        <li>The installed app has its own icon and opens full screen. The receipt camera works the same.</li>
+        <li>The installed app has its own icon and opens in its own window or full screen. The receipt camera works the same.</li>
         <li>
           The installed app keeps its own sign-in, so you&apos;ll sign in with Microsoft once inside it — you
           don&apos;t lose anything in your browser.
