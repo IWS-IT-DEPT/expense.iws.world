@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "role_override" boolean DEFAULT false NOT NULL;

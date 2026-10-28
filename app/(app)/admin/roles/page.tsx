@@ -113,15 +113,23 @@ export default async function RolesPage({
         <h3 className="font-semibold">How roles are decided</h3>
         <ul className="list-disc space-y-1 pl-5 opacity-80">
           <li>
-            <strong>The group wins.</strong> If someone is in a mapped group, that is their role — whatever you pick
-            when you add them. Their role is re-checked every time they sign in.
+            <strong>Automatic: the group decides.</strong> If someone is in a mapped group, that is their role, re-checked
+            at every sign-in.
+          </li>
+          <li>
+            <strong>Set by hand: you decide</strong> — for Accounting, Payroll and Approver only. If you pick one on a
+            person&apos;s page (or when adding them) it stays, even if they&apos;re not in the group. Switch them back to
+            Automatic to follow the groups again.
+          </li>
+          <li>
+            <strong>Admin is group-only.</strong> It can never be given or removed inside the app — only by adding or
+            removing someone from the group mapped to Admin above.
           </li>
           <li>
             In several groups? The highest wins: Admin, then Accounting, then Payroll, then Approver.
           </li>
           <li>
-            A role with a group mapped can&apos;t be set by hand: if they leave the group they go back to Cardholder.
-            Roles with <em>no</em> group are set manually on a person&apos;s page.
+            On Automatic, if they leave the group they go back to Cardholder.
           </li>
           <li>Cardholder is the default for everyone not in a mapped group.</li>
         </ul>

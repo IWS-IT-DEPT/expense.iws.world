@@ -161,9 +161,11 @@ export async function lookupRoleByEmail(email: string, knownOid?: string | null)
  */
 export async function syncUserRoleFromM365(
   userId: string,
-): Promise<{ role: Role; changed: boolean; source: "group" | "none" | "unchecked" }> {
+): Promise<{ role: Role; changed: boolean; source: "group" | "none" | "unchecked" | "override" }> {
   const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!u) return { role: "cardholder", changed: false, source: "unchecked" };
+  // An admin set this role by hand — Microsoft 365 groups don't get a say.
+  if (u.roleOverride) return { role: u.role, changed: false, source: "override" };
 
   const lookup = await lookupRoleByEmail(u.email, u.entraOid);
   if (!lookup.checked) return { role: u.role, changed: false, source: "unchecked" };

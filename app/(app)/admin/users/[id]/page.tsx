@@ -49,18 +49,15 @@ export default async function UserDetailPage({
   ]);
 
   const isSelf = me.id === u.id;
-  const groupDriven = cfg.driven.includes(u.role);
-  // With group sync on, admin/accounting/payroll come from Microsoft 365 groups
-  // and a role typed here would just be reset the next time they use the app.
-  const roleLockedReason =
-    cfg.syncEnabled && groupDriven
-      ? `${u.role} comes from their Microsoft 365 group. To change it, change their group membership in Microsoft 365 — a role set here would be reset the next time they use the app.`
-      : undefined;
-  const roleOptions = cfg.syncEnabled
-    ? userRole.enumValues.filter((r) => !cfg.driven.includes(r))
-    : [...userRole.enumValues];
+  // "Automatic" unless the role is pinned by hand, or it's a plain non-group role like Approver.
+  const initialChoice = u.roleOverride
+    ? u.role
+    : cfg.driven.includes(u.role) || u.role === "cardholder"
+      ? "auto"
+      : u.role;
+  const roleOptions = userRole.enumValues.filter((r) => r !== "admin");
 
-  const formKey = [u.name, u.role, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.active].join("|");
+  const formKey = [u.name, u.role, u.roleOverride, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.active].join("|");
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -76,7 +73,11 @@ export default async function UserDetailPage({
         <p className="text-sm opacity-70">{u.email}</p>
       </div>
 
-      {rolesrc === "group" ? (
+      {rolesrc === "override" ? (
+        <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
+          ✓ Role set manually to <strong>{roleNote}</strong> — it stays whatever their Microsoft 365 groups say.
+        </p>
+      ) : rolesrc === "group" ? (
         <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
           ✓ Found in the Microsoft 365 group for <strong>{roleNote}</strong> — that role has been applied.
         </p>
@@ -100,7 +101,7 @@ export default async function UserDetailPage({
       <dl className="divide-y divide-black/10 rounded-lg border border-black/10 text-sm dark:divide-white/10 dark:border-white/15">
         {(
           [
-            ["Role", `${u.role} — ${ROLE_HELP[u.role]}`],
+            ["Role", `${u.role}${u.roleOverride ? " (set manually)" : ""} — ${ROLE_HELP[u.role]}`],
             ["Signed in before", u.entraOid ? "Yes" : "Not yet (added in advance)"],
             ["Added", shortDate(u.createdAt)],
             ["Registered cards", String(cardCount.n)],
@@ -129,9 +130,11 @@ export default async function UserDetailPage({
             email={u.email}
             name={u.name}
             originalRole={u.role}
+            originalOverride={u.roleOverride}
+            initialChoice={initialChoice}
             originalActive={u.active}
             roleOptions={roleOptions}
-            roleLockedReason={roleLockedReason}
+            drivenRoles={cfg.driven}
             isSelf={isSelf}
           />
 

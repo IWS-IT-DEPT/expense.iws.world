@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
+import { getUserGroupIds } from "@/lib/graph";
 import {
   GROUP_ROLES,
   getGroupConfig,
@@ -74,26 +75,33 @@ export async function updateUser(fd: FormData) {
   const existing = await db.query.users.findFirst({ where: eq(users.id, id) });
   if (!existing) return;
 
+  const cfg = await getGroupConfig();
   const allowed = userRole.enumValues as readonly string[];
-  const requestedRole = str(fd, "role");
-  let role = (allowed.includes(requestedRole) ? requestedRole : existing.role) as (typeof userRole.enumValues)[number];
+  const choice = str(fd, "role"); // "auto" (follow Microsoft 365 groups) or a role
+  const auto = choice === "auto" || !allowed.includes(choice);
+
+  let role = (auto ? existing.role : choice) as (typeof userRole.enumValues)[number];
+  // A role set by hand sticks (groups can't change it); automatic follows the groups.
+  let roleOverride = auto ? false : cfg.driven.includes(role);
   let active = bool(fd, "active");
+
+  // Admin comes ONLY from membership of the Microsoft 365 group mapped to Admin:
+  // it can't be granted here, and an existing admin's role can't be changed here.
+  if (role === "admin" || existing.role === "admin") {
+    role = existing.role;
+    roleOverride = false;
+  }
 
   if (me.id === existing.id) {
     // Never let an admin lock themselves (or everyone) out.
     role = existing.role;
+    roleOverride = existing.roleOverride;
     active = true;
-  }
-  // With Entra group sync on, these roles belong to the groups — a hand-set one is reset on next login.
-  const cfg = await getGroupConfig();
-  if (cfg.syncEnabled && role !== existing.role && (cfg.driven.includes(role) || cfg.driven.includes(existing.role))) {
-    role = existing.role;
   }
 
   // Risky changes need the person's email typed (the form asks; enforced here too).
   const deactivating = existing.active && !active;
-  const adminChange = role !== existing.role && (role === "admin" || existing.role === "admin");
-  if ((deactivating || adminChange) && str(fd, "confirmEmail").toLowerCase() !== existing.email) return;
+  if (deactivating && str(fd, "confirmEmail").toLowerCase() !== existing.email) return;
 
   const name = str(fd, "name");
   await db
@@ -101,12 +109,17 @@ export async function updateUser(fd: FormData) {
     .set({
       ...(name ? { name } : {}),
       role,
+      roleOverride,
       homeEntityId: opt(fd, "homeEntityId"),
       homeLocationId: opt(fd, "homeLocationId"),
       mileageEligible: bool(fd, "mileageEligible"),
       active,
     })
     .where(eq(users.id, id));
+
+  // Switched back to Automatic: apply what their groups say right now.
+  if (existing.roleOverride && !roleOverride) await syncUserRoleFromM365(id);
+
   revalidatePath(`/admin/users/${id}`);
   await done("/admin/users");
 }
@@ -119,20 +132,25 @@ export async function inviteUser(fd: FormData) {
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (existing) redirect(`/admin/users/${existing.id}`);
 
-  // Roles that come from Microsoft 365 groups can't be pre-set here (they'd be reset at sign-in).
+  // "auto" = follow Microsoft 365 groups (Cardholder if none). Picking a role by hand pins it:
+  // that's how you make an owner an admin even though they're not in the IT group.
   const cfg = await getGroupConfig();
-  const wanted = str(fd, "role") as (typeof userRole.enumValues)[number];
-  const chosen =
-    (userRole.enumValues as readonly string[]).includes(wanted) &&
-    !(cfg.syncEnabled && cfg.driven.includes(wanted))
-      ? wanted
-      : "cardholder";
+  const choice = str(fd, "role");
+  // Admin can't be assigned in the app (only via its Microsoft 365 group), so it's never an explicit choice.
+  const explicit =
+    choice !== "admin" && (userRole.enumValues as readonly string[]).includes(choice)
+      ? (choice as (typeof userRole.enumValues)[number])
+      : null;
+  const role = explicit ?? "cardholder";
+  const roleOverride = !!explicit && cfg.driven.includes(explicit);
+
   const [created] = await db
     .insert(users)
-    .values({ email, name: opt(fd, "name") ?? email, role: chosen })
+    .values({ email, name: opt(fd, "name") ?? email, role, roleOverride })
     .returning({ id: users.id });
 
-  // Microsoft 365 group membership wins over the dropdown — settle the role BEFORE the email says what it is.
+  // Group-driven roles are settled from Microsoft 365 BEFORE the email says what they are
+  // (a manual override skips this — it's already final).
   const synced = await syncUserRoleFromM365(created.id);
   const welcomed = bool(fd, "sendWelcome") ? await notifyWelcome(created.id) : false;
   await done("/admin/users");
@@ -169,6 +187,7 @@ const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 /** Save which Microsoft 365 group grants each role. Blank = fall back to the server environment. */
 export async function saveRoleGroups(fd: FormData) {
   const user = await requireRole("admin");
+  const before = await getGroupConfig();
   const rows: { role: (typeof GROUP_ROLES)[number]; value: string }[] = [];
   for (const role of GROUP_ROLES) {
     const v = str(fd, role);
@@ -184,6 +203,19 @@ export async function saveRoleGroups(fd: FormData) {
       redirect(`/admin/roles?error=${encodeURIComponent(`The same group can't grant both ${seen.get(r.value)} and ${r.role}.`)}`);
     }
     seen.set(r.value, r.role);
+  }
+  // Changing which group grants Admin? Make sure YOU would still be an admin afterwards —
+  // otherwise you'd demote yourself the moment this saves and couldn't undo it.
+  const newAdminGroup = rows.find((r) => r.role === "admin")?.value;
+  const currentAdminGroup = before.groups.admin;
+  if (newAdminGroup && newAdminGroup !== currentAdminGroup) {
+    const mine = user.entraOid ? await getUserGroupIds(user.entraOid) : null;
+    if (!mine) {
+      redirect(`/admin/roles?error=${encodeURIComponent("Couldn't confirm your own membership of the new admin group (Microsoft 365 didn't answer). Nothing was changed — try again in a minute.")}`);
+    }
+    if (!mine.map((g) => g.toLowerCase()).includes(newAdminGroup)) {
+      redirect(`/admin/roles?error=${encodeURIComponent("You're not a member of that group yet, so saving would remove your own admin access. Add yourself to the group in Microsoft 365 first (it can take a few minutes to show up), then save again. Nothing was changed.")}`);
+    }
   }
   for (const r of rows) {
     await db

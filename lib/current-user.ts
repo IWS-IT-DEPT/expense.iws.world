@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { userRole, users } from "@/db/schema";
@@ -101,11 +101,21 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       resolution.source === "graph" ||
       (resolution.source === "token" && cfg.syncEnabled);
 
-    if (trustworthy) {
+    if (trustworthy && !existing.roleOverride) {
       if (resolution.role && resolution.role !== existing.role) {
         patch.role = resolution.role;
       } else if (!resolution.role && cfg.driven.includes(existing.role)) {
-        patch.role = "cardholder"; // removed from IT/Finance
+        // Removed from their group => back to Cardholder. Except: never strip the last active admin,
+        // so a wrong group mapping can't lock everyone out of Settings.
+        let lastAdmin = false;
+        if (existing.role === "admin") {
+          const [others] = await db
+            .select({ n: count() })
+            .from(users)
+            .where(and(eq(users.role, "admin"), eq(users.active, true), ne(users.id, existing.id)));
+          lastAdmin = others.n === 0;
+        }
+        if (!lastAdmin) patch.role = "cardholder";
       }
     }
 

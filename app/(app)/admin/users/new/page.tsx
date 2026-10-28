@@ -1,17 +1,13 @@
 import Link from "next/link";
 
 import { SubmitButton } from "@/app/components/submit-button";
-import { userRole } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
-import { getGroupConfig } from "@/lib/role-groups";
 
 import { inputClass } from "../../_ui";
 import { inviteUser } from "../../actions";
 
 export default async function NewUserPage() {
   await requireRole("admin");
-  const cfg = await getGroupConfig();
-  const roles = cfg.syncEnabled ? userRole.enumValues.filter((r) => !cfg.driven.includes(r)) : [...userRole.enumValues];
   return (
     <div className="max-w-xl space-y-4">
       <Link href="/admin/users" className="text-sm underline opacity-70">
@@ -33,18 +29,18 @@ export default async function NewUserPage() {
         </label>
         <label className="block">
           <span className="mb-1 block font-medium">Role</span>
-          <select name="role" defaultValue="cardholder" className={inputClass}>
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
+          <select name="role" defaultValue="auto" className={inputClass}>
+            <option value="auto">Automatic — from their Microsoft 365 groups (Cardholder if none)</option>
+            <option value="cardholder">Cardholder</option>
+            <option value="approver">Approver</option>
+            <option value="accounting">Accounting — set manually</option>
+            <option value="payroll">Payroll — set manually</option>
           </select>
           <span className="mt-1 block text-xs opacity-60">
-            {cfg.syncEnabled
-              ? "If they're in a Microsoft 365 group that's mapped to a role (Settings → Roles & groups), that role is applied automatically — before the welcome email is sent — and wins over this choice. This dropdown only covers roles that have no group."
-              : "Roles set here are used as-is (no Microsoft 365 groups are mapped yet)."}{" "}
-            The setup email describes the role they end up with.
+            Leave on Automatic for most people. You can set Accounting or Payroll by hand for someone who isn&apos;t in
+            the matching Microsoft 365 group; it stays even if their groups say otherwise. <strong>Admin can&apos;t be
+            assigned here</strong> — it comes only from membership of the Microsoft 365 group mapped to Admin. The setup
+            email describes the role they end up with.
           </span>
         </label>
         <label className="flex items-start gap-2">

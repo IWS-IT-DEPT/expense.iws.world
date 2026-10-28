@@ -85,6 +85,13 @@
       "when": 1793205523281,
       "tag": "0011_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793214631922,
+      "tag": "0012_role_override",
+      "breakpoints": true
     }
   ]
 }

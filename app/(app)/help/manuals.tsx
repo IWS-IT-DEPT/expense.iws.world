@@ -502,8 +502,8 @@ const admin: Manual = {
         </li>
         <li>
           <strong>+ Add user</strong> sets a person up by email ahead of their first sign-in. They still sign in
-          with Microsoft. Pick their role (Cardholder or Approver; Admin, Accounting and Payroll come from Microsoft 365
-          groups). By default they&apos;re emailed setup instructions — what their role lets them do, how to sign
+          with Microsoft. Pick their role: leave it on Automatic to follow their Microsoft 365 groups, or set Accounting / Payroll / Approver by hand (that stays whatever their groups say). Admin can&apos;t
+          be assigned in the app — it comes only from the Microsoft 365 group mapped to Admin. By default they&apos;re emailed setup instructions — what their role lets them do, how to sign
           in, add the app to an iPhone, Android or computer, and where the Help guide is. People who sign in on their own for the first
           time get the same email, and <strong>Email setup instructions</strong> on a person&apos;s page re-sends it.
         </li>
@@ -533,8 +533,9 @@ const admin: Manual = {
         <li>
           <strong>Roles &amp; groups</strong> — says which Microsoft 365 group gives each role (Admin, Accounting,
           Payroll, and optionally Approver). Anyone in a mapped group gets that role automatically: when you add
-          them (checked before the welcome email goes out) and every time they sign in. <strong>The group wins</strong>{" "}
-          over whatever role you pick; if they&apos;re in several, the highest applies (Admin, Accounting, Payroll,
+          them (checked before the welcome email goes out) and every time they sign in. <strong>On Automatic the group decides</strong>; Accounting / Payroll / Approver can be set by hand and then stick.
+          Admin is group-only.{" "}
+          If they&apos;re in several, the highest applies (Admin, Accounting, Payroll,
           Approver). The page shows each group&apos;s name, the connection status, and a <strong>Check</strong> box to
           see what role an email address would get.
         </li>

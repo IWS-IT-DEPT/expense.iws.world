@@ -253,6 +253,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   role: userRole("role").notNull().default("cardholder"),
+  /** Role assigned by an admin by hand: Microsoft 365 groups never change it (e.g. owners who aren't in the IT group). */
+  roleOverride: boolean("role_override").notNull().default(false),
   homeEntityId: uuid("home_entity_id").references(() => entities.id),
   homeLocationId: uuid("home_location_id").references(() => locations.id),
   mileageEligible: boolean("mileage_eligible").notNull().default(true),

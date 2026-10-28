@@ -47,7 +47,7 @@ const ROLE_INTRO: Record<string, { title: string; text: string }> = {
   },
   admin: {
     title: "Administrator",
-    text: "You have access to everything: your own expenses, the Accounting and Payroll queues, and Settings (users, roles, companies, QuickBooks setup and email).",
+    text: "You're an administrator of IWS Expense. You have access to everything: your own expenses, the Accounting and Payroll queues, and Settings — where you add and manage people, assign roles, set up the companies and their QuickBooks details, and choose who receives the alert emails.",
   },
 };
 
@@ -180,6 +180,20 @@ export async function notifyWelcome(userId: string): Promise<boolean> {
           'Click the install icon at the right end of the address bar (or menu → Apps → "Install IWS Expense").',
         ],
       },
+      ...(u.role === "admin"
+        ? [
+            {
+              title: "Your administrator tools (Settings, in the top bar)",
+              steps: [
+                "Users — add people and set their role. Nobody can sign in until you add them. Roles follow their Microsoft 365 groups by default; Admin only ever comes from membership of the admin group — it can't be assigned inside the app.",
+                "Roles & groups — map each Microsoft 365 group to a role (including the admin group), and check what role an email address would get.",
+                "Email — choose who receives the Accounting and Payroll alert emails, and send a test.",
+                "Entities — each company's details, codes and QuickBooks setup.",
+                "Errors and Policy — see anything that has gone wrong, and set the receipt-required amount.",
+              ],
+            },
+          ]
+        : []),
       {
         title: "Learn how to use it",
         steps: [
