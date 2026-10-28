@@ -41,7 +41,9 @@ export function AppNav({ zones }: { zones: Zone[] }) {
       )}
       <nav className="flex flex-wrap gap-4 text-sm">
         {active.nav.map((item) => {
-          const on = path === item.href || path.startsWith(`${item.href}/`);
+          // Highlight only the most specific tab (e.g. History, not My Expenses too).
+          const hit = (h: string) => path === h || path.startsWith(`${h}/`);
+          const on = hit(item.href) && !active.nav.some((o) => o.href.length > item.href.length && hit(o.href));
           return (
             <Link
               key={item.href}

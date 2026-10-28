@@ -14,6 +14,7 @@ const ME_ZONE: Zone = {
   matches: ["/", "/expenses", "/receipts", "/cards", "/report", "/summary"],
   nav: [
     { href: "/expenses", label: "My Expenses" },
+    { href: "/expenses/history", label: "History" },
     { href: "/summary", label: "Summary" },
     { href: "/report", label: "Weekly Report" },
     { href: "/cards", label: "My Cards" },

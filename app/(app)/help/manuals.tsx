@@ -188,7 +188,10 @@ const cardholder: Manual = {
         <li><strong>Draft</strong> — yours to edit; not submitted.</li>
         <li><strong>Submitted</strong> — waiting for Accounting (card) or Payroll (reimbursement) to check it.</li>
         <li><strong>Reconciled</strong> — checked; waiting for final approval.</li>
-        <li><strong>Approved</strong> — done and locked. You&apos;ll get an email.</li>
+        <li>
+          <strong>Approved</strong> — done and locked. You&apos;ll get an email, and it moves off My Expenses
+          into <strong>History</strong>.
+        </li>
         <li><strong>Sent back</strong> (shown in red) — the reviewer wants a change; the reason is shown.</li>
         <li><strong>Voided</strong> — you cancelled it.</li>
       </UL>
@@ -203,6 +206,19 @@ const cardholder: Manual = {
         You can edit an expense only while it&apos;s a draft or sent back. Once submitted it&apos;s locked; if
         you spot a mistake, ask the reviewer to send it back. Drafts can be <strong>deleted</strong>; sent-back
         items can be <strong>discarded</strong>.
+      </P>
+
+      <H>Overdue expenses</H>
+      <P>
+        An expense you haven&apos;t submitted by end of day Friday of the week it belongs to is marked with a
+        red <strong>N days overdue</strong> badge. Submit it (or delete it if it&apos;s not needed) to clear it.
+        Sent-back items count too if they&apos;re still waiting on you.
+      </P>
+
+      <H>History tab</H>
+      <P>
+        <strong>History</strong> lists everything that&apos;s been approved, newest first, 20 per page. Use it to
+        look up an old expense or receipt. Approved items no longer clutter My Expenses.
       </P>
 
       <H>Summary tab</H>
