@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
 import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
+import { notifyWelcome } from "@/lib/notify";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const opt = (fd: FormData, k: string) => str(fd, k) || null;
@@ -109,8 +110,18 @@ export async function inviteUser(fd: FormData) {
     .insert(users)
     .values({ email, name: opt(fd, "name") ?? email, role: "cardholder" })
     .returning({ id: users.id });
+  const welcomed = bool(fd, "sendWelcome") ? await notifyWelcome(created.id) : false;
   await done("/admin/users");
-  redirect(`/admin/users/${created.id}`);
+  redirect(`/admin/users/${created.id}${welcomed ? "?welcome=sent" : ""}`);
+}
+
+/** Re-send the setup email (they lost it, or it went to junk). */
+export async function resendWelcome(fd: FormData) {
+  await requireRole("admin");
+  const id = str(fd, "id");
+  if (!id) return;
+  const sent = await notifyWelcome(id);
+  redirect(`/admin/users/${id}${sent ? "?welcome=sent" : ""}`);
 }
 
 /* ----------------------------------------------------------------- entities */

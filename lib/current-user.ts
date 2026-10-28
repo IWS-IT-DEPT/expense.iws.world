@@ -6,6 +6,7 @@ import { userRole, users } from "@/db/schema";
 
 import { auth } from "./auth";
 import { getUserGroupIds, graphConfigured } from "./graph";
+import { notifyWelcome } from "./notify";
 
 export type Role = (typeof userRole.enumValues)[number];
 export type CurrentUser = typeof users.$inferSelect;
@@ -123,6 +124,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       role: resolution.role ?? "cardholder",
     })
     .returning();
+  // Self-provisioned on first sign-in: send the same setup email an admin-added person gets.
+  await notifyWelcome(created.id).catch(() => {});
   return created;
 });
 

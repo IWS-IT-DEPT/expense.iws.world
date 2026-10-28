@@ -27,6 +27,15 @@ export default async function NewUserPage() {
           <span className="mb-1 block font-medium">Full name</span>
           <input name="name" placeholder="Jane Smith" className={`${inputClass} w-full`} />
         </label>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" name="sendWelcome" defaultChecked className="mt-1" />
+          <span>
+            Email them setup instructions{" "}
+            <span className="text-xs opacity-60">
+              — how to sign in, add the app to an iPhone, Android or computer, and open the how-to guide
+            </span>
+          </span>
+        </label>
         <SubmitButton className="rounded-md bg-black px-3.5 py-2 text-sm font-medium text-white dark:bg-white dark:text-black">
           Add user
         </SubmitButton>

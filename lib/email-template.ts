@@ -24,6 +24,10 @@ export interface EmailContent {
   accent?: EmailAccent;
   /** small print under the paragraphs, before the CTA (e.g. a reason) */
   callout?: { label: string; text: string };
+  /** titled numbered step lists (e.g. "Add it to your iPhone") */
+  sections?: { title: string; steps: string[] }[];
+  /** a quieter second link under the main button */
+  secondaryCta?: { label: string; url: string };
 }
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -56,6 +60,20 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
        </table>`
     : "";
 
+  const sectionsHtml = (c.sections ?? [])
+    .map(
+      (s) =>
+        `<div style="margin:0 0 6px;font:600 14px/1.4 ${FONT};color:#18181b;">${esc(s.title)}</div>
+         <ol style="margin:0 0 18px;padding-left:22px;font:400 14px/1.6 ${FONT};color:#3f3f46;">${s.steps
+           .map((t) => `<li style="margin:0 0 4px;">${esc(t)}</li>`)
+           .join("")}</ol>`,
+    )
+    .join("");
+
+  const secondaryHtml = c.secondaryCta
+    ? `<p style="margin:14px 0 0;font:400 14px/1.5 ${FONT};"><a href="${esc(c.secondaryCta.url)}" style="color:${accent};text-decoration:underline;">${esc(c.secondaryCta.label)}</a></p>`
+    : "";
+
   const ctaHtml = c.cta
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 2px;">
          <tr><td style="border-radius:8px;background:${accent};">
@@ -82,7 +100,9 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
           <h1 style="margin:0 0 14px;font:600 20px/1.35 ${FONT};color:#18181b;">${esc(c.heading)}</h1>
           ${paragraphsHtml}
           ${calloutHtml}
+          ${sectionsHtml}
           ${ctaHtml}
+          ${secondaryHtml}
         </td></tr>
         <tr><td style="padding:16px 28px;background:#fafafa;border-top:1px solid #efefef;font:400 12px/1.5 ${FONT};color:#a1a1aa;">
           IWS Expense &middot; <a href="${esc(APP_URL || "#")}" style="color:#a1a1aa;text-decoration:underline;">${esc(host)}</a>
@@ -98,7 +118,9 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
     "",
     ...c.paragraphs,
     ...(c.callout ? ["", `${c.callout.label}: ${c.callout.text}`] : []),
+    ...(c.sections ?? []).flatMap((s) => ["", s.title, ...s.steps.map((t, i) => `  ${i + 1}. ${t}`)]),
     ...(c.cta ? ["", `${c.cta.label}: ${c.cta.url}`] : []),
+    ...(c.secondaryCta ? [`${c.secondaryCta.label}: ${c.secondaryCta.url}`] : []),
     "",
     "—",
     `IWS Expense · ${host}`,

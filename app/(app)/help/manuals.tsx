@@ -492,7 +492,9 @@ const admin: Manual = {
         </li>
         <li>
           <strong>+ Add user</strong> sets a person up by email ahead of their first sign-in. They still sign in
-          with Microsoft.
+          with Microsoft. By default they&apos;re emailed setup instructions — how to sign in, add the app to an
+          iPhone, Android or computer, and where the Help guide is. People who sign in on their own for the first
+          time get the same email, and <strong>Email setup instructions</strong> on a person&apos;s page re-sends it.
         </li>
         <li>
           Only people whose email is on an allowed company domain can sign in at all (set by the
@@ -516,6 +518,12 @@ const admin: Manual = {
         <li>
           <strong>Policy</strong> — the dollar amount at or above which a receipt is required (default $75).
           Applies to card and out-of-pocket expenses, not mileage.
+        </li>
+        <li>
+          <strong>Go-live cleanup</strong> — permanently removes test users and/or their expenses before launch
+          (admin only). Pick the users, choose whether to remove only their expenses or the accounts too, review
+          the exact counts, and type the confirmation phrase. It can&apos;t delete your own account, and it can&apos;t
+          be undone.
         </li>
         <li>
           <strong>Errors</strong> — server errors grouped by cause with counts. Mark an error{" "}

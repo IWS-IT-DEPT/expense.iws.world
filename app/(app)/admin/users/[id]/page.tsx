@@ -9,7 +9,8 @@ import { shortDate } from "@/lib/format";
 
 import { DirtyForm } from "../../_dirty-form";
 import { inputClass } from "../../_ui";
-import { updateUser } from "../../actions";
+import { SubmitButton } from "@/app/components/submit-button";
+import { resendWelcome, updateUser } from "../../actions";
 import { SensitiveFields } from "./sensitive-fields";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -22,9 +23,16 @@ const ROLE_HELP: Record<string, string> = {
   admin: "Everything, including Users and Settings.",
 };
 
-export default async function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function UserDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const me = await requireRole("admin");
   const { id } = await params;
+  const { welcome } = await searchParams;
   if (!UUID.test(id)) notFound();
 
   const u = await db.query.users.findFirst({ where: eq(users.id, id), with: { homeEntity: true } });
@@ -65,6 +73,12 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         </h2>
         <p className="text-sm opacity-70">{u.email}</p>
       </div>
+
+      {welcome === "sent" ? (
+        <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
+          ✓ Setup email sent to {u.email}.
+        </p>
+      ) : null}
 
       <dl className="divide-y divide-black/10 rounded-lg border border-black/10 text-sm dark:divide-white/10 dark:border-white/15">
         {(
@@ -137,6 +151,23 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
             </span>
           </label>
         </DirtyForm>
+      </section>
+
+      <section className="space-y-2 text-sm">
+        <h3 className="font-semibold">Setup email</h3>
+        <p className="opacity-70">
+          Sends {u.name.split(" ")[0]} the welcome email: how to sign in, add the app to an iPhone, Android or
+          computer, and open the how-to guide for their access.
+        </p>
+        <form action={resendWelcome}>
+          <input type="hidden" name="id" value={u.id} />
+          <SubmitButton
+            pendingLabel="Sending…"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-black/15 px-4 font-medium dark:border-white/20"
+          >
+            Email setup instructions
+          </SubmitButton>
+        </form>
       </section>
 
       <section className="space-y-1 border-t border-black/10 pt-5 text-sm dark:border-white/15">

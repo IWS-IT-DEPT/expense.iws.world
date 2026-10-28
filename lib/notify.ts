@@ -110,3 +110,63 @@ export async function notifyPayrollSubmitted(
     cta: { label: "Open the payroll reconcile queue", url: `${APP_URL}/payroll/reconcile` },
   });
 }
+
+/**
+ * New person: how to sign in, put the app on their phone/computer, and where
+ * the guide for their access lives. We can't know their phone, so both iPhone
+ * and Android steps go in. Returns false if there was nobody to send to.
+ */
+export async function notifyWelcome(userId: string): Promise<boolean> {
+  const u = await userEmail(userId);
+  if (!u) return false;
+  const host = APP_URL.replace(/^https?:\/\//, "") || "expense.iws.world";
+  await safeSend(u.email, "Welcome to IWS Expense — get set up in 2 minutes", {
+    accent: "green",
+    preheader: "Sign in, add the app to your phone, and find your how-to guide",
+    heading: `Welcome to IWS Expense, ${u.name.split(" ")[0]}`,
+    paragraphs: [
+      "You've been added to IWS Expense, where you log company-card purchases, out-of-pocket expenses and mileage — receipts included.",
+      `Sign in at ${host} with your Microsoft 365 work account (the same one you use for email). Then put the app on your phone so it's one tap away:`,
+    ],
+    sections: [
+      {
+        title: "Add it to your iPhone",
+        steps: [
+          `Open ${host} in Safari. (If you tapped a link inside Outlook or Teams, choose "Open in Safari" first.)`,
+          "Tap the Share button — the square with an arrow.",
+          'Scroll down and tap "Add to Home Screen", then "Add".',
+          "Open IWS Expense from your home screen and sign in with Microsoft.",
+        ],
+      },
+      {
+        title: "Add it to your Android phone",
+        steps: [
+          `Open ${host} in Chrome and sign in.`,
+          'Tap "Install" on the green banner at the top — or tap the ⋮ menu, then "Install app" / "Add to Home screen".',
+          "Open IWS Expense from your home screen.",
+        ],
+      },
+      {
+        title: "On a Windows computer",
+        steps: [
+          `Open ${host} in Microsoft Edge or Chrome and sign in.`,
+          'Click the install icon at the right end of the address bar (or menu → Apps → "Install IWS Expense").',
+        ],
+      },
+      {
+        title: "Learn how to use it",
+        steps: [
+          "Once you're signed in, tap \"Help\" at the top of any screen. It shows instructions for exactly what you can do — and adds more sections if you're given extra access (for example reconciling or approving).",
+          "The same page has the install steps above and a switch to turn on notifications, so you'll know right away if something is sent back.",
+        ],
+      },
+    ],
+    cta: { label: "Open IWS Expense", url: `${APP_URL}/expenses` },
+    secondaryCta: { label: "Go straight to the how-to guide", url: `${APP_URL}/help` },
+    callout: {
+      label: "Need help?",
+      text: "If you can't sign in or something looks wrong, contact IT.",
+    },
+  });
+  return true;
+}
