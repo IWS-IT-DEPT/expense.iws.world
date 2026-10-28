@@ -6,7 +6,7 @@
  * only for rows that are safe to hard-delete. The matching `delete*` server
  * actions in `app/(app)/admin/actions.ts` re-check server-side.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -103,4 +103,44 @@ export function usedCardIds(): Promise<Set<string>> {
     db.selectDistinct({ id: transactions.cardId }).from(transactions),
     db.selectDistinct({ id: pendingExpenses.cardId }).from(pendingExpenses),
   ]);
+}
+
+/**
+ * What stops an entity being hard-deleted: real structure or history that would
+ * be orphaned or destroyed. QBO settings/mappings/cache do NOT block — they're
+ * cleaned up with the entity. An empty list means it's safe to delete.
+ */
+export async function entityBlockers(entityId: string): Promise<{ label: string; count: number }[]> {
+  const n = (q: PromiseLike<{ n: number }[]>) => q.then((r) => Number(r[0]?.n ?? 0));
+  const cnt = sql<number>`count(*)`;
+  const [locs, unitN, jobN, cardAcc, people, allocs, items, cardExp, exports_, connected] =
+    await Promise.all([
+      n(db.select({ n: cnt }).from(locations).where(eq(locations.homeEntityId, entityId))),
+      n(db.select({ n: cnt }).from(units).where(eq(units.entityId, entityId))),
+      n(db.select({ n: cnt }).from(jobs).where(eq(jobs.entityId, entityId))),
+      n(db.select({ n: cnt }).from(cardAccounts).where(eq(cardAccounts.owningEntityId, entityId))),
+      n(db.select({ n: cnt }).from(users).where(eq(users.homeEntityId, entityId))),
+      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.entityId, entityId))),
+      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.entityId, entityId))),
+      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.entityId, entityId))),
+      n(db.select({ n: cnt }).from(qboExports).where(eq(qboExports.entityId, entityId))),
+      n(
+        db
+          .select({ n: cnt })
+          .from(qboConnections)
+          .where(and(eq(qboConnections.entityId, entityId), eq(qboConnections.status, "connected"))),
+      ),
+    ]);
+  return [
+    { label: "card expenses", count: cardExp },
+    { label: "out-of-pocket / mileage expenses", count: items },
+    { label: "coded allocations", count: allocs },
+    { label: "QuickBooks exports", count: exports_ },
+    { label: "locations (home entity)", count: locs },
+    { label: "units", count: unitN },
+    { label: "jobs", count: jobN },
+    { label: "card accounts", count: cardAcc },
+    { label: "employees (home entity)", count: people },
+    { label: "live QuickBooks connection (disconnect it first)", count: connected },
+  ].filter((b) => b.count > 0);
 }

@@ -760,6 +760,48 @@ export const qboConnections = pgTable("qbo_connections", {
   connectedAt: timestamp("connected_at", { withTimezone: true }),
 });
 
+/**
+ * Per-entity QuickBooks configuration: which company file, how this company
+ * uses QBO (classes / locations / projects), and the default accounts the
+ * export posts against. Holds no secrets — OAuth tokens live in
+ * `qbo_connections`. Per-item mappings (category -> account, etc.) live in
+ * `dimension_mappings`.
+ */
+export const entityQboSettings = pgTable("entity_qbo_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityId: uuid("entity_id")
+    .notNull()
+    .unique()
+    .references(() => entities.id),
+  /** The QBO company file's Realm / Company ID. */
+  realmId: text("realm_id"),
+  /** Company name as it appears in QBO (for humans checking they picked the right file). */
+  companyName: text("company_name"),
+  /** 'sandbox' | 'production' */
+  environment: text("environment").notNull().default("sandbox"),
+  /** Master switch: nothing is exported for this entity unless on. */
+  enabled: boolean("enabled").notNull().default(false),
+  /** 'manual' | 'on_approval' */
+  exportTrigger: text("export_trigger").notNull().default("manual"),
+  /** Does this QBO company have Class / Location tracking turned on? */
+  usesClasses: boolean("uses_classes").notNull().default(true),
+  usesLocations: boolean("uses_locations").notNull().default(true),
+  /** Jobs post to a QBO 'customer' or to a 'project' (sub-customer). */
+  jobsAs: text("jobs_as").notNull().default("project"),
+  /** Default credit-card liability account for card Purchases (per-card overrides in mappings). */
+  cardAccountQboId: text("card_account_qbo_id"),
+  cardAccountName: text("card_account_name"),
+  /** Accounts Payable account for reimbursement Bills. */
+  apAccountQboId: text("ap_account_qbo_id"),
+  apAccountName: text("ap_account_name"),
+  /** Vendor used on card Purchases when no merchant vendor is matched. */
+  defaultVendorQboId: text("default_vendor_qbo_id"),
+  defaultVendorName: text("default_vendor_name"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedById: uuid("updated_by_id").references(() => users.id),
+});
+
 /** Cached lists pulled from each QBO file (accounts, classes, locations, ...). */
 export const qboDimensions = pgTable(
   "qbo_dimensions",
@@ -827,6 +869,7 @@ export const entitiesRelations = relations(entities, ({ many, one }) => ({
   jobs: many(jobs),
   cardAccounts: many(cardAccounts),
   qboConnection: one(qboConnections),
+  qboSettings: one(entityQboSettings),
 }));
 
 export const locationsRelations = relations(locations, ({ one }) => ({
@@ -839,6 +882,10 @@ export const unitsRelations = relations(units, ({ one }) => ({
 
 export const jobsRelations = relations(jobs, ({ one }) => ({
   entity: one(entities, { fields: [jobs.entityId], references: [entities.id] }),
+}));
+
+export const entityQboSettingsRelations = relations(entityQboSettings, ({ one }) => ({
+  entity: one(entities, { fields: [entityQboSettings.entityId], references: [entities.id] }),
 }));
 
 export const qboConnectionsRelations = relations(qboConnections, ({ one }) => ({

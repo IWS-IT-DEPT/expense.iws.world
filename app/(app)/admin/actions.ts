@@ -1,16 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   allocations,
-  cardAccounts,
   cards,
   categories,
   dimensionMappings,
   entities,
+  entityQboSettings,
   expenseItems,
   jobs,
   locations,
@@ -20,12 +21,12 @@ import {
   policySettings,
   qboConnections,
   qboDimensions,
-  qboExports,
   transactions,
   units,
   userRole,
   users,
 } from "@/db/schema";
+import { entityBlockers } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
@@ -84,6 +85,9 @@ export async function inviteUser(fd: FormData) {
 
 /* ----------------------------------------------------------------- entities */
 
+/** Short, uppercase, label-safe: letters, digits, dash, underscore. */
+const CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,11}$/;
+
 type CostingMode = "none" | "unit" | "job" | "unit_or_job";
 
 export async function upsertEntity(fd: FormData) {
@@ -97,37 +101,52 @@ export async function upsertEntity(fd: FormData) {
     active: bool(fd, "active"),
   };
   if (id) {
-    // `code` is immutable once set — QBO mappings and brand assets key off it.
-    await db.update(entities).set(common).where(eq(entities.id, id));
+    // Everything keys off the entity's id, so the code is just a label and safe to edit.
+    const code = str(fd, "code").toUpperCase();
+    const current = await db.query.entities.findFirst({ where: eq(entities.id, id) });
+    if (!current) return;
+    if (code && code !== current.code) {
+      // Renaming is a deliberate act: the form makes you type the current code.
+      if (str(fd, "confirmCodeChange").toUpperCase() !== current.code) return;
+      if (!CODE_RE.test(code)) return;
+      const clash = await db.query.entities.findFirst({ where: eq(entities.code, code) });
+      if (clash && clash.id !== id) return;
+      await db.update(entities).set({ ...common, code }).where(eq(entities.id, id));
+    } else {
+      await db.update(entities).set(common).where(eq(entities.id, id));
+    }
   } else {
     const code = str(fd, "code").toUpperCase();
-    if (!code || !common.name) return;
-    await db.insert(entities).values({ ...common, code });
+    if (!CODE_RE.test(code) || !common.name) return;
+    const clash = await db.query.entities.findFirst({ where: eq(entities.code, code) });
+    if (clash) return;
+    const [created] = await db.insert(entities).values({ ...common, code }).returning({ id: entities.id });
+    await done("/admin/entities");
+    redirect(`/admin/entities/${created.id}`);
   }
   await done("/admin/entities");
+  revalidatePath(`/admin/entities/${id}`);
 }
 
 export async function deleteEntity(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
   if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(locations).where(eq(locations.homeEntityId, id)),
-    db.select({ n: countExpr() }).from(units).where(eq(units.entityId, id)),
-    db.select({ n: countExpr() }).from(jobs).where(eq(jobs.entityId, id)),
-    db.select({ n: countExpr() }).from(cardAccounts).where(eq(cardAccounts.owningEntityId, id)),
-    db.select({ n: countExpr() }).from(users).where(eq(users.homeEntityId, id)),
-    db.select({ n: countExpr() }).from(allocations).where(eq(allocations.entityId, id)),
-    db.select({ n: countExpr() }).from(expenseItems).where(eq(expenseItems.entityId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.entityId, id)),
-    db.select({ n: countExpr() }).from(qboConnections).where(eq(qboConnections.entityId, id)),
-    db.select({ n: countExpr() }).from(qboDimensions).where(eq(qboDimensions.entityId, id)),
-    db.select({ n: countExpr() }).from(dimensionMappings).where(eq(dimensionMappings.entityId, id)),
-    db.select({ n: countExpr() }).from(qboExports).where(eq(qboExports.entityId, id)),
-  ]);
-  if (inUse) return;
+  const entity = await db.query.entities.findFirst({ where: eq(entities.id, id) });
+  if (!entity) return;
+  // Typed confirmation, enforced here as well as in the form.
+  if (str(fd, "confirm") !== `delete ${entity.code}`) return;
+  // Re-checked here, not just on the page: history means retire, don't delete.
+  if ((await entityBlockers(id)).length > 0) return;
+
+  // QuickBooks setup belongs to the entity and goes with it.
+  await db.delete(dimensionMappings).where(eq(dimensionMappings.entityId, id));
+  await db.delete(qboDimensions).where(eq(qboDimensions.entityId, id));
+  await db.delete(qboConnections).where(eq(qboConnections.entityId, id));
+  await db.delete(entityQboSettings).where(eq(entityQboSettings.entityId, id));
   await db.delete(entities).where(eq(entities.id, id));
   await done("/admin/entities");
+  redirect("/admin/entities");
 }
 
 /* ---------------------------------------------------------------- locations */
@@ -361,4 +380,105 @@ export async function updatePolicy(fd: FormData) {
       set: { value: dollars * 100, updatedAt: new Date(), updatedById: user.id },
     });
   await done("/admin/policy");
+}
+
+/* ------------------------------------------------------------- QuickBooks -- */
+
+const QBO_ID_RE = /^[A-Za-z0-9_.:-]{1,40}$/;
+
+function qboId(fd: FormData, k: string): string | null {
+  const v = str(fd, k);
+  return QBO_ID_RE.test(v) ? v : null;
+}
+
+/** Per-entity QuickBooks company settings (no secrets). */
+export async function saveQboSettings(fd: FormData) {
+  const user = await requireRole("admin", "accounting");
+  const entityId = str(fd, "entityId");
+  if (!entityId) return;
+  const realm = str(fd, "realmId");
+  const pick = <T extends string>(k: string, allowed: readonly T[], fallback: T): T =>
+    (allowed as readonly string[]).includes(str(fd, k)) ? (str(fd, k) as T) : fallback;
+
+  const values = {
+    realmId: /^\d{5,20}$/.test(realm) ? realm : null,
+    companyName: opt(fd, "companyName"),
+    environment: pick("environment", ["sandbox", "production"], "sandbox"),
+    enabled: bool(fd, "enabled"),
+    exportTrigger: pick("exportTrigger", ["manual", "on_approval"], "manual"),
+    usesClasses: bool(fd, "usesClasses"),
+    usesLocations: bool(fd, "usesLocations"),
+    jobsAs: pick("jobsAs", ["project", "customer"], "project"),
+    cardAccountQboId: qboId(fd, "cardAccountQboId"),
+    cardAccountName: opt(fd, "cardAccountName"),
+    apAccountQboId: qboId(fd, "apAccountQboId"),
+    apAccountName: opt(fd, "apAccountName"),
+    defaultVendorQboId: qboId(fd, "defaultVendorQboId"),
+    defaultVendorName: opt(fd, "defaultVendorName"),
+    notes: opt(fd, "notes"),
+    updatedAt: new Date(),
+    updatedById: user.id,
+  };
+  // Never leave an entity "enabled" without a company file to export to.
+  if (!values.realmId) values.enabled = false;
+
+  await db
+    .insert(entityQboSettings)
+    .values({ entityId, ...values })
+    .onConflictDoUpdate({ target: entityQboSettings.entityId, set: values });
+  revalidatePath(`/admin/entities/${entityId}/quickbooks`);
+  revalidatePath("/admin/entities");
+}
+
+const MAP_TYPES = ["location", "unit", "job", "category", "card", "user"] as const;
+const MAP_DIM = {
+  location: "location",
+  unit: "class",
+  job: "customer",
+  category: "account",
+  card: "account",
+  user: "vendor",
+} as const;
+
+/**
+ * Save this entity's QBO id mappings. Fields are `map:<localType>:<localId>`;
+ * a blank value clears the mapping. Only rows that changed are written.
+ */
+export async function saveQboMappings(fd: FormData) {
+  await requireRole("admin", "accounting");
+  const entityId = str(fd, "entityId");
+  if (!entityId) return;
+
+  const wanted = new Map<string, string>(); // "type:id" -> qbo id ("" = clear)
+  for (const [k, v] of fd.entries()) {
+    const m = /^map:([a-z]+):([0-9a-f-]{36})$/.exec(k);
+    if (!m || !(MAP_TYPES as readonly string[]).includes(m[1])) continue;
+    const val = String(v).trim();
+    if (val && !QBO_ID_RE.test(val)) continue;
+    wanted.set(`${m[1]}:${m[2]}`, val);
+  }
+
+  const existing = await db.query.dimensionMappings.findMany({
+    where: eq(dimensionMappings.entityId, entityId),
+  });
+  const have = new Map(existing.map((e) => [`${e.localType}:${e.localId}`, e]));
+
+  const toClear: string[] = [];
+  for (const [key, val] of wanted) {
+    const cur = have.get(key);
+    const [type, localId] = key.split(":") as [(typeof MAP_TYPES)[number], string];
+    if (!val) {
+      if (cur) toClear.push(cur.id);
+    } else if (!cur || cur.qboId !== val) {
+      await db
+        .insert(dimensionMappings)
+        .values({ entityId, localType: type, localId, qboDimType: MAP_DIM[type], qboId: val })
+        .onConflictDoUpdate({
+          target: [dimensionMappings.entityId, dimensionMappings.localType, dimensionMappings.localId],
+          set: { qboId: val, updatedAt: new Date() },
+        });
+    }
+  }
+  if (toClear.length) await db.delete(dimensionMappings).where(inArray(dimensionMappings.id, toClear));
+  revalidatePath(`/admin/entities/${entityId}/quickbooks`);
 }

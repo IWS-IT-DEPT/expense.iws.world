@@ -1,85 +1,65 @@
+import Link from "next/link";
 import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { entities } from "@/db/schema";
-import { usedEntityIds } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
 
-import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
-import { deleteEntity, upsertEntity } from "../actions";
-
-const modes = ["none", "unit", "job", "unit_or_job"] as const;
+import { EntityBadge } from "../../../components/entity-badge";
 
 export default async function AdminEntitiesPage() {
   await requireRole("admin", "accounting");
-  const [rows, used] = await Promise.all([
-    db.query.entities.findMany({
-      orderBy: [asc(entities.code)],
-      with: { qboConnection: true },
-    }),
-    usedEntityIds(),
-  ]);
+  const rows = await db.query.entities.findMany({
+    orderBy: [asc(entities.code)],
+    with: { qboSettings: true, qboConnection: true },
+  });
 
   return (
-    <div className="space-y-8">
-      <Section title="Add entity">
-        <form action={upsertEntity} className="flex flex-wrap items-end gap-2">
-          <input name="code" required placeholder="CODE" className={`${inputClass} w-24`} />
-          <input name="name" required placeholder="Name" className={inputClass} />
-          <input name="legalName" placeholder="legal name" className={inputClass} />
-          <select name="costingMode" defaultValue="none" className={inputClass}>
-            {modes.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <input name="brandColor" placeholder="#2F9E5A" className={`${inputClass} w-24`} />
-          <input type="hidden" name="active" value="on" />
-          <SaveButton label="Add" />
-        </form>
-        <p className="text-xs opacity-60">
-          A new entity has no QuickBooks connection until IT sets one up on the Overview tab.
-        </p>
-      </Section>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Entities ({rows.length})</h2>
+          <p className="text-xs opacity-60">
+            The sister companies. Click one to edit its details, set up QuickBooks, or remove it.
+          </p>
+        </div>
+        <Link
+          href="/admin/entities/new"
+          className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
+        >
+          + Add entity
+        </Link>
+      </div>
 
-      <Section title={`Entities (${rows.length})`}>
-        <p className="text-xs opacity-60">
-          The sister companies. `costingMode` decides whether the coding wizard forces a unit or a
-          job. `code` is fixed once created. Delete is available only while nothing references the
-          entity — otherwise uncheck `active` to retire it.
-        </p>
-        <Table head={["Code", "Name / legal", "Costing", "Colour", "Active", ""]}>
-          {rows.map((e) => (
-            <Row key={e.id}>
-              <td className="py-2 pr-3 font-mono">{e.code}</td>
-              <td colSpan={6}>
-                <form action={upsertEntity} className="flex flex-wrap items-center gap-2 py-1">
-                  <input type="hidden" name="id" value={e.id} />
-                  <input name="name" defaultValue={e.name} className={inputClass} />
-                  <input name="legalName" defaultValue={e.legalName ?? ""} placeholder="legal name" className={inputClass} />
-                  <select name="costingMode" defaultValue={e.costingMode} className={inputClass}>
-                    {modes.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <input name="brandColor" defaultValue={e.brandColor ?? ""} placeholder="#2F9E5A" className={`${inputClass} w-24`} />
-                  <label className="flex items-center gap-1 text-xs">
-                    <input type="checkbox" name="active" defaultChecked={e.active} /> active
-                  </label>
-                  <SaveButton />
-                  <DeleteCell used={used.has(e.id)} action={deleteEntity} />
-                  <span className="text-xs opacity-50">
-                    QBO: {e.qboConnection?.status ?? "disconnected"}
-                  </span>
-                </form>
-              </td>
-            </Row>
-          ))}
-        </Table>
-      </Section>
+      <ul className="divide-y divide-black/10 rounded-lg border border-black/10 dark:divide-white/10 dark:border-white/15">
+        {rows.map((e) => {
+          const qbo = e.qboSettings?.enabled
+            ? "QuickBooks: export on"
+            : e.qboSettings?.realmId
+              ? "QuickBooks: export off"
+              : "QuickBooks: not set up";
+          return (
+            <li key={e.id}>
+              <Link
+                href={`/admin/entities/${e.id}`}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+              >
+                <EntityBadge code={e.code} color={e.brandColor} />
+                <span className="font-medium">{e.name}</span>
+                {e.legalName ? <span className="opacity-60">{e.legalName}</span> : null}
+                <span className="ml-auto flex items-center gap-3 text-xs opacity-60">
+                  <span>{qbo}</span>
+                  {!e.active ? (
+                    <span className="rounded bg-black/10 px-1.5 py-0.5 dark:bg-white/15">retired</span>
+                  ) : null}
+                  <span aria-hidden>›</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+        {rows.length === 0 ? <li className="px-4 py-6 text-sm opacity-60">No entities yet.</li> : null}
+      </ul>
     </div>
   );
 }

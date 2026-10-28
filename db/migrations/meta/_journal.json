@@ -71,6 +71,13 @@
       "when": 1793196912191,
       "tag": "0009_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793199975965,
+      "tag": "0010_entity_qbo_settings",
+      "breakpoints": true
     }
   ]
 }

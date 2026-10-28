@@ -290,7 +290,14 @@ const accounting: Manual = {
         dropdown:
       </P>
       <UL>
-        <li><strong>Entities</strong> — the companies, and whether each needs a unit, a job, either, or neither.</li>
+        <li>
+          <strong>Entities</strong> — the companies. Click one to open its page: edit its code, name and
+          costing, set up its QuickBooks company (Realm ID, accounts, and the mapping of our categories,
+          locations, units, jobs, cards and employees to QuickBooks), or remove it. Changes only show a
+          Save bar once you&apos;ve edited something. Renaming a code or deleting an entity makes you type a
+          confirmation first; an entity with expense history can&apos;t be deleted — untick{" "}
+          <strong>Active</strong> to retire it instead.
+        </li>
         <li><strong>Locations</strong> and <strong>Units</strong> (trucks) / <strong>Jobs</strong>.</li>
         <li><strong>Categories</strong> — expense types.</li>
         <li><strong>Cards</strong> — view and edit any cardholder&apos;s registered cards.</li>

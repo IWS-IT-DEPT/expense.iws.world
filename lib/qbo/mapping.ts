@@ -5,13 +5,15 @@ import { dimensionMappings } from "@/db/schema";
 
 import type { QboDimType } from "./types";
 
-type LocalType = "location" | "unit" | "job" | "category";
+export type LocalType = "location" | "unit" | "job" | "category" | "card" | "user";
 
 const localToQbo: Record<LocalType, QboDimType> = {
   location: "location",
   unit: "class",
   job: "customer",
   category: "account",
+  card: "account", // the card's credit-card liability account
+  user: "vendor", // employee-as-vendor for reimbursement Bills
 };
 
 /** Resolve a local dimension row to its QBO id for a given entity's company file. */
