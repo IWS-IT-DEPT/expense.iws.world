@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { sendEmail } from "./email";
 import { renderEmail, type EmailContent } from "./email-template";
 import { money } from "./format";
+import { resolveRecipients } from "./mail-settings";
 import { sendPushToUser } from "./push";
 
 /**
@@ -15,8 +16,6 @@ import { sendPushToUser } from "./push";
  */
 
 const APP_URL = (process.env.APP_URL ?? "").replace(/\/$/, "");
-const ACCOUNTING = process.env.MAIL_TO_ACCOUNTING?.trim() || "accounting@iws.world";
-const PAYROLL = process.env.MAIL_TO_PAYROLL?.trim() || "payroll@iws.world";
 
 async function userEmail(userId: string): Promise<{ email: string; name: string } | null> {
   const u = await db.query.users.findFirst({
@@ -26,7 +25,7 @@ async function userEmail(userId: string): Promise<{ email: string; name: string 
   return u ?? null;
 }
 
-async function safeSend(to: string, subject: string, content: EmailContent) {
+async function safeSend(to: string | string[], subject: string, content: EmailContent) {
   try {
     const { html, text } = renderEmail(content);
     await sendEmail({ to, subject, text, html });
@@ -87,7 +86,7 @@ export async function notifyAccountingSubmitted(
   description: string,
   totalCents: number,
 ) {
-  await safeSend(ACCOUNTING, `New expenses submitted — ${fromName}`, {
+  await safeSend((await resolveRecipients("accounting")).addresses, `New expenses submitted — ${fromName}`, {
     accent: "blue",
     preheader: `${fromName} submitted ${description}`,
     heading: "New expenses to reconcile",
@@ -102,7 +101,7 @@ export async function notifyPayrollSubmitted(
   description: string,
   totalCents: number,
 ) {
-  await safeSend(PAYROLL, `Reimbursement submitted — ${fromName}`, {
+  await safeSend((await resolveRecipients("payroll")).addresses, `Reimbursement submitted — ${fromName}`, {
     accent: "blue",
     preheader: `${fromName} submitted ${description}`,
     heading: "New reimbursement to reconcile",

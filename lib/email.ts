@@ -12,13 +12,14 @@ const redirectTo = process.env.EMAIL_REDIRECT_TO?.trim() || null;
 const client = apiKey ? new Resend(apiKey) : null;
 
 export async function sendEmail(input: {
-  to: string;
+  to: string | string[];
   subject: string;
   text: string;
   html?: string;
 }): Promise<{ id: string } | { skipped: true }> {
+  const intended = Array.isArray(input.to) ? input.to.join(", ") : input.to;
   const to = redirectTo ?? input.to;
-  const subject = redirectTo ? `[test → ${input.to}] ${input.subject}` : input.subject;
+  const subject = redirectTo ? `[test → ${intended}] ${input.subject}` : input.subject;
 
   if (!client) {
     console.info(`[email] skipped (no RESEND_API_KEY): "${subject}" → ${to}`);

@@ -526,6 +526,12 @@ const admin: Manual = {
           be undone.
         </li>
         <li>
+          <strong>Email</strong> — who receives the internal alerts: Accounting (&ldquo;new card expenses to
+          reconcile&rdquo;) and Payroll / HR (&ldquo;new reimbursement to reconcile&rdquo;). Enter one or several
+          addresses, save, and use <strong>Send test</strong> to confirm the mailbox gets it. Leave a box blank to
+          use the default (<code>accounting@iws.world</code>, <code>HR@iws.world</code>).
+        </li>
+        <li>
           <strong>Errors</strong> — server errors grouped by cause with counts. Mark an error{" "}
           <strong>Resolved</strong> when handled (it reopens if it recurs), or clear out resolved ones.
         </li>

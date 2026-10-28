@@ -28,7 +28,11 @@ import {
 } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
 import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
+import { sendEmail } from "@/lib/email";
+import { renderEmail } from "@/lib/email-template";
+import { MAIL_GROUPS, parseAddresses, resolveRecipients, type MailGroup } from "@/lib/mail-settings";
 import { notifyWelcome } from "@/lib/notify";
+import { rateLimit } from "@/lib/rate-limit";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const opt = (fd: FormData, k: string) => str(fd, k) || null;
@@ -522,4 +526,64 @@ export async function saveQboMappings(fd: FormData) {
   }
   if (toClear.length) await db.delete(dimensionMappings).where(inArray(dimensionMappings.id, toClear));
   revalidatePath(`/admin/entities/${entityId}/quickbooks`);
+}
+
+/* ----------------------------------------------------------------- email -- */
+
+/** Save who gets the internal alert emails. Blank = fall back to env/default. */
+export async function saveMailRecipients(fd: FormData) {
+  const user = await requireRole("admin");
+
+  const rows: { key: string; description: string; value: string }[] = [];
+  for (const g of Object.keys(MAIL_GROUPS) as MailGroup[]) {
+    const text = str(fd, g);
+    const { ok, bad } = parseAddresses(text);
+    if (bad.length) {
+      redirect(`/admin/email?error=${encodeURIComponent(`"${bad[0]}" isn't a valid email address (${MAIL_GROUPS[g].label}).`)}`);
+    }
+    if (ok.length > 10) redirect(`/admin/email?error=${encodeURIComponent("At most 10 addresses per group.")}`);
+    rows.push({
+      key: MAIL_GROUPS[g].key,
+      description: `Email recipients: ${MAIL_GROUPS[g].label}`,
+      value: ok.join(", "),
+    });
+  }
+
+  for (const r of rows) {
+    await db
+      .insert(policySettings)
+      .values({ key: r.key, value: r.value, description: r.description, updatedById: user.id })
+      .onConflictDoUpdate({
+        target: policySettings.key,
+        set: { value: r.value, updatedAt: new Date(), updatedById: user.id },
+      });
+  }
+  revalidatePath("/admin/email");
+  redirect("/admin/email?saved=1");
+}
+
+/** Send a labelled test message to a recipient group's current addresses. */
+export async function sendTestMail(fd: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireRole("admin");
+  const group = str(fd, "group") as MailGroup;
+  if (!(group in MAIL_GROUPS)) return { ok: false, error: "Unknown group." };
+  if (!(await rateLimit(`mail-test:${user.id}`, 6, 10 * 60))) {
+    return { ok: false, error: "Too many tests — wait a few minutes." };
+  }
+
+  const { addresses } = await resolveRecipients(group);
+  const { html, text } = renderEmail({
+    accent: "blue",
+    heading: "Test message from IWS Expense",
+    paragraphs: [
+      `This is a test sent by ${user.name} from Settings → Email.`,
+      `Your address is set up to receive the "${MAIL_GROUPS[group].label}" alerts from IWS Expense — for example when someone submits an expense for review. No action is needed.`,
+    ],
+  });
+  try {
+    await sendEmail({ to: addresses, subject: "Test message — IWS Expense", text, html });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Send failed." };
+  }
 }
