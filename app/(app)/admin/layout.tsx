@@ -17,7 +17,6 @@ const tabs: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/policy", label: "Policy", roles: [] },
   { href: "/admin/email", label: "Email", roles: [] },
   { href: "/admin/errors", label: "Errors", roles: [] },
-  { href: "/admin/cleanup", label: "Go-live cleanup", roles: [] },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

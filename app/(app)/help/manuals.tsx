@@ -540,12 +540,6 @@ const admin: Manual = {
           see what role an email address would get.
         </li>
         <li>
-          <strong>Go-live cleanup</strong> — permanently removes test users and/or their expenses before launch
-          (admin only). Pick the users, choose whether to remove only their expenses or the accounts too, review
-          the exact counts, and type the confirmation phrase. It can&apos;t delete your own account, and it can&apos;t
-          be undone.
-        </li>
-        <li>
           <strong>Email</strong> — who receives the internal alerts: Accounting (&ldquo;new card expenses to
           reconcile&rdquo;) and Payroll / HR (&ldquo;new reimbursement to reconcile&rdquo;). Enter one or several
           addresses, save, and use <strong>Send test</strong> to confirm the mailbox gets it. Leave a box blank to
