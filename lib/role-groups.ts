@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { policySettings, userRole, users } from "@/db/schema";
 
-import { getGroupName, graphConfigured, isEmailInGroup, scanGroupForEmail } from "./graph";
+import { findUserOidByEmail, getGroupName, getUserGroupIds, graphConfigured, scanGroupForEmail } from "./graph";
 
 export type Role = (typeof userRole.enumValues)[number];
 
@@ -91,37 +91,67 @@ export function roleFromGroupIds(cfg: GroupConfig, groupIds: string[]): Role | n
 }
 
 export interface M365Lookup {
-  /** false when Microsoft 365 couldn't be asked (not configured / no consent / error) */
+  /** false when Microsoft 365 couldn't answer (not configured / no permission / error) */
   checked: boolean;
   role: Role | null;
-  /** the person's Entra object id, when found */
+  /** the person's Entra object id, when known */
   oid?: string;
+  /** group ids they belong to, when read by object id */
+  groupIds?: string[];
+  how?: "known-id" | "email-lookup" | "member-scan";
+  /** why it couldn't be checked */
+  problem?: "forbidden" | "notfound" | "error" | "members-hidden";
 }
 
 /**
- * Ask Microsoft 365 which mapped group(s) this email address is in — without
- * needing them to have signed in. Reads each mapped group's members (needs only
- * the GroupMember.Read.All application permission already used for role sync).
+ * Which mapped group(s) is this person in — without them having signed in?
+ *   1. If we already know their object id (they've signed in), read their groups by id.
+ *   2. Otherwise find them by email (needs the User.Read.All application permission),
+ *      then read their groups by id.
+ *   3. Last resort: scan group members by email — only works if Microsoft returns
+ *      member emails, which group-only permissions don't.
  */
-export async function lookupRoleByEmail(email: string): Promise<M365Lookup> {
+export async function lookupRoleByEmail(email: string, knownOid?: string | null): Promise<M365Lookup> {
   const cfg = await getGroupConfig();
   if (!graphConfigured || cfg.driven.length === 0) return { checked: false, role: null };
 
+  let oid = knownOid ?? undefined;
+  let how: M365Lookup["how"] = oid ? "known-id" : undefined;
+  let problem: M365Lookup["problem"];
+
+  if (!oid) {
+    const found = await findUserOidByEmail(email);
+    if (found.status === "found") {
+      oid = found.oid;
+      how = "email-lookup";
+    } else if (found.status === "forbidden") problem = "forbidden";
+    else if (found.status === "notfound") problem = "notfound";
+    else problem = "error";
+  }
+
+  if (oid) {
+    const groupIds = await getUserGroupIds(oid);
+    if (groupIds) return { checked: true, role: roleFromGroupIds(cfg, groupIds), oid, groupIds, how };
+    problem = "error";
+  }
+  if (problem === "notfound") return { checked: true, role: null, how, problem }; // not in the directory at all
+
+  // Last resort: match by address inside the groups.
   let failed = false;
-  let oid: string | undefined;
+  let hidden = false;
   for (const role of GROUP_ROLES) {
     const g = cfg.groups[role];
     if (!g) continue;
-    const res = await isEmailInGroup(g, email);
-    if (res === null) {
+    const scan = await scanGroupForEmail(g, email);
+    if (!scan) {
       failed = true;
       continue;
     }
-    if (res.found) return { checked: true, role, oid: res.oid };
-    oid ??= undefined;
+    if (scan.found) return { checked: true, role, oid: scan.oid, how: "member-scan" };
+    if (scan.scanned > 0 && scan.noIdentity === scan.scanned) hidden = true;
   }
-  // A failed group read means we can't claim "not in any group".
-  return failed ? { checked: false, role: null, oid } : { checked: true, role: null, oid };
+  // Members came back as bare ids, or a read failed: we can't say "not in any group".
+  return { checked: false, role: null, how: "member-scan", problem: hidden ? "members-hidden" : (problem ?? (failed ? "error" : undefined)) };
 }
 
 /**
@@ -135,7 +165,7 @@ export async function syncUserRoleFromM365(
   const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!u) return { role: "cardholder", changed: false, source: "unchecked" };
 
-  const lookup = await lookupRoleByEmail(u.email);
+  const lookup = await lookupRoleByEmail(u.email, u.entraOid);
   if (!lookup.checked) return { role: u.role, changed: false, source: "unchecked" };
 
   const cfg = await getGroupConfig();
@@ -164,41 +194,36 @@ export async function syncUserRoleFromM365(
   return { role, changed: role !== u.role, source };
 }
 
-/** Plain-language report of what Microsoft 365 says about an address, group by group. */
+/** Plain-language report of what Microsoft 365 says about an address. */
 export async function diagnoseEmail(email: string): Promise<{ role: Role | null; checked: boolean; lines: string[] }> {
   const cfg = await getGroupConfig();
-  const lines: string[] = [];
   if (!graphConfigured) return { role: null, checked: false, lines: ["Microsoft 365 isn't configured for the app."] };
   if (cfg.driven.length === 0) return { role: null, checked: false, lines: ["No roles are mapped to groups yet."] };
 
-  let role: Role | null = null;
-  let failed = false;
-  for (const r of GROUP_ROLES) {
-    const g = cfg.groups[r];
-    if (!g) continue;
-    const name = (await getGroupName(g)) ?? g;
-    const scan = await scanGroupForEmail(g, email);
-    if (!scan) {
-      failed = true;
-      lines.push(`${r} ← "${name}": couldn't read this group's members from Microsoft.`);
-      continue;
+  const known = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
+  const r = await lookupRoleByEmail(email, known?.entraOid);
+  const lines: string[] = [];
+
+  if (r.how === "known-id") lines.push("They've signed in before, so their Microsoft 365 ID is already known — read their groups directly.");
+  if (r.how === "email-lookup") lines.push("Found them in Microsoft 365 by email, then read their groups.");
+
+  if (r.groupIds) {
+    for (const role of GROUP_ROLES) {
+      const g = cfg.groups[role];
+      if (!g) continue;
+      const name = (await getGroupName(g)) ?? g;
+      lines.push(`${role} ← "${name}": ${r.groupIds.map((x) => x.toLowerCase()).includes(g) ? "MEMBER" : "not a member"}`);
     }
-    if (scan.found) {
-      lines.push(`${r} ← "${name}": FOUND (matched on ${scan.matchedOn}; ${scan.scanned} members scanned before the match).`);
-      role ??= r;
-      continue;
-    }
-    let msg = `${r} ← "${name}": not found among ${scan.scanned} member${scan.scanned === 1 ? "" : "s"}.`;
-    if (scan.scanned > 0 && scan.noIdentity === scan.scanned) {
-      msg += ` Microsoft returned every member WITHOUT an email or UPN, so nobody can be matched by address — the app registration needs the application permission User.ReadBasic.All (with admin consent) alongside GroupMember.Read.All.`;
-    } else if (scan.scanned === 0) {
-      msg += ` The group appears empty to the app (nested groups are included).`;
-    } else if (scan.near.length) {
-      msg += ` Similar addresses in this group: ${scan.near.join(", ")} — if that's the same person, add them with that exact address.`;
-    } else if (scan.noIdentity > 0) {
-      msg += ` (${scan.noIdentity} member(s) came back with no email/UPN.)`;
-    }
-    lines.push(msg);
   }
-  return { role, checked: !failed || role !== null, lines };
+
+  if (r.problem === "forbidden" || r.problem === "members-hidden") {
+    lines.push(
+      "Microsoft won't let the app look people up by email yet. Group permissions alone only return members as bare IDs. In Entra → App registrations → this app → API permissions → Add a permission → Microsoft Graph → APPLICATION permissions → User.Read.All → then \"Grant admin consent\". (It's read-only. User.ReadBasic.All is NOT an option — it only exists as a delegated permission.) Until then, roles are applied from their groups when they sign in.",
+    );
+  } else if (r.problem === "notfound") {
+    lines.push("No one with that email address exists in your Microsoft 365 directory — check the spelling, or use the address in their Microsoft account.");
+  } else if (r.problem === "error") {
+    lines.push("Microsoft returned an error — see the connection status at the top of this page.");
+  }
+  return { role: r.role, checked: r.checked, lines };
 }

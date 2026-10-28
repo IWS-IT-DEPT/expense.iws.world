@@ -249,3 +249,45 @@ export async function getGroupName(groupId: string): Promise<string | null> {
     return null;
   }
 }
+
+export type UserLookup =
+  | { status: "found"; oid: string }
+  | { status: "notfound" }
+  | { status: "forbidden" }
+  | { status: "error"; detail: string };
+
+/**
+ * Find someone's Entra object id from their email. Needs the *application*
+ * permission User.Read.All (read-only). `forbidden` means the app isn't allowed
+ * to read user profiles — group-only permissions can't do this.
+ */
+export async function findUserOidByEmail(email: string): Promise<UserLookup> {
+  if (!graphConfigured) return { status: "error", detail: "Microsoft 365 isn't configured." };
+  const q = email.trim().toLowerCase();
+  try {
+    const token = await appToken();
+    const headers = { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" };
+
+    // 1. the address is their UPN
+    const direct = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(q)}?$select=id`, { headers });
+    if (direct.ok) return { status: "found", oid: ((await direct.json()) as { id: string }).id };
+    if (direct.status === 401 || direct.status === 403) {
+      if (direct.status === 401) cachedToken = null;
+      return { status: "forbidden" };
+    }
+
+    // 2. the address is their primary email or an alias
+    const lit = q.replace(/'/g, "''");
+    const filter = `mail eq '${lit}' or userPrincipalName eq '${lit}' or proxyAddresses/any(p:p eq 'smtp:${lit}')`;
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users?$filter=${encodeURIComponent(filter)}&$select=id&$count=true`,
+      { headers },
+    );
+    if (res.status === 401 || res.status === 403) return { status: "forbidden" };
+    if (!res.ok) return { status: "error", detail: `users lookup ${res.status}` };
+    const json = (await res.json()) as { value: { id: string }[] };
+    return json.value[0] ? { status: "found", oid: json.value[0].id } : { status: "notfound" };
+  } catch (err) {
+    return { status: "error", detail: err instanceof Error ? err.message : String(err) };
+  }
+}
