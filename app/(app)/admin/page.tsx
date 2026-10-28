@@ -5,11 +5,12 @@ import { asc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, categories, entities, errorLogs, jobs, locations, units, users } from "@/db/schema";
 import { isAdmin, requireRole } from "@/lib/current-user";
+import { getGroupConfig } from "@/lib/role-groups";
 
-const groupSyncOn = !!(process.env.ENTRA_GROUP_IT && process.env.ENTRA_GROUP_FINANCE);
 
 export default async function AdminOverviewPage() {
   const user = await requireRole("admin", "accounting", "payroll");
+  const cfg = await getGroupConfig();
   if (!isAdmin(user)) redirect(user.role === "payroll" ? "/admin/mileage" : "/admin/entities");
 
   const [entityRows, counts] = await Promise.all([
@@ -34,17 +35,22 @@ export default async function AdminOverviewPage() {
       <section className="rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
         <h2 className="mb-1 font-medium">Access control</h2>
         <p className="opacity-70">
-          {groupSyncOn ? (
+          {cfg.syncEnabled ? (
             <>
-              Role sync is <strong>ON</strong>. <code>IT@iws.world</code> → admin,{" "}
-              <code>IWS-Finance@iws.world</code> → accounting, <code>HR@iws.world</code> → payroll,
-              applied on every login.
+              Role sync is <strong>ON</strong>:{" "}
+              {cfg.driven.map((r) => r).join(", ")} {cfg.driven.length === 1 ? "is" : "are"} decided by Microsoft 365
+              group membership, applied at every sign-in and when you add someone.{" "}
+              <Link href="/admin/roles" className="underline">
+                Manage groups →
+              </Link>
             </>
           ) : (
             <>
-              Role sync is <strong>OFF</strong> — set <code>ENTRA_GROUP_IT</code> and{" "}
-              <code>ENTRA_GROUP_FINANCE</code> to the group Object Ids. Until then roles are managed
-              on the Users tab.
+              Role sync is <strong>OFF</strong> — map the Admin and Accounting roles to Microsoft 365 groups under{" "}
+              <Link href="/admin/roles" className="underline">
+                Roles &amp; groups
+              </Link>
+              . Until then roles are managed on the Users tab.
             </>
           )}
         </p>

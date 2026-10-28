@@ -521,6 +521,14 @@ const admin: Manual = {
           Applies to card and out-of-pocket expenses, not mileage.
         </li>
         <li>
+          <strong>Roles &amp; groups</strong> — says which Microsoft 365 group gives each role (Admin, Accounting,
+          Payroll, and optionally Approver). Anyone in a mapped group gets that role automatically: when you add
+          them (checked before the welcome email goes out) and every time they sign in. <strong>The group wins</strong>{" "}
+          over whatever role you pick; if they&apos;re in several, the highest applies (Admin, Accounting, Payroll,
+          Approver). The page shows each group&apos;s name, the connection status, and a <strong>Check</strong> box to
+          see what role an email address would get.
+        </li>
+        <li>
           <strong>Go-live cleanup</strong> — permanently removes test users and/or their expenses before launch
           (admin only). Pick the users, choose whether to remove only their expenses or the accounts too, review
           the exact counts, and type the confirmation phrase. It can&apos;t delete your own account, and it can&apos;t

@@ -132,3 +132,60 @@ export async function getUserGroupIds(userOid: string): Promise<string[] | null>
     return null;
   }
 }
+
+/**
+ * Is this email address (UPN or mail) a member — directly or through nested
+ * groups — of the group? `null` when the lookup couldn't be done.
+ */
+export async function isEmailInGroup(
+  groupId: string,
+  email: string,
+): Promise<{ found: boolean; oid?: string } | null> {
+  if (!graphConfigured) return null;
+  const want = email.trim().toLowerCase();
+  try {
+    const token = await appToken();
+    let url:
+      | string
+      | null = `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/transitiveMembers/microsoft.graph.user?$select=id,mail,userPrincipalName&$top=999`;
+    for (let i = 0; url && i < 30; i++) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        lastGraphError = `group members ${res.status}: ${await res.text()}`;
+        console.warn(`[graph] ${lastGraphError}`);
+        return null;
+      }
+      const json = (await res.json()) as {
+        value: { id: string; mail?: string | null; userPrincipalName?: string | null }[];
+        "@odata.nextLink"?: string;
+      };
+      for (const m of json.value) {
+        if (m.mail?.toLowerCase() === want || m.userPrincipalName?.toLowerCase() === want) {
+          return { found: true, oid: m.id };
+        }
+      }
+      url = json["@odata.nextLink"] ?? null;
+    }
+    lastGraphError = null;
+    return { found: false };
+  } catch (err) {
+    lastGraphError = err instanceof Error ? err.message : String(err);
+    return null;
+  }
+}
+
+/** Display name of a group (so the settings page can show "Finance & Accounting" next to its id). */
+export async function getGroupName(groupId: string): Promise<string | null> {
+  if (!graphConfigured) return null;
+  try {
+    const token = await appToken();
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}?$select=displayName`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) return null;
+    return ((await res.json()) as { displayName?: string }).displayName ?? null;
+  } catch {
+    return null;
+  }
+}

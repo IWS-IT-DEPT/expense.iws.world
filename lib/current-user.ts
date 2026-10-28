@@ -6,6 +6,7 @@ import { userRole, users } from "@/db/schema";
 
 import { auth } from "./auth";
 import { getUserGroupIds, graphConfigured } from "./graph";
+import { getGroupConfig, roleFromGroupIds, type GroupConfig } from "./role-groups";
 import { notifyWelcome } from "./notify";
 
 export type Role = (typeof userRole.enumValues)[number];
@@ -14,27 +15,10 @@ export type CurrentUser = typeof users.$inferSelect;
 /** Mirror of ABSOLUTE_SESSION_MAX_S in auth.config — belt-and-suspenders cap. */
 const ABSOLUTE_SESSION_MAX_S = 10 * 60 * 60;
 
-const GROUP_IT = process.env.ENTRA_GROUP_IT?.trim();
-const GROUP_FINANCE = process.env.ENTRA_GROUP_FINANCE?.trim();
-/** HR / payroll team — handles mileage + out-of-pocket reimbursements. */
-const GROUP_PAYROLL = process.env.ENTRA_GROUP_HR?.trim();
-export const GROUP_SYNC_ENABLED = !!(GROUP_IT && GROUP_FINANCE);
-
 const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
-
-/** admin/accounting/payroll come from Entra groups; approver/cardholder are set manually. */
-export const GROUP_DRIVEN: Role[] = ["admin", "accounting", "payroll"];
-
-/** Map Entra group membership to a role. Highest privilege wins. */
-export function roleFromGroups(groupIds: string[]): Role | null {
-  if (GROUP_IT && groupIds.includes(GROUP_IT)) return "admin";
-  if (GROUP_FINANCE && groupIds.includes(GROUP_FINANCE)) return "accounting";
-  if (GROUP_PAYROLL && groupIds.includes(GROUP_PAYROLL)) return "payroll";
-  return null;
-}
 
 export interface GroupResolution {
   groups: string[];
@@ -48,22 +32,23 @@ async function resolveGroups(
   oid: string | undefined,
   tokenGroups: string[],
   overage: boolean,
+  cfg: GroupConfig,
 ): Promise<GroupResolution> {
   if (BOOTSTRAP_ADMINS.includes(email)) {
     return { groups: [], source: "bootstrap", role: "admin" };
   }
   if (tokenGroups.length > 0 && !overage) {
-    return { groups: tokenGroups, source: "token", role: roleFromGroups(tokenGroups) };
+    return { groups: tokenGroups, source: "token", role: roleFromGroupIds(cfg, tokenGroups) };
   }
   if (graphConfigured && oid) {
     const g = await getUserGroupIds(oid);
-    if (g !== null) return { groups: g, source: "graph", role: roleFromGroups(g) };
+    if (g !== null) return { groups: g, source: "graph", role: roleFromGroupIds(cfg, g) };
   }
   // No reliable signal (claim not configured / overage / Graph unavailable).
   return {
     groups: tokenGroups,
     source: tokenGroups.length ? "token" : "none",
-    role: roleFromGroups(tokenGroups),
+    role: roleFromGroupIds(cfg, tokenGroups),
   };
 }
 
@@ -83,11 +68,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   }
   const email = session.user.email.toLowerCase();
 
+  const cfg = await getGroupConfig();
   const resolution = await resolveGroups(
     email,
     session.user.oid,
     session.user.groups ?? [],
     !!session.user.groupsOverage,
+    cfg,
   );
 
   const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
@@ -100,12 +87,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     const trustworthy =
       resolution.source === "bootstrap" ||
       resolution.source === "graph" ||
-      (resolution.source === "token" && GROUP_SYNC_ENABLED);
+      (resolution.source === "token" && cfg.syncEnabled);
 
     if (trustworthy) {
       if (resolution.role && resolution.role !== existing.role) {
         patch.role = resolution.role;
-      } else if (!resolution.role && GROUP_DRIVEN.includes(existing.role)) {
+      } else if (!resolution.role && cfg.driven.includes(existing.role)) {
         patch.role = "cardholder"; // removed from IT/Finance
       }
     }
@@ -134,11 +121,13 @@ export const getIdentityDiagnostics = cache(async () => {
   const session = await auth();
   if (!session?.user?.email) return null;
   const email = session.user.email.toLowerCase();
+  const cfg = await getGroupConfig();
   const resolution = await resolveGroups(
     email,
     session.user.oid,
     session.user.groups ?? [],
     !!session.user.groupsOverage,
+    cfg,
   );
   return {
     email,
@@ -149,8 +138,12 @@ export const getIdentityDiagnostics = cache(async () => {
     groupSource: resolution.source,
     resolvedRole: resolution.role,
     graphConfigured,
-    groupSyncEnabled: GROUP_SYNC_ENABLED,
-    configuredGroups: { it: GROUP_IT, finance: GROUP_FINANCE, hr: GROUP_PAYROLL },
+    groupSyncEnabled: cfg.syncEnabled,
+    configuredGroups: {
+      it: cfg.groups.admin,
+      finance: cfg.groups.accounting,
+      hr: cfg.groups.payroll,
+    },
   };
 });
 

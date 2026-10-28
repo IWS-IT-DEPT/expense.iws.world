@@ -27,7 +27,15 @@ import {
   users,
 } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
-import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
+import { requireRole } from "@/lib/current-user";
+import {
+  GROUP_ROLES,
+  getGroupConfig,
+  invalidateGroupConfig,
+  lookupRoleByEmail,
+  settingKey,
+  syncUserRoleFromM365,
+} from "@/lib/role-groups";
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { MAIL_GROUPS, parseAddresses, resolveRecipients, type MailGroup } from "@/lib/mail-settings";
@@ -77,7 +85,8 @@ export async function updateUser(fd: FormData) {
     active = true;
   }
   // With Entra group sync on, these roles belong to the groups — a hand-set one is reset on next login.
-  if (GROUP_SYNC_ENABLED && role !== existing.role && (GROUP_DRIVEN.includes(role) || GROUP_DRIVEN.includes(existing.role))) {
+  const cfg = await getGroupConfig();
+  if (cfg.syncEnabled && role !== existing.role && (cfg.driven.includes(role) || cfg.driven.includes(existing.role))) {
     role = existing.role;
   }
 
@@ -111,19 +120,25 @@ export async function inviteUser(fd: FormData) {
   if (existing) redirect(`/admin/users/${existing.id}`);
 
   // Roles that come from Microsoft 365 groups can't be pre-set here (they'd be reset at sign-in).
+  const cfg = await getGroupConfig();
   const wanted = str(fd, "role") as (typeof userRole.enumValues)[number];
-  const role =
+  const chosen =
     (userRole.enumValues as readonly string[]).includes(wanted) &&
-    !(GROUP_SYNC_ENABLED && GROUP_DRIVEN.includes(wanted))
+    !(cfg.syncEnabled && cfg.driven.includes(wanted))
       ? wanted
       : "cardholder";
   const [created] = await db
     .insert(users)
-    .values({ email, name: opt(fd, "name") ?? email, role })
+    .values({ email, name: opt(fd, "name") ?? email, role: chosen })
     .returning({ id: users.id });
+
+  // Microsoft 365 group membership wins over the dropdown — settle the role BEFORE the email says what it is.
+  const synced = await syncUserRoleFromM365(created.id);
   const welcomed = bool(fd, "sendWelcome") ? await notifyWelcome(created.id) : false;
   await done("/admin/users");
-  redirect(`/admin/users/${created.id}${welcomed ? "?welcome=sent" : ""}`);
+  const qs = new URLSearchParams({ rolesrc: synced.source, role: synced.role });
+  if (welcomed) qs.set("welcome", "sent");
+  redirect(`/admin/users/${created.id}?${qs.toString()}`);
 }
 
 /** Re-send the setup email (they lost it, or it went to junk). */
@@ -131,9 +146,76 @@ export async function resendWelcome(fd: FormData) {
   await requireRole("admin");
   const id = str(fd, "id");
   if (!id) return;
+  // Re-check Microsoft 365 first so the email describes their current role.
+  const synced = await syncUserRoleFromM365(id);
   const sent = await notifyWelcome(id);
-  redirect(`/admin/users/${id}${sent ? "?welcome=sent" : ""}`);
+  const qs = new URLSearchParams({ rolesrc: synced.source, role: synced.role });
+  if (sent) qs.set("welcome", "sent");
+  redirect(`/admin/users/${id}?${qs.toString()}`);
 }
+
+/** Re-read someone's Microsoft 365 groups and update their role now. */
+export async function recheckRole(fd: FormData) {
+  await requireRole("admin");
+  const id = str(fd, "id");
+  if (!id) return;
+  const synced = await syncUserRoleFromM365(id);
+  revalidatePath(`/admin/users/${id}`);
+  redirect(`/admin/users/${id}?${new URLSearchParams({ rolesrc: synced.source, role: synced.role }).toString()}`);
+}
+
+const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/** Save which Microsoft 365 group grants each role. Blank = fall back to the server environment. */
+export async function saveRoleGroups(fd: FormData) {
+  const user = await requireRole("admin");
+  const rows: { role: (typeof GROUP_ROLES)[number]; value: string }[] = [];
+  for (const role of GROUP_ROLES) {
+    const v = str(fd, role);
+    if (v && !GUID_RE.test(v)) {
+      redirect(`/admin/roles?error=${encodeURIComponent(`"${v}" isn't a group ID. It looks like 12345678-abcd-…; find it in Entra → Groups → Object ID.`)}`);
+    }
+    rows.push({ role, value: v.toLowerCase() });
+  }
+  const seen = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.value) continue;
+    if (seen.has(r.value)) {
+      redirect(`/admin/roles?error=${encodeURIComponent(`The same group can't grant both ${seen.get(r.value)} and ${r.role}.`)}`);
+    }
+    seen.set(r.value, r.role);
+  }
+  for (const r of rows) {
+    await db
+      .insert(policySettings)
+      .values({ key: settingKey(r.role), value: r.value, description: `Microsoft 365 group for the ${r.role} role`, updatedById: user.id })
+      .onConflictDoUpdate({ target: policySettings.key, set: { value: r.value, updatedAt: new Date(), updatedById: user.id } });
+  }
+  invalidateGroupConfig();
+  revalidatePath("/admin/roles");
+  revalidatePath("/admin/users");
+  redirect("/admin/roles?saved=1");
+}
+
+/** "Which role would this person get?" — reads Microsoft 365 only, changes nothing. */
+export async function checkEmailRole(
+  fd: FormData,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  await requireRole("admin");
+  const email = str(fd, "email").toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a full email address." };
+  const r = await lookupRoleByEmail(email);
+  if (!r.checked) {
+    return { ok: false, error: "Couldn't read Microsoft 365 (see the connection status above)." };
+  }
+  return {
+    ok: true,
+    message: r.role
+      ? `${email} is in the group for ${r.role} — they'll get the ${r.role} role.`
+      : `${email} isn't in any mapped group — they'll be a cardholder (or the role you choose, if it isn't group-driven).`,
+  };
+}
+
 
 /* ----------------------------------------------------------------- entities */
 

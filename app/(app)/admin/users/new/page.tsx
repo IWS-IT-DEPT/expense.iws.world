@@ -1,15 +1,17 @@
 import Link from "next/link";
 
 import { SubmitButton } from "@/app/components/submit-button";
-import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
 import { userRole } from "@/db/schema";
+import { requireRole } from "@/lib/current-user";
+import { getGroupConfig } from "@/lib/role-groups";
 
 import { inputClass } from "../../_ui";
 import { inviteUser } from "../../actions";
 
 export default async function NewUserPage() {
   await requireRole("admin");
-  const roles = GROUP_SYNC_ENABLED ? userRole.enumValues.filter((r) => !GROUP_DRIVEN.includes(r)) : [...userRole.enumValues];
+  const cfg = await getGroupConfig();
+  const roles = cfg.syncEnabled ? userRole.enumValues.filter((r) => !cfg.driven.includes(r)) : [...userRole.enumValues];
   return (
     <div className="max-w-xl space-y-4">
       <Link href="/admin/users" className="text-sm underline opacity-70">
@@ -39,10 +41,10 @@ export default async function NewUserPage() {
             ))}
           </select>
           <span className="mt-1 block text-xs opacity-60">
-            {GROUP_SYNC_ENABLED
-              ? "Admin, Accounting and Payroll come from their Microsoft 365 group (IT, Finance, HR) and are applied automatically when they first sign in. Only Cardholder and Approver are set here."
-              : "Roles set here are used as-is (Microsoft 365 group sync is off)."}{" "}
-            The setup email describes this role.
+            {cfg.syncEnabled
+              ? "If they're in a Microsoft 365 group that's mapped to a role (Settings → Roles & groups), that role is applied automatically — before the welcome email is sent — and wins over this choice. This dropdown only covers roles that have no group."
+              : "Roles set here are used as-is (no Microsoft 365 groups are mapped yet)."}{" "}
+            The setup email describes the role they end up with.
           </span>
         </label>
         <label className="flex items-start gap-2">

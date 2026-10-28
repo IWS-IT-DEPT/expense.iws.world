@@ -4,13 +4,14 @@ import { asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { cards, entities, expenseItems, locations, pendingExpenses, userRole, users } from "@/db/schema";
-import { GROUP_DRIVEN, GROUP_SYNC_ENABLED, requireRole } from "@/lib/current-user";
+import { requireRole } from "@/lib/current-user";
+import { getGroupConfig } from "@/lib/role-groups";
 import { shortDate } from "@/lib/format";
 
 import { DirtyForm } from "../../_dirty-form";
 import { inputClass } from "../../_ui";
 import { SubmitButton } from "@/app/components/submit-button";
-import { resendWelcome, updateUser } from "../../actions";
+import { recheckRole, resendWelcome, updateUser } from "../../actions";
 import { SensitiveFields } from "./sensitive-fields";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -28,11 +29,12 @@ export default async function UserDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; rolesrc?: string; role?: string }>;
 }) {
   const me = await requireRole("admin");
   const { id } = await params;
-  const { welcome } = await searchParams;
+  const { welcome, rolesrc, role: roleNote } = await searchParams;
+  const cfg = await getGroupConfig();
   if (!UUID.test(id)) notFound();
 
   const u = await db.query.users.findFirst({ where: eq(users.id, id), with: { homeEntity: true } });
@@ -47,15 +49,15 @@ export default async function UserDetailPage({
   ]);
 
   const isSelf = me.id === u.id;
-  const groupDriven = GROUP_DRIVEN.includes(u.role);
+  const groupDriven = cfg.driven.includes(u.role);
   // With group sync on, admin/accounting/payroll come from Microsoft 365 groups
   // and a role typed here would just be reset the next time they use the app.
   const roleLockedReason =
-    GROUP_SYNC_ENABLED && groupDriven
+    cfg.syncEnabled && groupDriven
       ? `${u.role} comes from their Microsoft 365 group. To change it, change their group membership in Microsoft 365 — a role set here would be reset the next time they use the app.`
       : undefined;
-  const roleOptions = GROUP_SYNC_ENABLED
-    ? userRole.enumValues.filter((r) => !GROUP_DRIVEN.includes(r))
+  const roleOptions = cfg.syncEnabled
+    ? userRole.enumValues.filter((r) => !cfg.driven.includes(r))
     : [...userRole.enumValues];
 
   const formKey = [u.name, u.role, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.active].join("|");
@@ -73,6 +75,21 @@ export default async function UserDetailPage({
         </h2>
         <p className="text-sm opacity-70">{u.email}</p>
       </div>
+
+      {rolesrc === "group" ? (
+        <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
+          ✓ Found in the Microsoft 365 group for <strong>{roleNote}</strong> — that role has been applied.
+        </p>
+      ) : rolesrc === "none" ? (
+        <p className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
+          Not in any mapped Microsoft 365 group, so the role is <strong>{roleNote}</strong>.
+        </p>
+      ) : rolesrc === "unchecked" ? (
+        <p className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
+          Couldn&apos;t check Microsoft 365 groups just now (see Settings → Roles &amp; groups). Their role is{" "}
+          <strong>{roleNote}</strong> for now and will be updated from their groups when they sign in.
+        </p>
+      ) : null}
 
       {welcome === "sent" ? (
         <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
@@ -159,6 +176,15 @@ export default async function UserDetailPage({
           Sends {u.name.split(" ")[0]} the welcome email: how to sign in, add the app to an iPhone, Android or
           computer, and open the how-to guide for their access.
         </p>
+        <form action={recheckRole} className="mb-2">
+          <input type="hidden" name="id" value={u.id} />
+          <SubmitButton
+            pendingLabel="Checking…"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-black/15 px-4 font-medium dark:border-white/20"
+          >
+            Re-check Microsoft 365 groups
+          </SubmitButton>
+        </form>
         <form action={resendWelcome}>
           <input type="hidden" name="id" value={u.id} />
           <SubmitButton
