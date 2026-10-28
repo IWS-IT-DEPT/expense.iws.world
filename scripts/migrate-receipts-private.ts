@@ -2,7 +2,7 @@
  * One-time: move receipts from the old PUBLIC Vercel Blob store into the new
  * PRIVATE store and repoint `receipts.blob_key`.
  *
- *   BLOB_PRIVATE_READ_WRITE_TOKEN=<new private store token> \
+ *   BLOB_READ_WRITE_TOKEN=<private store token> \
  *   DATABASE_URL=... npx tsx scripts/migrate-receipts-private.ts [--apply]
  *
  * Dry run by default. Safe to re-run: rows already in the private store are
@@ -18,8 +18,8 @@ config({ path: ".env" });
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const priv = process.env.BLOB_PRIVATE_READ_WRITE_TOKEN;
-  if (!priv) throw new Error("BLOB_PRIVATE_READ_WRITE_TOKEN is required");
+  const priv = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!priv) throw new Error("BLOB_READ_WRITE_TOKEN is required");
 
   const { db } = await import("../db");
   const { receipts } = await import("../db/schema");
