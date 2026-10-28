@@ -78,6 +78,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="font-semibold">Expense</span>
           </Link>
           <AppNav zones={zones} />
+          <Link href="/help" className="text-xs opacity-70 hover:opacity-100">
+            Help
+          </Link>
           <Link href="/account" className="text-xs opacity-60 hover:opacity-100">
             {user.name} · {user.role}
           </Link>
