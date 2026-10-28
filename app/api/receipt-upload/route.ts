@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { receiptUploadSessions } from "@/db/schema";
 import { getCurrentUser } from "@/lib/current-user";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { storeReceipts } from "@/lib/receipt-store";
 import { verifyUploadToken } from "@/lib/upload-token";
 
@@ -18,10 +19,19 @@ export const runtime = "nodejs";
  *   GET   ?nonce=<id>                → desktop poll for {status, receiptCount}
  */
 export async function POST(req: Request) {
+  // Cheap flood guard before parsing a multipart body.
+  if (!(await rateLimit(`upload:ip:${clientIp(req)}`, 60, 10 * 60))) {
+    return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  }
   const form = await req.formData();
   const token = String(form.get("token") || "");
   const payload = verifyUploadToken(token);
   if (!payload) return NextResponse.json({ error: "Link expired." }, { status: 401 });
+
+  // Per-link cap: a QR link is for a handful of receipts, not a firehose.
+  if (!(await rateLimit(`upload:nonce:${payload.n}`, 30, 60 * 60))) {
+    return NextResponse.json({ error: "Too many uploads on this link." }, { status: 429 });
+  }
 
   const session = await db.query.receiptUploadSessions.findFirst({
     where: eq(receiptUploadSessions.id, payload.n),

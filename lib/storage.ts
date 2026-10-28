@@ -59,24 +59,57 @@ class LocalBlobStore implements BlobStore {
   }
 }
 
+/**
+ * Receipts live in a **private** Vercel Blob store (token:
+ * `BLOB_PRIVATE_READ_WRITE_TOKEN`) — the URL alone grants nothing. Receipts
+ * uploaded before the switch sit in the old public store; reads fall back to a
+ * plain fetch of their URL until `scripts/migrate-receipts-private.ts` has
+ * moved them (it rewrites `receipts.blob_key`).
+ */
 class VercelBlobStore implements BlobStore {
+  private token = process.env.BLOB_PRIVATE_READ_WRITE_TOKEN;
+
   private async lib() {
     return import("@vercel/blob");
   }
 
   async put(key: string, data: Buffer, contentType: string): Promise<StoredBlob> {
     const { put } = await this.lib();
-    const result = await put(key, data, {
-      access: "public",
-      contentType,
-      addRandomSuffix: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    // Persist result.url — it is the durable, hard-to-guess key.
+    // Until the private store is configured, keep writing to the legacy public
+    // one so a deploy never breaks uploads. Set BLOB_PRIVATE_READ_WRITE_TOKEN.
+    const result = this.token
+      ? await put(key, data, {
+          access: "private",
+          contentType,
+          addRandomSuffix: true,
+          token: this.token,
+        })
+      : await put(key, data, {
+          access: "public",
+          contentType,
+          addRandomSuffix: true,
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
     return { key: result.url, size: data.byteLength, contentType };
   }
 
   async get(key: string) {
+    const { get } = await this.lib();
+    if (this.token) {
+      try {
+        const res = await get(key, { access: "private", token: this.token });
+        if (res === null) return null;
+        if (res.statusCode === 200) {
+          return {
+            data: Buffer.from(await new Response(res.stream).arrayBuffer()),
+            contentType: res.blob.contentType,
+          };
+        }
+      } catch {
+        // Not in the private store — fall through to the legacy public URL.
+      }
+    }
+    // Legacy: receipt still in the old public store.
     const res = await fetch(key);
     if (!res.ok) return null;
     return {
@@ -87,20 +120,25 @@ class VercelBlobStore implements BlobStore {
 
   async delete(key: string) {
     const { del } = await this.lib();
-    await del(key, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    const legacy = process.env.BLOB_READ_WRITE_TOKEN;
+    try {
+      await del(key, { token: this.token ?? legacy });
+    } catch {
+      // Key may live in the other store (legacy public vs private); try it.
+      if (legacy && this.token) await del(key, { token: legacy });
+    }
   }
 }
 
 /**
- * Use Vercel Blob when explicitly asked, OR whenever a Blob token is present and
- * local storage wasn't explicitly forced. This means simply creating a Blob
- * store for the project (which injects BLOB_READ_WRITE_TOKEN) is enough — no
- * second env var to remember. The local disk store only works with a writable
+ * Use Vercel Blob when explicitly asked, OR whenever a Blob token is
+ * present and local storage wasn't explicitly forced. The local disk store only works with a writable
  * filesystem, i.e. dev.
  */
 const useVercelBlob =
   process.env.STORAGE_DRIVER === "vercel" ||
-  (process.env.STORAGE_DRIVER !== "local" && !!process.env.BLOB_READ_WRITE_TOKEN);
+  (process.env.STORAGE_DRIVER !== "local" &&
+    !!(process.env.BLOB_PRIVATE_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN));
 
 export const blobStore: BlobStore = useVercelBlob
   ? new VercelBlobStore()
