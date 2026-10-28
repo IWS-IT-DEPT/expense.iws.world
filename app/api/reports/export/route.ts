@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const user = await getCurrentUser();
-  if (!user) return new Response("Forbidden", { status: 403 });
+  if (!user || !user.active) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(req.url);
   const view: SpendView = url.searchParams.get("view") === "reimbursement" ? "reimbursement" : "card";

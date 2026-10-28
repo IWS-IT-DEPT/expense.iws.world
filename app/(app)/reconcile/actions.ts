@@ -33,6 +33,7 @@ export async function reconcileLine(_prev: LineActionState, fd: FormData): Promi
   const line = await db.query.pendingExpenses.findFirst({ where: eq(pendingExpenses.id, id) });
   if (!line) return { error: "Line not found." };
   if (line.status !== "submitted") return { error: "That line isn't awaiting reconcile." };
+  if (line.userId === user.id) return { error: "You can't reconcile your own expense." };
 
   await db
     .update(pendingExpenses)

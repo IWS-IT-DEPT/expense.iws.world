@@ -24,12 +24,14 @@ export async function approveCardExpenses(fd: FormData): Promise<void> {
   const raw = String(fd.get("ids") || "").trim();
   const ids = raw ? raw.split(",").filter(Boolean) : null;
 
-  const targets = await db.query.pendingExpenses.findMany({
+  const candidates = await db.query.pendingExpenses.findMany({
     where: ids
       ? and(inArray(pendingExpenses.id, ids), eq(pendingExpenses.status, "reconciled"))
       : eq(pendingExpenses.status, "reconciled"),
     columns: { id: true, userId: true, actualAmountCents: true, amountCents: true },
   });
+  // Segregation of duties: nobody approves their own charges.
+  const targets = candidates.filter((t) => t.userId !== user.id);
   if (targets.length === 0) return;
 
   await db

@@ -68,7 +68,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const user = await getCurrentUser();
-  if (!user || user.id !== session.userId) {
+  if (!user || !user.active || user.id !== session.userId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

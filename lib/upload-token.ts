@@ -46,7 +46,7 @@ function b64urlDecode(s: string): Buffer {
 }
 
 function sign(body: string): string {
-  return b64url(createHmac("sha256", secret()).update(body).digest());
+  return b64url(createHmac("sha256", `receipt-upload-token:v1:${secret()}`).update(body).digest());
 }
 
 /** Default TTL 20 minutes. Returns `<payloadB64>.<sigB64>`. */
