@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -75,13 +76,13 @@ export default async function AdminMileagePage() {
                         in use · {inUse}
                       </span>
                     ) : (
-                      <button
+                      <SubmitButton
                         type="submit"
                         formAction={deleteMileageRate}
                         className="text-xs text-red-600 underline opacity-80 hover:opacity-100"
                       >
                         Delete
-                      </button>
+                      </SubmitButton>
                     )}
                   </div>
                 </form>

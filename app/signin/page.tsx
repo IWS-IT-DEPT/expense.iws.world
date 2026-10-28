@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import Image from "next/image";
 
 import { signIn } from "@/lib/auth";
@@ -25,12 +26,12 @@ export default function SignInPage() {
             await signIn("microsoft-entra-id", { redirectTo: "/expenses" });
           }}
         >
-          <button
+          <SubmitButton
             type="submit"
             className="w-full rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-dark"
           >
             Sign in with Microsoft 365
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </main>

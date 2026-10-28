@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { asc, eq } from "drizzle-orm";
 
 import { EntityBadge } from "@/app/components/entity-badge";
@@ -85,9 +86,9 @@ export default async function PayrollReconcilePage() {
                 <span className="font-semibold">{money(total)}</span>
                 <form action={reconcileItems}>
                   <input type="hidden" name="ids" value={u.lines.map((l) => l.id).join(",")} />
-                  <button className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white">
+                  <SubmitButton className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white">
                     confirm all {u.lines.length}
-                  </button>
+                  </SubmitButton>
                 </form>
               </div>
               <ul className="divide-y divide-black/5 dark:divide-white/10">

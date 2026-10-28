@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -38,13 +39,13 @@ export function ReconcileLine({
       <div className="flex flex-wrap gap-2">
         <form action={confirmAction}>
           <input type="hidden" name="lineId" value={lineId} />
-          <button
+          <SubmitButton
             type="submit"
             disabled={confirmPending}
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
           >
             {confirmPending ? "…" : "Confirm as entered"}
-          </button>
+          </SubmitButton>
         </form>
         <button
           type="button"
@@ -74,9 +75,9 @@ export function ReconcileLine({
             <input name="actualPurchaseDate" type="date" defaultValue={dateLabel} className="rounded border border-black/15 bg-transparent px-2 py-1 dark:border-white/20" />
           </label>
           <input name="note" placeholder="note (optional)" className="flex-1 rounded border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20" />
-          <button type="submit" disabled={confirmPending} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+          <SubmitButton type="submit" disabled={confirmPending} className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
             Confirm with correction
-          </button>
+          </SubmitButton>
         </form>
       )}
 
@@ -84,9 +85,9 @@ export function ReconcileLine({
         <form action={rejectAction} className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15">
           <input type="hidden" name="lineId" value={lineId} />
           <input name="reason" required placeholder="what needs fixing?" className="flex-1 rounded border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20" />
-          <button type="submit" disabled={rejectPending} className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+          <SubmitButton type="submit" disabled={rejectPending} className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
             Send back to cardholder
-          </button>
+          </SubmitButton>
         </form>
       )}
 

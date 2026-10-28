@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useState } from "react";
 
 import { inputClass } from "../../_ui";
@@ -128,13 +129,13 @@ export function DeleteEntityConfirm({
           className={`${inputClass} w-64 font-mono`}
         />
       </label>
-      <button
+      <SubmitButton
         type="submit"
         disabled={!ok}
         className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
       >
         I understand — delete this entity
-      </button>
+      </SubmitButton>
     </form>
   );
 }

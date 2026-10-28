@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -40,9 +41,9 @@ export default async function ApprovalsPage() {
           </h2>
           {cardLines.length > 0 ? (
             <form action={approveCardExpenses}>
-              <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
+              <SubmitButton className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
                 Approve all {cardLines.length}
-              </button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>
@@ -69,9 +70,9 @@ export default async function ApprovalsPage() {
                   <span className="font-semibold">{money(total)}</span>
                   <form action={approveCardExpenses}>
                     <input type="hidden" name="ids" value={u.lines.map((l) => l.id).join(",")} />
-                    <button className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white">
+                    <SubmitButton className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white">
                       approve these
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
                 <ul className="divide-y divide-black/5 text-sm dark:divide-white/10">
@@ -99,7 +100,7 @@ export default async function ApprovalsPage() {
                             placeholder="send back…"
                             className="w-28 rounded border border-black/15 px-2 py-0.5 text-xs dark:border-white/20"
                           />
-                          <button className="text-xs underline opacity-60">back</button>
+                          <SubmitButton className="text-xs underline opacity-60">back</SubmitButton>
                         </form>
                       </li>
                     );

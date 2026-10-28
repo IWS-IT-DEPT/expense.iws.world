@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import type { ReactNode } from "react";
 
 export const inputClass =
@@ -37,12 +38,12 @@ export function Row({ children }: { children: ReactNode }) {
 
 export function SaveButton({ label = "Save" }: { label?: string }) {
   return (
-    <button
+    <SubmitButton
       type="submit"
       className="rounded-md bg-black px-3 py-1.5 text-xs font-medium text-white dark:bg-white dark:text-black"
     >
       {label}
-    </button>
+    </SubmitButton>
   );
 }
 
@@ -69,14 +70,14 @@ export function DeleteCell({
     );
   }
   return (
-    <button
+    <SubmitButton
       type="submit"
       formAction={action}
       formNoValidate
       className="text-xs text-red-600 underline opacity-80 hover:opacity-100"
     >
       Delete
-    </button>
+    </SubmitButton>
   );
 }
 
@@ -88,8 +89,8 @@ export function LinkButton({
   className?: string;
 }) {
   return (
-    <button type="submit" className={`text-xs underline opacity-70 hover:opacity-100 ${className}`}>
+    <SubmitButton type="submit" className={`text-xs underline opacity-70 hover:opacity-100 ${className}`}>
       {label}
-    </button>
+    </SubmitButton>
   );
 }

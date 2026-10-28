@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { desc } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -92,9 +93,9 @@ export default async function AdminErrorsPage() {
               {groups.length - openCount} resolved
             </span>
             <form action={clearResolvedErrors}>
-              <button className="text-xs underline opacity-70 hover:opacity-100">
+              <SubmitButton className="text-xs underline opacity-70 hover:opacity-100">
                 Clear resolved &amp; old (30d+)
-              </button>
+              </SubmitButton>
             </form>
           </div>
 
@@ -132,9 +133,9 @@ export default async function AdminErrorsPage() {
                 <div className="mt-2">
                   <form action={g.open ? resolveError : reopenError}>
                     <input type="hidden" name="fingerprint" value={g.fingerprint} />
-                    <button className="text-xs underline opacity-70 hover:opacity-100">
+                    <SubmitButton className="text-xs underline opacity-70 hover:opacity-100">
                       {g.open ? "Mark resolved" : "Reopen"}
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </li>

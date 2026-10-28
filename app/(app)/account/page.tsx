@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { NotifyPanel } from "@/app/components/push-notifications";
 import { pushPublicKey } from "@/lib/push";
 import { signOut } from "@/lib/auth";
@@ -108,12 +109,12 @@ export default async function AccountPage() {
           await signOut({ redirectTo: "/signin" });
         }}
       >
-        <button
+        <SubmitButton
           type="submit"
           className="rounded-md border border-black/15 px-3 py-1.5 text-sm dark:border-white/20"
         >
           Sign out &amp; back in (refreshes groups)
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -47,7 +48,7 @@ export default async function MyCardsPage() {
                 <span>{cardLabel(c)}</span>
                 <form action={removeMyCard}>
                   <input type="hidden" name="id" value={c.id} />
-                  <button className="text-xs underline opacity-60 hover:opacity-100">remove</button>
+                  <SubmitButton className="text-xs underline opacity-60 hover:opacity-100">remove</SubmitButton>
                 </form>
               </li>
             ))}

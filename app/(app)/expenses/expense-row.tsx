@@ -13,7 +13,7 @@ export const STATUS_LABEL: Record<string, string> = {
 export const EDITABLE = new Set(["draft", "rejected"]);
 
 export const btn =
-  "inline-flex min-h-11 items-center justify-center rounded-md border border-black/15 px-4 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
+  "press inline-flex min-h-11 items-center justify-center rounded-md border border-black/15 px-4 text-sm font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10";
 
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -59,7 +59,7 @@ export function Row(props: {
   return (
     <Link
       href={props.href}
-      className={`block rounded-lg border p-3.5 text-sm transition-colors hover:bg-black/[0.03] active:bg-black/[0.06] dark:hover:bg-white/[0.05] ${tone}`}
+      className={`press block rounded-lg border p-3.5 text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.05] ${tone}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

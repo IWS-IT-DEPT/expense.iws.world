@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -57,13 +58,13 @@ export function RegisterCardForm() {
         <span className="mb-1 block text-xs opacity-60">Nickname (optional)</span>
         <input name="displayName" placeholder="Truck card" className={inputClass} />
       </label>
-      <button
+      <SubmitButton
         type="submit"
         disabled={pending}
         className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
       >
         {pending ? "Adding…" : "Add card"}
-      </button>
+      </SubmitButton>
       {state.error ? <p className="w-full text-sm text-red-600">{state.error}</p> : null}
       {state.ok ? <p className="w-full text-sm text-emerald-600">Card added.</p> : null}
     </form>

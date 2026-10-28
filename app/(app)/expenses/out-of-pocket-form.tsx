@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useActionState, useState } from "react";
 import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
@@ -177,21 +178,21 @@ export function OutOfPocketForm(props: {
 
       {!editing ? (
         <div className="space-y-2">
-          <button
+          <SubmitButton
             type="submit"
             disabled={pending || receiptMissing}
             className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-40 sm:w-auto dark:bg-white dark:text-black"
           >
             {pending ? "Saving…" : receiptMissing ? "Add a receipt to save" : "Save reimbursement"}
-          </button>
+          </SubmitButton>
           {receiptMissing ? (
-            <button
+            <SubmitButton
               type="submit"
               disabled={pending}
               className="block min-h-11 text-sm underline opacity-70 hover:opacity-100"
             >
               Save without a receipt for now (I&apos;ll add it later)
-            </button>
+            </SubmitButton>
           ) : null}
           <CancelWorkflow dirty={dirty || staged.length > 0} what="reimbursement" />
         </div>

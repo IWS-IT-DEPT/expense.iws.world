@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import { asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -55,9 +56,9 @@ export default async function PayrollApprovalsPage() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <form action={approveReport}>
                   <input type="hidden" name="reportId" value={r.id} />
-                  <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
+                  <SubmitButton className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white">
                     Approve
-                  </button>
+                  </SubmitButton>
                 </form>
                 <form action={sendBackReport} className="flex gap-1">
                   <input type="hidden" name="reportId" value={r.id} />
@@ -66,9 +67,9 @@ export default async function PayrollApprovalsPage() {
                     placeholder="reason"
                     className="rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/20"
                   />
-                  <button className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white">
+                  <SubmitButton className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white">
                     Send back
-                  </button>
+                  </SubmitButton>
                 </form>
               </div>
             </div>

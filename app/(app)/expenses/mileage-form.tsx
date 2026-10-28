@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useActionState, useState } from "react";
 import { todayInTz } from "@/lib/tz";
 import { useRouter } from "next/navigation";
@@ -169,13 +170,13 @@ export function MileageForm(props: {
 
       {!editing ? (
         <div className="space-y-2">
-        <button
+        <SubmitButton
           type="submit"
           disabled={pending}
           className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
         >
           {pending ? "Saving…" : "Save mileage"}
-        </button>
+        </SubmitButton>
         <CancelWorkflow dirty={dirty} what="mileage entry" />
         </div>
       ) : dirty ? (

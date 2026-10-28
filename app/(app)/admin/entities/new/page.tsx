@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import Link from "next/link";
 
 import { requireRole } from "@/lib/current-user";
@@ -49,12 +50,12 @@ export default async function NewEntityPage() {
         <Field label="Badge colour" hint="Hex, e.g. #2F9E5A. Optional.">
           <input name="brandColor" placeholder="#2F9E5A" className={`${inputClass} w-32`} />
         </Field>
-        <button
+        <SubmitButton
           type="submit"
           className="rounded-md bg-black px-3.5 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
         >
           Create entity
-        </button>
+        </SubmitButton>
         <p className="text-xs opacity-60">After creating it you can set up QuickBooks for the entity.</p>
       </form>
     </div>

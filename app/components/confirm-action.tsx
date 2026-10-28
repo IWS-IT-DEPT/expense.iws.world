@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { Spinner } from "./spinner";
+
 /**
  * Two-step button for anything hard to undo. The first tap only reveals a
  * clearly worded question; nothing happens until the second, deliberately
@@ -66,7 +68,13 @@ export function ConfirmAction({
           onClick={() => start(async () => void (await run()))}
           className={`inline-flex min-h-12 items-center justify-center rounded-lg px-4 text-sm font-medium disabled:opacity-50 ${confirmTone}`}
         >
-          {pending ? "Working…" : confirmLabel}
+          {pending ? (
+            <span className="inline-flex items-center gap-2">
+              <Spinner className="h-4 w-4" /> Working…
+            </span>
+          ) : (
+            confirmLabel
+          )}
         </button>
         <button
           type="button"

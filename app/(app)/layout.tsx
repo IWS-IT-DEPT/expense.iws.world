@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/app/components/submit-button";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -98,9 +99,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               await signOut({ redirectTo: "/signin" });
             }}
           >
-            <button type="submit" className="text-xs opacity-70 hover:opacity-100">
+            <SubmitButton type="submit" className="text-xs opacity-70 hover:opacity-100">
               Sign out
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </header>

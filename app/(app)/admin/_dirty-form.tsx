@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useRef, useState, type ReactNode } from "react";
 
 /**
@@ -75,12 +76,12 @@ function DirtyFormInner({
       {dirty ? (
         <div className="sticky bottom-3 z-10 mt-4 flex items-center gap-3 rounded-lg border border-black/15 bg-white/95 px-4 py-2.5 shadow-md backdrop-blur dark:border-white/20 dark:bg-neutral-900/95">
           <span className="text-sm opacity-70">You have unsaved changes.</span>
-          <button
+          <SubmitButton
             type="submit"
             className="rounded-md bg-black px-3.5 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
           >
             {saveLabel}
-          </button>
+          </SubmitButton>
         </div>
       ) : null}
     </form>

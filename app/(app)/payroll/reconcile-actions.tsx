@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmitButton } from "@/app/components/submit-button";
 import { useState } from "react";
 
 import { reconcileItems, sendBackItem } from "./actions";
@@ -12,12 +13,12 @@ export function ItemReconcileActions({ itemId }: { itemId: string }) {
       <div className="flex flex-wrap gap-2">
         <form action={reconcileItems}>
           <input type="hidden" name="id" value={itemId} />
-          <button
+          <SubmitButton
             type="submit"
             className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
           >
             Confirm
-          </button>
+          </SubmitButton>
         </form>
         <button
           type="button"
@@ -40,12 +41,12 @@ export function ItemReconcileActions({ itemId }: { itemId: string }) {
             placeholder="what needs fixing?"
             className="flex-1 rounded border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20"
           />
-          <button
+          <SubmitButton
             type="submit"
             className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
           >
             Send back to employee
-          </button>
+          </SubmitButton>
         </form>
       )}
     </div>
