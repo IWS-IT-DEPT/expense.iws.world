@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { policySettings, userRole, users } from "@/db/schema";
@@ -6,6 +6,12 @@ import { policySettings, userRole, users } from "@/db/schema";
 import { findUserOidByEmail, getGroupName, getUserGroupIds, graphConfigured, scanGroupForEmail } from "./graph";
 
 export type Role = (typeof userRole.enumValues)[number];
+
+/** Break-glass admins (BOOTSTRAP_ADMIN_EMAILS) are always Admin, whatever any group says. */
+const BOOTSTRAP = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 /**
  * Which Microsoft 365 (Entra) group grants which app role. Editable by an admin
@@ -164,6 +170,10 @@ export async function syncUserRoleFromM365(
 ): Promise<{ role: Role; changed: boolean; source: "group" | "none" | "unchecked" | "override" }> {
   const u = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!u) return { role: "cardholder", changed: false, source: "unchecked" };
+  if (BOOTSTRAP.includes(u.email.toLowerCase())) {
+    if (u.role !== "admin") await db.update(users).set({ role: "admin" }).where(eq(users.id, userId));
+    return { role: "admin", changed: u.role !== "admin", source: "override" };
+  }
   // An admin set this role by hand — Microsoft 365 groups don't get a say.
   if (u.roleOverride) return { role: u.role, changed: false, source: "override" };
 
@@ -180,6 +190,15 @@ export async function syncUserRoleFromM365(
     // Not in any mapped group: a group-driven role can't stand without its group.
     role = cfg.syncEnabled && cfg.driven.includes(u.role) ? "cardholder" : u.role;
     source = "none";
+  }
+
+  // Never strip the last active admin — a wrong mapping must not lock everyone out of Settings.
+  if (u.role === "admin" && role !== "admin") {
+    const [others] = await db
+      .select({ n: count() })
+      .from(users)
+      .where(and(eq(users.role, "admin"), eq(users.active, true), ne(users.id, userId)));
+    if (others.n === 0) role = "admin";
   }
 
   const patch: Partial<typeof users.$inferInsert> = {};
@@ -228,4 +247,38 @@ export async function diagnoseEmail(email: string): Promise<{ role: Role | null;
     lines.push("Microsoft returned an error — see the connection status at the top of this page.");
   }
   return { role: r.role, checked: r.checked, lines };
+}
+
+export interface SyncAllResult {
+  checked: number;
+  /** couldn't be read from Microsoft 365 this time (their role will update when they next use the app) */
+  unchecked: number;
+  changed: { email: string; from: Role; to: Role }[];
+}
+
+/**
+ * Re-read everyone's Microsoft 365 groups and refresh the stored roles. Run after the
+ * group mapping changes so the Users list is accurate immediately (access itself is
+ * always recalculated per request). Promotions run before demotions, so a new admin
+ * exists before an old one is removed.
+ */
+export async function syncAllRoles(): Promise<SyncAllResult> {
+  const all = await db.select({ id: users.id, email: users.email, role: users.role }).from(users);
+  const result: SyncAllResult = { checked: 0, unchecked: 0, changed: [] };
+
+  const one = async (u: { id: string; email: string; role: Role }) => {
+    try {
+      const r = await syncUserRoleFromM365(u.id);
+      result.checked++;
+      if (r.source === "unchecked") result.unchecked++;
+      if (r.changed) result.changed.push({ email: u.email, from: u.role, to: r.role });
+    } catch {
+      result.unchecked++;
+    }
+  };
+
+  const others = all.filter((u) => u.role !== "admin");
+  for (let i = 0; i < others.length; i += 5) await Promise.all(others.slice(i, i + 5).map(one));
+  for (const u of all.filter((x) => x.role === "admin")) await one(u); // demotions last, one at a time
+  return result;
 }

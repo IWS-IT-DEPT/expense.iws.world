@@ -102,11 +102,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       (resolution.source === "token" && cfg.syncEnabled);
 
     if (trustworthy && !existing.roleOverride) {
-      if (resolution.role && resolution.role !== existing.role) {
-        patch.role = resolution.role;
-      } else if (!resolution.role && cfg.driven.includes(existing.role)) {
-        // Removed from their group => back to Cardholder. Except: never strip the last active admin,
-        // so a wrong group mapping can't lock everyone out of Settings.
+      // What their groups say they should be now: the highest mapped group, else Cardholder
+      // (for a role that only exists via a group), else unchanged.
+      const target: Role =
+        resolution.role ?? (cfg.driven.includes(existing.role) ? "cardholder" : existing.role);
+      if (target !== existing.role) {
+        // Never strip the last active admin, whichever way they're being demoted, so a wrong
+        // group mapping can't lock everyone out of Settings.
         let lastAdmin = false;
         if (existing.role === "admin") {
           const [others] = await db
@@ -115,7 +117,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
             .where(and(eq(users.role, "admin"), eq(users.active, true), ne(users.id, existing.id)));
           lastAdmin = others.n === 0;
         }
-        if (!lastAdmin) patch.role = "cardholder";
+        if (!lastAdmin) patch.role = target;
       }
     }
 

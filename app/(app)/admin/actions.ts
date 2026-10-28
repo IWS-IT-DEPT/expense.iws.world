@@ -35,6 +35,7 @@ import {
   invalidateGroupConfig,
   diagnoseEmail,
   settingKey,
+  syncAllRoles,
   syncUserRoleFromM365,
 } from "@/lib/role-groups";
 import { sendEmail } from "@/lib/email";
@@ -224,9 +225,26 @@ export async function saveRoleGroups(fd: FormData) {
       .onConflictDoUpdate({ target: policySettings.key, set: { value: r.value, updatedAt: new Date(), updatedById: user.id } });
   }
   invalidateGroupConfig();
+  // Refresh everyone's stored role now, so the Users list matches the new mapping straight away.
+  let tail = "";
+  try {
+    const r = await syncAllRoles();
+    tail = `&checked=${r.checked}&changed=${r.changed.length}&unchecked=${r.unchecked}`;
+  } catch {
+    // access is recalculated per request anyway; the Re-check button can be used again
+  }
   revalidatePath("/admin/roles");
   revalidatePath("/admin/users");
-  redirect("/admin/roles?saved=1");
+  redirect(`/admin/roles?saved=1${tail}`);
+}
+
+/** Re-read everyone's Microsoft 365 groups and update their stored roles. */
+export async function recheckAllRoles() {
+  await requireRole("admin");
+  const r = await syncAllRoles();
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/roles");
+  redirect(`/admin/roles?synced=1&checked=${r.checked}&changed=${r.changed.length}&unchecked=${r.unchecked}&who=${encodeURIComponent(r.changed.map((c) => `${c.email}: ${c.from}→${c.to}`).join("; ").slice(0, 600))}`);
 }
 
 /** "Which role would this person get?" — reads Microsoft 365 only, changes nothing. */

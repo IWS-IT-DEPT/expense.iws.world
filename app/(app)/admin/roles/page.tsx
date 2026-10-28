@@ -4,7 +4,8 @@ import { GROUP_ROLES, getGroupConfig, type Role } from "@/lib/role-groups";
 
 import { DirtyForm } from "../_dirty-form";
 import { inputClass } from "../_ui";
-import { saveRoleGroups } from "../actions";
+import { SubmitButton } from "@/app/components/submit-button";
+import { recheckAllRoles, saveRoleGroups } from "../actions";
 import { CheckEmail } from "./check-email";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ const SOURCE = { setting: "set here", environment: "from the server environment"
 export default async function RolesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; synced?: string; checked?: string; changed?: string; unchecked?: string; who?: string }>;
 }) {
   const me = await requireRole("admin");
   const sp = await searchParams;
@@ -43,7 +44,22 @@ export default async function RolesPage({
         </p>
       </div>
 
-      {sp.saved ? <p className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">✓ Saved.</p> : null}
+      {sp.saved || sp.synced ? (
+        <div className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm">
+          <p>{sp.saved ? "✓ Saved." : "✓ Re-checked."}</p>
+          {sp.checked ? (
+            <p className="mt-1">
+              Checked {sp.checked} {sp.checked === "1" ? "person" : "people"} against Microsoft 365: {sp.changed ?? 0} role
+              {sp.changed === "1" ? "" : "s"} updated
+              {Number(sp.unchecked) > 0
+                ? `, ${sp.unchecked} couldn't be read right now (their access still follows their groups the next time they use the app)`
+                : ""}
+              .
+            </p>
+          ) : null}
+          {sp.who ? <p className="mt-1 text-xs opacity-80">{sp.who}</p> : null}
+        </div>
+      ) : null}
       {sp.error ? <p className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm">Couldn&apos;t save: {sp.error}</p> : null}
 
       <div className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15">
@@ -108,6 +124,22 @@ export default async function RolesPage({
           Find a group&apos;s ID in Microsoft Entra → Groups → the group → Object ID.
         </p>
       </DirtyForm>
+
+      <section className="space-y-2 text-sm">
+        <h3 className="font-semibold">Re-check everyone now</h3>
+        <p className="text-xs opacity-70">
+          People&apos;s <em>access</em> always follows their groups on their next request. This also refreshes the
+          role <em>shown</em> on the Users page for everyone at once (it runs automatically when you save above).
+        </p>
+        <form action={recheckAllRoles}>
+          <SubmitButton
+            pendingLabel="Checking everyone…"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-black/15 px-4 font-medium dark:border-white/20"
+          >
+            Re-check everyone against Microsoft 365
+          </SubmitButton>
+        </form>
+      </section>
 
       <section className="space-y-2 rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
         <h3 className="font-semibold">How roles are decided</h3>
