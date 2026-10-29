@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "job_exempt" boolean DEFAULT false NOT NULL;

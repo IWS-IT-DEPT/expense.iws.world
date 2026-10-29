@@ -258,6 +258,8 @@ export const users = pgTable("users", {
   homeEntityId: uuid("home_entity_id").references(() => entities.id),
   homeLocationId: uuid("home_location_id").references(() => locations.id),
   mileageEligible: boolean("mileage_eligible").notNull().default(true),
+  /** Never asked for a job code, even where the entity requires one (see `effectiveCostingMode`). */
+  jobExempt: boolean("job_exempt").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

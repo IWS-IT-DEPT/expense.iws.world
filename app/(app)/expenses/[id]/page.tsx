@@ -158,6 +158,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         cardId: card.cardId,
         receiptCount: card.receipts.length,
         costingMode: card.entity?.costingMode as CostingMode | undefined,
+        jobExempt: user.jobExempt,
         categoryRequiresJobOrUnit: card.category?.requiresJobOrUnit,
       },
       policy,
@@ -204,7 +205,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       );
     }
 
-    const [options, cards] = await Promise.all([loadCodingOptions(), loadUserCards(user.id)]);
+    const [options, cards] = await Promise.all([loadCodingOptions(user.jobExempt), loadUserCards(user.id)]);
     return (
       <div className="mx-auto max-w-xl space-y-5">
         {header}
@@ -280,6 +281,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       jobId: item.jobId,
       receiptCount: item.receipts.length,
       costingMode: item.entity?.costingMode as CostingMode | undefined,
+      jobExempt: user.jobExempt,
       categoryRequiresJobOrUnit: item.category?.requiresJobOrUnit,
     },
     policy,
@@ -331,7 +333,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const options = await loadCodingOptions();
+  const options = await loadCodingOptions(user.jobExempt);
   const codingInit = {
     entityId: item.entityId,
     locationId: item.locationId,

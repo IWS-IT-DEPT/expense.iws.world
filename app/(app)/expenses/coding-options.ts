@@ -1,10 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
+import { effectiveCostingMode } from "@/lib/coding";
 import { cards, categories, entities, jobs, locations, units } from "@/db/schema";
 
 /** Option lists for `<CodingFields>`, shared by every expense form. */
-export async function loadCodingOptions() {
+export async function loadCodingOptions(jobExempt = false) {
   const [entityRows, locationRows, unitRows, jobRows, categoryRows] = await Promise.all([
     db.query.entities.findMany({ where: eq(entities.active, true), orderBy: [asc(entities.code)] }),
     db.query.locations.findMany({
@@ -23,7 +24,7 @@ export async function loadCodingOptions() {
       id: e.id,
       code: e.code,
       name: e.name,
-      costingMode: e.costingMode,
+      costingMode: effectiveCostingMode(e.costingMode, jobExempt),
     })),
     locations: locationRows.map((l) => ({ id: l.id, name: l.name, homeEntityId: l.homeEntityId })),
     units: unitRows.map((u) => ({ id: u.id, entityId: u.entityId, label: u.unitNumber })),

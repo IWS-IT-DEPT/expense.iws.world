@@ -1,10 +1,12 @@
+import { requireUser } from "@/lib/current-user";
 import { loadPolicy } from "@/lib/expense-checks";
 
 import { OutOfPocketForm } from "../out-of-pocket-form";
 import { loadCodingOptions } from "../coding-options";
 
 export default async function OutOfPocketPage() {
-  const [options, policy] = await Promise.all([loadCodingOptions(), loadPolicy()]);
+  const user = await requireUser();
+  const [options, policy] = await Promise.all([loadCodingOptions(user.jobExempt), loadPolicy()]);
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <div>

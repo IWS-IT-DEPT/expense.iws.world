@@ -56,6 +56,7 @@ export async function submitWeek(_prev: SubmitState, fd: FormData): Promise<Subm
           jobId: r.jobId,
           receiptCount: r.receipts.length,
           costingMode: r.entity?.costingMode as CostingMode | undefined,
+          jobExempt: user.jobExempt,
           categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
         },
         policy,

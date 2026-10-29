@@ -99,6 +99,7 @@ export async function updateUser(fd: FormData) {
       homeEntityId: opt(fd, "homeEntityId"),
       homeLocationId: opt(fd, "homeLocationId"),
       mileageEligible: bool(fd, "mileageEligible"),
+      jobExempt: bool(fd, "jobExempt"),
       active,
     })
     .where(eq(users.id, id));

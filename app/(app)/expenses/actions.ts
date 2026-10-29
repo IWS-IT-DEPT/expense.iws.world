@@ -13,7 +13,7 @@ import {
   receiptUploadSessions,
   receipts,
 } from "@/db/schema";
-import { validateCoding, type CostingMode } from "@/lib/coding";
+import { effectiveCostingMode, validateCoding, type CostingMode } from "@/lib/coding";
 import { canReview, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { normalizeMerchant } from "@/lib/merchant";
@@ -56,7 +56,11 @@ interface Coding {
 }
 
 /** Parse the coding half of a form. `mode: "required"` rejects partial/empty. */
-async function parseCoding(fd: FormData, mode: "optional" | "required"): Promise<Coding> {
+async function parseCoding(
+  fd: FormData,
+  mode: "optional" | "required",
+  jobExempt: boolean,
+): Promise<Coding> {
   const entityId = String(fd.get("entityId") || "") || null;
   const locationId = String(fd.get("locationId") || "") || null;
   const unitId = String(fd.get("unitId") || "") || null;
@@ -86,7 +90,7 @@ async function parseCoding(fd: FormData, mode: "optional" | "required"): Promise
   if (!entity || !category) return { ...blank, error: "Invalid entity or category." };
 
   const problems = validateCoding({
-    costingMode: entity.costingMode as CostingMode,
+    costingMode: effectiveCostingMode(entity.costingMode as CostingMode, jobExempt),
     hasUnit: !!unitId,
     hasJob: !!jobId,
     category,
@@ -123,7 +127,7 @@ export async function createCardExpense(_prev: FormState, fd: FormData): Promise
     if (!card || card.userId !== user.id) return { error: "That isn't one of your cards." };
   }
 
-  const coding = await parseCoding(fd, "optional");
+  const coding = await parseCoding(fd, "optional", user.jobExempt);
   if (coding.error) return { error: coding.error };
 
   const [created] = await db
@@ -171,7 +175,7 @@ export async function updateCardExpense(_prev: FormState, fd: FormData): Promise
     if (!card || card.userId !== user.id) return { error: "That isn't one of your cards." };
   }
 
-  const coding = await parseCoding(fd, "optional");
+  const coding = await parseCoding(fd, "optional", user.jobExempt);
   if (coding.error) return { error: coding.error };
 
   await db
@@ -265,6 +269,7 @@ export async function submitCardExpense(fd: FormData): Promise<void> {
       cardId: row.cardId,
       receiptCount: row.receipts.length,
       costingMode: row.entity?.costingMode as CostingMode | undefined,
+      jobExempt: user.jobExempt,
       categoryRequiresJobOrUnit: row.category?.requiresJobOrUnit,
     },
     policy,
@@ -323,6 +328,7 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
               cardId: r.cardId,
               receiptCount: r.receipts.length,
               costingMode: r.entity?.costingMode as CostingMode | undefined,
+              jobExempt: user.jobExempt,
               categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
             },
             policy,
@@ -365,11 +371,11 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
 async function writeItem(
   fd: FormData,
   kind: "out_of_pocket" | "mileage",
-  userId: string,
+  user: { id: string; jobExempt: boolean },
   existingId: string | null,
 ): Promise<FormState> {
   if (existingId) {
-    const row = await ownsEditableItem(existingId, userId);
+    const row = await ownsEditableItem(existingId, user.id);
     if (!row) return { error: "Not found or already submitted." };
     if (row.kind !== kind) return { error: "Wrong kind." };
   }
@@ -377,7 +383,7 @@ async function writeItem(
   const itemDate = String(fd.get("itemDate") || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(itemDate)) return { error: "Pick a date." };
 
-  const coding = await parseCoding(fd, "required");
+  const coding = await parseCoding(fd, "required", user.jobExempt);
   if (coding.error) return { error: coding.error };
 
   let amountCents: number;
@@ -430,7 +436,7 @@ async function writeItem(
 
   const [created] = await db
     .insert(expenseItems)
-    .values({ userId, kind, status: "draft", ...values })
+    .values({ userId: user.id, kind, status: "draft", ...values })
     .returning({ id: expenseItems.id });
   revalidateExpenses();
   return { ok: true, id: created.id };
@@ -445,12 +451,12 @@ async function ownsEditableItem(id: string, userId: string) {
 
 export async function createOutOfPocket(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser();
-  return writeItem(fd, "out_of_pocket", user.id, null);
+  return writeItem(fd, "out_of_pocket", user, null);
 }
 
 export async function createMileage(_prev: FormState, fd: FormData): Promise<FormState> {
   const user = await requireUser();
-  return writeItem(fd, "mileage", user.id, null);
+  return writeItem(fd, "mileage", user, null);
 }
 
 export async function updateExpenseItem(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -458,7 +464,7 @@ export async function updateExpenseItem(_prev: FormState, fd: FormData): Promise
   const id = String(fd.get("id") || "");
   const row = await db.query.expenseItems.findFirst({ where: eq(expenseItems.id, id) });
   if (!row || row.userId !== user.id) return { error: "Not found." };
-  return writeItem(fd, row.kind, user.id, id);
+  return writeItem(fd, row.kind, user, id);
 }
 
 export async function voidExpenseItem(fd: FormData): Promise<void> {

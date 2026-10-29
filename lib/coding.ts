@@ -35,6 +35,15 @@ export const codingInputSchema = z.object({
 
 export type CodingInput = z.infer<typeof codingInputSchema>;
 
+/**
+ * A job-exempt person is never asked for a job code. Where the entity requires
+ * one ("job", or "unit or job") they're asked for nothing extra; "unit" is unaffected.
+ */
+export function effectiveCostingMode(mode: CostingMode, jobExempt?: boolean | null): CostingMode {
+  if (!jobExempt) return mode;
+  return mode === "job" || mode === "unit_or_job" ? "none" : mode;
+}
+
 export interface CodingRules {
   needsUnit: boolean;
   needsJob: boolean;

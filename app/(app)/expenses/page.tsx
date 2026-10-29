@@ -72,6 +72,7 @@ export default async function ExpensesPage() {
         cardId: r.cardId,
         receiptCount: r.receipts.length,
         costingMode: r.entity?.costingMode as CostingMode | undefined,
+        jobExempt: user.jobExempt,
         categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
       }, policy);
       return { r, checks };
@@ -92,6 +93,7 @@ export default async function ExpensesPage() {
         jobId: r.jobId,
         receiptCount: r.receipts.length,
         costingMode: r.entity?.costingMode as CostingMode | undefined,
+        jobExempt: user.jobExempt,
         categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
       },
       policy,

@@ -92,6 +92,13 @@
       "when": 1793214631922,
       "tag": "0012_role_override",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793288186777,
+      "tag": "0013_user_job_exempt",
+      "breakpoints": true
     }
   ]
 }

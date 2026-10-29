@@ -46,6 +46,7 @@ export default async function DashboardPage() {
           cardId: r.cardId,
           receiptCount: r.receipts.length,
           costingMode: r.entity?.costingMode as CostingMode | undefined,
+          jobExempt: user.jobExempt,
           categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
         },
         policy,

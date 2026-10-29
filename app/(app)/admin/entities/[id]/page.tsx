@@ -15,9 +15,9 @@ import { deleteEntity, saveQboMappings, saveQboSettings, upsertEntity } from "..
 
 const modes = [
   ["none", "None — entity + location only"],
-  ["unit", "Unit (trucks / equipment)"],
-  ["job", "Job"],
-  ["unit_or_job", "Unit or job"],
+  ["unit", "Unit required (trucks / equipment)"],
+  ["job", "Job code required"],
+  ["unit_or_job", "Unit or job code required"],
 ] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -142,7 +142,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
           <Field label="Legal name">
             <input name="legalName" defaultValue={e.legalName ?? ""} className={`${inputClass} w-full`} />
           </Field>
-          <Field label="Costing" hint="Decides whether the coding dropdowns require a truck/unit or a job.">
+          <Field label="Costing" hint="Which code this entity's expenses must carry. Choose a Job option to require job codes; individual people can be exempted on their Users page.">
             <select name="costingMode" defaultValue={e.costingMode} className={inputClass}>
               {modes.map(([v, l]) => (
                 <option key={v} value={v}>

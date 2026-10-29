@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { policySettings } from "@/db/schema";
 
-import { codingRules, type CostingMode } from "./coding";
+import { codingRules, effectiveCostingMode, type CostingMode } from "./coding";
 
 /**
  * The rules that decide whether an expense line is ready to submit / clean for
@@ -59,6 +59,8 @@ export interface CheckLine {
   receiptCount: number;
   /** the chosen entity's costing mode + the chosen category's flags, if known */
   costingMode?: CostingMode;
+  /** the line owner is excused from job codes */
+  jobExempt?: boolean;
   categoryRequiresJobOrUnit?: boolean;
   categoryReceiptAlwaysRequired?: boolean;
 }
@@ -72,7 +74,7 @@ export function checkExpenseLine(
   const charge = Math.abs(line.amountCents);
 
   const rules = codingRules(
-    line.costingMode ?? "none",
+    effectiveCostingMode(line.costingMode ?? "none", line.jobExempt),
     line.categoryRequiresJobOrUnit != null
       ? { requiresJobOrUnit: line.categoryRequiresJobOrUnit }
       : null,
