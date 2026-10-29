@@ -408,7 +408,9 @@ async function writeItem(
       extra.miles = miles.toFixed(1);
       extra.mileageRateId = rate.id;
       extra.tripFrom = String(fd.get("tripFrom") || "").trim() || null;
-      extra.tripTo = String(fd.get("tripTo") || "").trim() || null;
+      const to = String(fd.get("tripTo") || "").trim();
+      const via = fd.getAll("stop").map((v) => String(v).trim()).filter(Boolean);
+      extra.tripTo = (via.length ? `${to} (via ${via.join("; ")})` : to) || null;
     } catch {
       return { error: `No mileage rate is configured for ${itemDate} — ask an admin to add one.` };
     }

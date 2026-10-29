@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
 
-import { db } from "@/db";
-import { categories, mileageRates } from "@/db/schema";
 import { requireUser } from "@/lib/current-user";
-import { loadActiveTrip, routeText } from "@/lib/trips";
-import { todayInTz } from "@/lib/tz";
+import { loadActiveTrip } from "@/lib/trips";
 
-import { MileageForm } from "../mileage-form";
-import { loadCodingOptions } from "../coding-options";
+const card = "space-y-2 rounded-lg border border-black/10 p-4 dark:border-white/15";
+const primary =
+  "inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white sm:w-auto dark:bg-white dark:text-black";
+const secondary =
+  "inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-black/15 px-5 text-sm font-semibold sm:w-auto dark:border-white/20";
 
 export default async function MileagePage({
   searchParams,
@@ -19,17 +18,11 @@ export default async function MileagePage({
   const user = await requireUser();
   if (!user.mileageEligible) redirect("/expenses");
 
+  // Old links to the form with a finished trip.
   const { trip: tripParam } = await searchParams;
-  const trip = await loadActiveTrip(user.id);
-  const finishing = trip && trip.id === tripParam && trip.stops.length > 1 ? trip : null;
-  if (tripParam && !finishing) redirect("/expenses/trip");
-  if (finishing && finishing.missingLegs > 0) redirect("/expenses/trip");
+  if (tripParam) redirect(`/expenses/mileage/manual?trip=${encodeURIComponent(tripParam)}`);
 
-  const [options, mileageCat, latestRate] = await Promise.all([
-    loadCodingOptions(user.jobExempt),
-    db.query.categories.findFirst({ where: eq(categories.code, "MILEAGE") }),
-    db.query.mileageRates.findFirst({ orderBy: [desc(mileageRates.effectiveDate)] }),
-  ]);
+  const trip = await loadActiveTrip(user.id);
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
@@ -40,43 +33,30 @@ export default async function MileagePage({
           date.
         </p>
       </div>
-      {!finishing ? (
-        <div className="space-y-2 rounded-lg border border-black/10 p-4 dark:border-white/15">
-          <h2 className="text-sm font-semibold">
-            {trip ? "You have a trip in progress" : "Driving to more than one place?"}
-          </h2>
-          <p className="text-sm opacity-70">
-            {trip
-              ? "Pick up where you left off — add stops or end the trip."
-              : "Start a trip, tap Add stop at each place, and the miles are worked out for you."}
-          </p>
-          <Link
-            href="/expenses/trip"
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white sm:w-auto dark:bg-white dark:text-black"
-          >
-            {trip ? "Continue trip" : "Start trip"}
-          </Link>
-          {!trip ? <p className="pt-1 text-xs opacity-60">Or enter a single trip by hand below.</p> : null}
-        </div>
-      ) : null}
-      <MileageForm
-        {...options}
-        mileageCategoryId={mileageCat?.id}
-        currentRatePerMile={latestRate?.ratePerMile}
-        prefill={
-          finishing
-            ? {
-                tripId: finishing.id,
-                itemDate: todayInTz(finishing.startedAt),
-                miles: finishing.totalMiles.toFixed(1),
-                ...(() => {
-                  const r = routeText(finishing.stops);
-                  return { tripFrom: r.from, tripTo: r.to };
-                })(),
-              }
-            : undefined
-        }
-      />
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold">
+          {trip ? "You have a trip in progress" : "Start a trip and log each stop"}
+        </h2>
+        <p className="text-sm opacity-70">
+          {trip
+            ? "Pick up where you left off — add stops or end the trip."
+            : "Tap Start trip, then Add stop at each place you go. The driving miles are worked out for you."}
+        </p>
+        <Link href="/expenses/trip" className={primary}>
+          {trip ? "Continue trip" : "Start trip"}
+        </Link>
+      </div>
+
+      <div className={card}>
+        <h2 className="text-sm font-semibold">Add mileage manually</h2>
+        <p className="text-sm opacity-70">
+          Already made the trip? Enter where you went (with any stops) and the miles.
+        </p>
+        <Link href="/expenses/mileage/manual" className={secondary}>
+          Add mileage manually
+        </Link>
+      </div>
     </div>
   );
 }

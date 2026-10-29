@@ -13,6 +13,7 @@ import {
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
 
+import { calculateRoute } from "./trip/actions";
 import { createMileage, updateExpenseItem, type FormState } from "./actions";
 
 const inputClass =
@@ -49,6 +50,24 @@ export function MileageForm(props: {
   const editing = !!i;
   const [miles, setMiles] = useState(i?.miles ?? props.prefill?.miles ?? "");
   const [dirty, setDirty] = useState(false);
+  // New hand-entered trips can list stops along the way; edits and finished trips already carry theirs.
+  const withStops = !editing && !props.prefill;
+  const [stops, setStops] = useState<string[]>([]);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [calc, setCalc] = useState<{ working: boolean; error?: string; legs?: number[] }>({ working: false });
+
+  async function calculate() {
+    setCalc({ working: true });
+    const r = await calculateRoute([from, ...stops, to]);
+    if (r.ok) {
+      setMiles(r.total.toFixed(1));
+      setDirty(true);
+      setCalc({ working: false, legs: r.legs });
+    } else {
+      setCalc({ working: false, error: r.error });
+    }
+  }
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (prev, fd) => {
       const r = await (editing ? updateExpenseItem : createMileage)(prev, fd);
@@ -120,24 +139,97 @@ export function MileageForm(props: {
             <span className="mt-1 block text-xs opacity-60">≈ {estimate} (estimated)</span>
           ) : null}
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">From</span>
-          <input
-            name="tripFrom"
-            defaultValue={i?.tripFrom ?? props.prefill?.tripFrom ?? ""}
-            className={inputClass}
-            placeholder="Main Office"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">To</span>
-          <input
-            name="tripTo"
-            defaultValue={i?.tripTo ?? props.prefill?.tripTo ?? ""}
-            className={inputClass}
-            placeholder="Houston Warehouse 1"
-          />
-        </label>
+        {withStops ? (
+          <div className="space-y-3 sm:col-span-2">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">From</span>
+              <input
+                name="tripFrom"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className={inputClass}
+                placeholder="Main Office"
+              />
+            </label>
+            {stops.map((s, n) => (
+              <div key={n} className="flex items-end gap-2">
+                <label className="block flex-1">
+                  <span className="mb-1 block text-sm font-medium">Stop {n + 1}</span>
+                  <input
+                    name="stop"
+                    value={s}
+                    onChange={(e) => setStops(stops.map((v, k) => (k === n ? e.target.value : v)))}
+                    className={inputClass}
+                    placeholder="Customer site or address"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setStops(stops.filter((_, k) => k !== n))}
+                  className="min-h-9 rounded-md border border-black/15 px-3 text-sm dark:border-white/20"
+                  aria-label={`Remove stop ${n + 1}`}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setStops([...stops, ""])}
+              className="text-sm underline"
+              disabled={stops.length >= 10}
+            >
+              + Add a stop
+            </button>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">To</span>
+              <input
+                name="tripTo"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className={inputClass}
+                placeholder="Houston Warehouse 1"
+              />
+            </label>
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={calculate}
+                disabled={calc.working || !from.trim() || !to.trim()}
+                className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium disabled:opacity-50 dark:border-white/20"
+              >
+                {calc.working ? "Calculating…" : "Calculate miles from these places"}
+              </button>
+              {calc.legs ? (
+                <p className="text-xs opacity-70">
+                  Driving: {calc.legs.map((l) => `${l.toFixed(1)} mi`).join(" + ")}. You can adjust the miles above.
+                </p>
+              ) : null}
+              {calc.error ? <p className="text-xs text-red-600">{calc.error}</p> : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">From</span>
+              <input
+                name="tripFrom"
+                defaultValue={i?.tripFrom ?? props.prefill?.tripFrom ?? ""}
+                className={inputClass}
+                placeholder="Main Office"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">To</span>
+              <input
+                name="tripTo"
+                defaultValue={i?.tripTo ?? props.prefill?.tripTo ?? ""}
+                className={inputClass}
+                placeholder="Houston Warehouse 1"
+              />
+            </label>
+          </>
+        )}
       </div>
 
       <fieldset className="space-y-4 rounded-lg border border-black/10 p-3 dark:border-white/15">

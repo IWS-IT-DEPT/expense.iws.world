@@ -143,14 +143,14 @@ export function TripPanel({ trip, ratePerMile, routing }: Props) {
           type="button"
           disabled={disabled || trip.stops.length < 2}
           className={primary}
-          onClick={() => run("Ending…", async () => addStop(await currentPosition()), () => router.push(`/expenses/mileage?trip=${trip.id}`))}
+          onClick={() => run("Ending…", async () => addStop(await currentPosition()), () => router.push(`/expenses/mileage/manual?trip=${trip.id}`))}
         >
           {working === "Ending…" ? working : "End trip here"}
         </button>
       </div>
       {trip.stops.length > 1 ? (
         <Link
-          href={`/expenses/mileage?trip=${trip.id}`}
+          href={`/expenses/mileage/manual?trip=${trip.id}`}
           className="block text-center text-sm underline opacity-80"
         >
           End the trip at the last stop ({last.label.split(",")[0]}) without adding a new one

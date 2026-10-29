@@ -173,3 +173,36 @@ export async function cancelTrip(): Promise<Result> {
   revalidatePath("/expenses/trip");
   return { ok: true };
 }
+
+/**
+ * Manual entry: work out the driving miles for a typed route (start, any stops, end).
+ * Each place can be an address or the name of a saved location.
+ */
+export async function calculateRoute(
+  places: string[],
+): Promise<{ ok: true; legs: number[]; total: number } | { ok: false; error: string }> {
+  await requireUser();
+  const names = places.map((p) => p.trim()).filter(Boolean);
+  if (names.length < 2 || names.length > 12) {
+    return { ok: false, error: "Enter where you started and where you ended." };
+  }
+  const sites = await db.query.locations.findMany({ where: eq(locations.active, true) });
+  const points: LatLng[] = [];
+  for (const name of names) {
+    const site = sites.find(
+      (s) => s.latitude !== null && s.longitude !== null && s.name.toLowerCase() === name.toLowerCase(),
+    );
+    const hit = site
+      ? { lat: Number(site.latitude), lng: Number(site.longitude) }
+      : await forwardGeocode(name);
+    if (!hit) return { ok: false, error: `Couldn't find "${name}". Add the city and state.` };
+    points.push({ lat: hit.lat, lng: hit.lng });
+  }
+  const legs: number[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const miles = await drivingMiles(points[i - 1], points[i]);
+    if (miles === null) return { ok: false, error: "Couldn't work out the driving distance. Type the miles instead." };
+    legs.push(miles);
+  }
+  return { ok: true, legs, total: Math.round(legs.reduce((a, b) => a + b, 0) * 10) / 10 };
+}

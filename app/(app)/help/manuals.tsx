@@ -142,7 +142,9 @@ const cardholder: Manual = {
         <li><strong>Location</strong> — which site? (The entity&apos;s own sites are listed first.)</li>
         <li>
           <strong>Truck/unit or job</strong> — only shown when the company needs one (for example trucks for
-          Rolling Green and Gravel Grabbers, jobs for Precision Construction Repair).
+          Rolling Green and Gravel Grabbers, jobs for Precision Construction Repair). If you&apos;ve been
+          excused from job codes, you won&apos;t be asked for a job even where the company normally requires
+          one.
         </li>
         <li><strong>Category</strong> — what kind of expense?</li>
         <li><strong>Business purpose</strong> — a short sentence on why. Be specific (&ldquo;Fuel for Truck 07, Houston run&rdquo;).</li>
@@ -183,17 +185,52 @@ const cardholder: Manual = {
       </OL>
 
       <H>Mileage</H>
+      <P>
+        Click <strong>+ Mileage</strong>. You have two ways to log it:
+      </P>
+      <H>Option 1 — Start trip (tap at each stop)</H>
       <OL>
-        <li>Click <strong>+ Mileage</strong>.</li>
         <li>
-          Enter the <strong>date</strong>, <strong>miles</strong>, and where you went <strong>from</strong> and{" "}
-          <strong>to</strong>, plus the coding.
+          Tap <strong>Start trip</strong> when you leave. The app notes where you are.
         </li>
         <li>
-          The dollar amount is worked out for you from the IRS rate in effect on that date. You never type a
-          rate.
+          At each place you stop, open the app and tap <strong>Add stop here</strong>. The driving miles from
+          the previous stop are worked out and the running total is shown. Rename a stop if you like
+          (&ldquo;Smith job site&rdquo;), or type your own miles for a leg if the route was different.
+        </li>
+        <li>
+          When you&apos;re done, tap <strong>End trip here</strong> (or{" "}
+          <strong>End the trip at the last stop</strong> if you already added where you finished). The whole trip
+          opens as <em>one</em> mileage entry with the total miles filled in. Add the coding and save.
+        </li>
+        <li>
+          The app only reads your location at the moment you tap a button — never in the background or while
+          the app is closed. The first time, allow location when your phone asks. If location is off or not
+          working, use <strong>Or add a stop by address</strong>.
+        </li>
+        <li>
+          Left a trip open? Go to <strong>+ Mileage</strong> and tap <strong>Continue trip</strong>. You can
+          only have one trip open at a time; <strong>Discard this trip</strong> throws it away.
         </li>
       </OL>
+      <H>Option 2 — Add mileage manually</H>
+      <OL>
+        <li>Tap <strong>Add mileage manually</strong>.</li>
+        <li>
+          Enter the <strong>date</strong>, where you went <strong>from</strong> and <strong>to</strong>, and
+          use <strong>+ Add a stop</strong> for any places in between. Each place can be an address or the
+          name of a company location (like &ldquo;Main Office&rdquo;).
+        </li>
+        <li>
+          Tap <strong>Calculate miles from these places</strong> to fill in the driving miles, or just type
+          the miles yourself. Then add the coding and save.
+        </li>
+      </OL>
+      <P>
+        Either way you get a single mileage entry, and the dollar amount is worked out from the IRS rate in
+        effect on that date — you never type a rate. Stops you passed through are shown on the entry as
+        &ldquo;(via …)&rdquo;.
+      </P>
 
       <H>The weekly report (This Week)</H>
       <UL>
@@ -324,7 +361,10 @@ const accounting: Manual = {
           confirmation first; an entity with expense history can&apos;t be deleted — untick{" "}
           <strong>Active</strong> to retire it instead.
         </li>
-        <li><strong>Locations</strong> and <strong>Units</strong> (trucks) / <strong>Jobs</strong>.</li>
+        <li>
+          <strong>Locations</strong> (add each site&apos;s street address so mileage stops at that site are named
+          after it — the address is looked up on save) and <strong>Units</strong> (trucks) / <strong>Jobs</strong>.
+        </li>
         <li><strong>Categories</strong> — expense types.</li>
         <li><strong>Cards</strong> — view and edit any cardholder&apos;s registered cards.</li>
       </UL>
@@ -486,7 +526,8 @@ const admin: Manual = {
       <UL>
         <li>
           The Users tab is a searchable list. <strong>Click a person</strong> to open their page: change their
-          name, role (for approvers), home entity and location, and whether they can log mileage. The Save bar
+          name, role (for approvers), home entity and location, whether they can log mileage, and whether
+          they are <strong>exempt from job codes</strong>. The Save bar
           appears only once you&apos;ve changed something.
         </li>
         <li>
@@ -510,6 +551,20 @@ const admin: Manual = {
         <li>
           Only people whose email is on an allowed company domain can sign in at all (set by the
           environment, not in the app).
+        </li>
+      </UL>
+
+      <H>Job codes: who needs them</H>
+      <UL>
+        <li>
+          Which <em>companies</em> require a job code is set on each entity&apos;s page under{" "}
+          <strong>Settings → Entities → Costing</strong>: choose <strong>Job code required</strong> (or{" "}
+          <strong>Unit or job code required</strong>). It applies to everyone logging for that company.
+        </li>
+        <li>
+          To excuse particular <em>people</em>, open them under <strong>Settings → Users</strong> and tick{" "}
+          <strong>Exempt from job codes</strong>. They are never asked for a job, even on companies that require
+          one. Categories flagged &ldquo;requires job or unit&rdquo; still apply to them.
         </li>
       </UL>
 
@@ -565,6 +620,12 @@ const admin: Manual = {
         </li>
         <li>
           <strong>Mileage won&apos;t save.</strong> No IRS rate exists on or before that date — add one.
+        </li>
+        <li>
+          <strong>Trip miles aren&apos;t calculated.</strong> Driving distance and street addresses come from
+          Mapbox (the <code>MAPBOX_ACCESS_TOKEN</code> setting). If it&apos;s missing, expired or over its
+          limit, people can still log trips by typing the miles for each leg. If &ldquo;Add stop&rdquo; says it
+          can&apos;t read their location, location is blocked for the app in their phone settings.
         </li>
         <li>
           <strong>Nobody can approve something.</strong> Nobody can approve their own expenses; make
