@@ -21,12 +21,11 @@ import {
   policySettings,
   qboConnections,
   qboDimensions,
-  transactions,
   units,
   userRole,
   users,
 } from "@/db/schema";
-import { entityBlockers } from "@/lib/admin-usage";
+import { cardBlockers, entityBlockers } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
 import { getUserGroupIds } from "@/lib/graph";
 import {
@@ -480,6 +479,11 @@ export async function deleteCategory(fd: FormData) {
 /* -------------------------------------------------------------------- cards */
 
 const CARD_NETWORKS = ["visa", "mastercard", "amex", "discover", "other"] as const;
+const LAST4_RE = /^[0-9]{4}$/;
+
+function cardError(path: string, message: string): never {
+  redirect(`${path}?error=${encodeURIComponent(message)}`);
+}
 
 /** Admin/finance add or edit of a card (typo fix / reassign / deactivate). */
 export async function upsertCard(fd: FormData) {
@@ -495,25 +499,53 @@ export async function upsertCard(fd: FormData) {
     displayName: opt(fd, "displayName"),
     active: bool(fd, "active"),
   };
-  if (id) await db.update(cards).set(values).where(eq(cards.id, id));
-  else {
-    if (!values.last4) return;
-    await db.insert(cards).values(values);
+  const back = id ? `/admin/cards/${id}` : "/admin/cards/new";
+  if (!LAST4_RE.test(values.last4)) cardError(back, "The last 4 must be exactly 4 digits.");
+
+  const clash = async () => {
+    if (!values.userId) return false;
+    const other = await db.query.cards.findFirst({
+      where: and(eq(cards.userId, values.userId), eq(cards.last4, values.last4)),
+    });
+    return !!other && other.id !== id;
+  };
+
+  if (id) {
+    const current = await db.query.cards.findFirst({ where: eq(cards.id, id) });
+    if (!current) return;
+    const renumbering = values.last4 !== current.last4;
+    const deactivating = current.active && !values.active;
+    if ((renumbering || deactivating) && str(fd, "confirmLast4") !== current.last4) {
+      cardError(back, `Type the current last 4 (${current.last4}) to confirm that change.`);
+    }
+    if (await clash()) cardError(back, "That person already has a card ending in those digits.");
+    await db.update(cards).set(values).where(eq(cards.id, id));
+    await done("/admin/cards");
+    revalidatePath(back);
+    return;
   }
+  if (await clash()) cardError(back, "That person already has a card ending in those digits.");
+  const [created] = await db.insert(cards).values(values).returning({ id: cards.id });
   await done("/admin/cards");
+  redirect(`/admin/cards/${created.id}`);
 }
 
 export async function deleteCard(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
   if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(transactions).where(eq(transactions.cardId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.cardId, id)),
-  ]);
-  if (inUse) return;
+  const card = await db.query.cards.findFirst({ where: eq(cards.id, id) });
+  if (!card) return;
+  // Typed confirmation, enforced here as well as in the form.
+  if (str(fd, "confirm") !== `delete ${card.last4}`) return;
+  // Re-checked here, not just on the page: history means turn it off, don't delete.
+  if ((await cardBlockers(id)).length > 0) return;
+  await db
+    .delete(dimensionMappings)
+    .where(and(eq(dimensionMappings.localType, "card"), eq(dimensionMappings.localId, id)));
   await db.delete(cards).where(eq(cards.id, id));
   await done("/admin/cards");
+  redirect("/admin/cards");
 }
 
 /* ------------------------------------------------------------------ mileage */

@@ -144,3 +144,17 @@ export async function entityBlockers(entityId: string): Promise<{ label: string;
     { label: "live QuickBooks connection (disconnect it first)", count: connected },
   ].filter((b) => b.count > 0);
 }
+
+/** What stops a card being hard-deleted: expenses (or imported charges) that point at it. */
+export async function cardBlockers(cardId: string): Promise<{ label: string; count: number }[]> {
+  const n = (q: PromiseLike<{ n: number }[]>) => q.then((r) => Number(r[0]?.n ?? 0));
+  const cnt = sql<number>`count(*)`;
+  const [exp, txns] = await Promise.all([
+    n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.cardId, cardId))),
+    n(db.select({ n: cnt }).from(transactions).where(eq(transactions.cardId, cardId))),
+  ]);
+  return [
+    { label: "card expenses", count: exp },
+    { label: "imported transactions", count: txns },
+  ].filter((b) => b.count > 0);
+}

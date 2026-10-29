@@ -1,112 +1,54 @@
+import Link from "next/link";
 import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
-import { cards, users } from "@/db/schema";
-import { usedCardIds } from "@/lib/admin-usage";
+import { cards } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 
-import { DeleteCell, inputClass, SaveButton, Section } from "../_ui";
-import { deleteCard, upsertCard } from "../actions";
-
-const NETWORKS = ["visa", "mastercard", "amex", "discover", "other"];
-
-const GRID = "grid grid-cols-[8rem_4.5rem_minmax(8rem,1fr)_11rem_5rem_auto] items-center gap-2";
+import { cardLabel } from "../../expenses/coding-options";
 
 export default async function AdminCardsPage() {
   await requireRole("admin", "accounting");
-  const [cardRows, userRows, used] = await Promise.all([
-    db.query.cards.findMany({ orderBy: [asc(cards.last4)], with: { user: true } }),
-    db.query.users.findMany({ orderBy: [asc(users.name)] }),
-    usedCardIds(),
-  ]);
-
-  const userOptions = (
-    <>
-      <option value="">— unassigned —</option>
-      {userRows.map((u) => (
-        <option key={u.id} value={u.id}>
-          {u.name}
-        </option>
-      ))}
-    </>
-  );
+  const rows = await db.query.cards.findMany({ orderBy: [asc(cards.last4)], with: { user: true } });
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm opacity-60">
-        Cardholders register their own cards on <span className="font-mono">My Cards</span>. This is
-        for adding one on their behalf, fixing a typo, reassigning, or deactivating a lost card.
-        Delete is available only while no expense references the card.
-      </p>
-
-      <Section title="Add card">
-        <form action={upsertCard} className="flex flex-wrap items-end gap-2">
-          <select name="network" defaultValue="" className={inputClass}>
-            <option value="">network…</option>
-            {NETWORKS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <input name="last4" required maxLength={4} placeholder="1234" className={`${inputClass} w-20`} />
-          <input name="displayName" placeholder="nickname" className={inputClass} />
-          <select name="userId" defaultValue="" className={inputClass}>
-            {userOptions}
-          </select>
-          <input type="hidden" name="active" value="on" />
-          <SaveButton label="Add" />
-        </form>
-      </Section>
-
-      <Section title={`Cards (${cardRows.length})`}>
-        <div className="overflow-x-auto">
-          <div className="min-w-[46rem] space-y-1">
-            <div className={`${GRID} px-1 text-xs font-medium uppercase tracking-wide opacity-50`}>
-              <span>Network</span>
-              <span>Last 4</span>
-              <span>Nickname</span>
-              <span>Cardholder</span>
-              <span>Active</span>
-              <span />
-            </div>
-
-            {cardRows.map((c) => (
-              <form
-                key={c.id}
-                action={upsertCard}
-                className={`${GRID} border-t border-black/10 py-1.5 dark:border-white/10`}
-              >
-                <input type="hidden" name="id" value={c.id} />
-                <select name="network" defaultValue={c.network ?? ""} className={inputClass}>
-                  <option value="">—</option>
-                  {NETWORKS.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <input name="last4" defaultValue={c.last4} maxLength={4} className={inputClass} />
-                <input name="displayName" defaultValue={c.displayName ?? ""} className={inputClass} />
-                <select name="userId" defaultValue={c.userId ?? ""} className={inputClass}>
-                  {userOptions}
-                </select>
-                <label className="flex items-center gap-1 text-xs">
-                  <input type="checkbox" name="active" defaultChecked={c.active} /> active
-                </label>
-                <div className="flex items-center gap-2">
-                  <SaveButton />
-                  <DeleteCell used={used.has(c.id)} action={deleteCard} />
-                </div>
-              </form>
-            ))}
-
-            {cardRows.length === 0 && (
-              <p className="px-1 py-2 text-sm opacity-60">No cards registered yet.</p>
-            )}
-          </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Cards ({rows.length})</h2>
+          <p className="text-xs opacity-60">
+            Cardholders register their own cards on My Cards. Click one to fix a typo, reassign it, turn it
+            off if it&apos;s lost, or delete it.
+          </p>
         </div>
-      </Section>
+        <Link
+          href="/admin/cards/new"
+          className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
+        >
+          + Add card
+        </Link>
+      </div>
+
+      <ul className="divide-y divide-black/10 rounded-lg border border-black/10 dark:divide-white/10 dark:border-white/15">
+        {rows.map((c) => (
+          <li key={c.id}>
+            <Link
+              href={`/admin/cards/${c.id}`}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
+            >
+              <span className="font-medium">{cardLabel(c)}</span>
+              <span className="opacity-60">{c.user?.name ?? "unassigned"}</span>
+              <span className="ml-auto flex items-center gap-3 text-xs opacity-60">
+                {!c.active ? (
+                  <span className="rounded bg-black/10 px-1.5 py-0.5 dark:bg-white/15">turned off</span>
+                ) : null}
+                <span aria-hidden>›</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+        {rows.length === 0 ? <li className="px-4 py-6 text-sm opacity-60">No cards registered yet.</li> : null}
+      </ul>
     </div>
   );
 }
