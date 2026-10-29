@@ -2,22 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  allocations,
   cards,
   categories,
   dimensionMappings,
   entities,
   entityQboSettings,
-  expenseItems,
   jobs,
   locations,
-  merchants,
   mileageRates,
-  pendingExpenses,
   policySettings,
   qboConnections,
   qboDimensions,
@@ -25,7 +21,7 @@ import {
   userRole,
   users,
 } from "@/db/schema";
-import { cardBlockers, entityBlockers } from "@/lib/admin-usage";
+import { cardBlockers, dimensionBlockers, entityBlockers } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
 import { getUserGroupIds } from "@/lib/graph";
 import {
@@ -55,16 +51,6 @@ async function done(path: string) {
   revalidatePath(path);
   revalidatePath("/admin");
 }
-
-/** True if any of the given `count(*)` selects returns a non-zero row. */
-async function referenced(
-  queries: PromiseLike<{ n: number }[]>[],
-): Promise<boolean> {
-  const results = await Promise.all(queries);
-  return results.some((r) => Number(r[0]?.n ?? 0) > 0);
-}
-
-const countExpr = () => sql<number>`count(*)`;
 
 /* -------------------------------------------------------------------- users */
 
@@ -333,74 +319,124 @@ export async function deleteEntity(fd: FormData) {
   redirect("/admin/entities");
 }
 
+/* --------------------------------------------------------- shared helpers */
+
+/** Back to a settings page with a message shown at the top. */
+function fail(path: string, message: string): never {
+  redirect(`${path}?error=${encodeURIComponent(message)}`);
+}
+
+/** Codes/numbers shown on badges and reports: letters, digits, space and - _ . / (max 24). */
+const LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9 _./-]{0,23}$/;
+
+/** Renaming something that appears everywhere is deliberate: the current value must be typed. */
+function needRenameConfirm(fd: FormData, path: string, current: string, next: string) {
+  if (next === current) return;
+  if (str(fd, "confirmChange").toLowerCase() !== current.toLowerCase()) {
+    fail(path, `Type the current value (${current}) to confirm changing it.`);
+  }
+}
+
+/** Remove a dimension's QuickBooks mappings along with the dimension itself. */
+async function dropMappings(localType: string, id: string) {
+  await db
+    .delete(dimensionMappings)
+    .where(and(eq(dimensionMappings.localType, localType), eq(dimensionMappings.localId, id)));
+}
+
 /* ---------------------------------------------------------------- locations */
 
 export async function upsertLocation(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = opt(fd, "id");
+  const back = id ? `/admin/locations/${id}` : "/admin/locations/new";
   const values = {
     code: str(fd, "code").toUpperCase(),
     name: str(fd, "name"),
     homeEntityId: opt(fd, "homeEntityId"),
     active: bool(fd, "active"),
   };
-  if (id) await db.update(locations).set(values).where(eq(locations.id, id));
-  else await db.insert(locations).values(values);
+  if (!values.name) fail(back, "Name is required.");
+  const current = id ? await db.query.locations.findFirst({ where: eq(locations.id, id) }) : null;
+  if (id && !current) return;
+  if (!current || values.code !== current.code) {
+    if (!LABEL_RE.test(values.code)) fail(back, "Code: letters, digits, space, - _ . / (max 24).");
+    const clash = await db.query.locations.findFirst({ where: eq(locations.code, values.code) });
+    if (clash && clash.id !== id) fail(back, `The code ${values.code} is already used by ${clash.name}.`);
+  }
+  if (current) {
+    needRenameConfirm(fd, back, current.code, values.code);
+    await db.update(locations).set(values).where(eq(locations.id, current.id));
+    await done("/admin/locations");
+    revalidatePath(back);
+    return;
+  }
+  const [created] = await db.insert(locations).values(values).returning({ id: locations.id });
   await done("/admin/locations");
+  redirect(`/admin/locations/${created.id}`);
 }
 
 export async function deleteLocation(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
-  if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(users).where(eq(users.homeLocationId, id)),
-    db.select({ n: countExpr() }).from(allocations).where(eq(allocations.locationId, id)),
-    db.select({ n: countExpr() }).from(expenseItems).where(eq(expenseItems.locationId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.locationId, id)),
-    db
-      .select({ n: countExpr() })
-      .from(dimensionMappings)
-      .where(and(eq(dimensionMappings.localType, "location"), eq(dimensionMappings.localId, id))),
-  ]);
-  if (inUse) return;
+  const row = id ? await db.query.locations.findFirst({ where: eq(locations.id, id) }) : null;
+  if (!row || str(fd, "confirm") !== `delete ${row.code}`) return;
+  if ((await dimensionBlockers("location", id)).length > 0) return;
+  await dropMappings("location", id);
   await db.delete(locations).where(eq(locations.id, id));
   await done("/admin/locations");
+  redirect("/admin/locations");
 }
 
 /* -------------------------------------------------------------------- units */
 
+const UNIT_TYPES = ["truck", "tractor", "trailer", "equipment", "other"] as const;
+
 export async function upsertUnit(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = opt(fd, "id");
+  const back = id ? `/admin/units/${id}` : "/admin/units/new";
+  const type = str(fd, "type");
   const values = {
-    entityId: str(fd, "entityId"),
     unitNumber: str(fd, "unitNumber"),
     description: opt(fd, "description"),
-    type: str(fd, "type") as "truck" | "tractor" | "trailer" | "equipment" | "other",
+    type: (UNIT_TYPES as readonly string[]).includes(type) ? (type as (typeof UNIT_TYPES)[number]) : "other",
     active: bool(fd, "active"),
   };
-  if (id) await db.update(units).set(values).where(eq(units.id, id));
-  else await db.insert(units).values(values);
+  if (!values.unitNumber) fail(back, "Unit number is required.");
+  const current = id ? await db.query.units.findFirst({ where: eq(units.id, id) }) : null;
+  if (id && !current) return;
+  // A unit belongs to one entity for life: its QuickBooks mappings are per entity.
+  const entityId = current ? current.entityId : str(fd, "entityId");
+  if (!entityId) fail(back, "Pick the entity this unit belongs to.");
+  if (!current || values.unitNumber !== current.unitNumber) {
+    const clash = await db.query.units.findFirst({
+      where: and(eq(units.entityId, entityId), eq(units.unitNumber, values.unitNumber)),
+    });
+    if (clash && clash.id !== id) fail(back, `That entity already has a unit "${values.unitNumber}".`);
+  }
+  if (current) {
+    needRenameConfirm(fd, back, current.unitNumber, values.unitNumber);
+    await db.update(units).set(values).where(eq(units.id, current.id));
+    await done("/admin/units");
+    revalidatePath(back);
+    return;
+  }
+  const [created] = await db.insert(units).values({ ...values, entityId }).returning({ id: units.id });
   await done("/admin/units");
+  redirect(`/admin/units/${created.id}`);
 }
 
 export async function deleteUnit(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
-  if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(allocations).where(eq(allocations.unitId, id)),
-    db.select({ n: countExpr() }).from(expenseItems).where(eq(expenseItems.unitId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.unitId, id)),
-    db
-      .select({ n: countExpr() })
-      .from(dimensionMappings)
-      .where(and(eq(dimensionMappings.localType, "unit"), eq(dimensionMappings.localId, id))),
-  ]);
-  if (inUse) return;
+  const row = id ? await db.query.units.findFirst({ where: eq(units.id, id) }) : null;
+  if (!row || str(fd, "confirm") !== `delete ${row.unitNumber}`) return;
+  if ((await dimensionBlockers("unit", id)).length > 0) return;
+  await dropMappings("unit", id);
   await db.delete(units).where(eq(units.id, id));
   await done("/admin/units");
+  redirect("/admin/units");
 }
 
 /* --------------------------------------------------------------------- jobs */
@@ -408,35 +444,47 @@ export async function deleteUnit(fd: FormData) {
 export async function upsertJob(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = opt(fd, "id");
+  const back = id ? `/admin/jobs/${id}` : "/admin/jobs/new";
   const values = {
-    entityId: str(fd, "entityId"),
     jobNumber: str(fd, "jobNumber"),
     name: opt(fd, "name"),
     customerName: opt(fd, "customerName"),
     status: str(fd, "status") === "closed" ? ("closed" as const) : ("open" as const),
     active: bool(fd, "active"),
   };
-  if (id) await db.update(jobs).set(values).where(eq(jobs.id, id));
-  else await db.insert(jobs).values(values);
+  if (!values.jobNumber) fail(back, "Job number is required.");
+  const current = id ? await db.query.jobs.findFirst({ where: eq(jobs.id, id) }) : null;
+  if (id && !current) return;
+  const entityId = current ? current.entityId : str(fd, "entityId");
+  if (!entityId) fail(back, "Pick the entity this job belongs to.");
+  if (!current || values.jobNumber !== current.jobNumber) {
+    const clash = await db.query.jobs.findFirst({
+      where: and(eq(jobs.entityId, entityId), eq(jobs.jobNumber, values.jobNumber)),
+    });
+    if (clash && clash.id !== id) fail(back, `That entity already has a job "${values.jobNumber}".`);
+  }
+  if (current) {
+    needRenameConfirm(fd, back, current.jobNumber, values.jobNumber);
+    await db.update(jobs).set(values).where(eq(jobs.id, current.id));
+    await done("/admin/jobs");
+    revalidatePath(back);
+    return;
+  }
+  const [created] = await db.insert(jobs).values({ ...values, entityId }).returning({ id: jobs.id });
   await done("/admin/jobs");
+  redirect(`/admin/jobs/${created.id}`);
 }
 
 export async function deleteJob(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
-  if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(allocations).where(eq(allocations.jobId, id)),
-    db.select({ n: countExpr() }).from(expenseItems).where(eq(expenseItems.jobId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.jobId, id)),
-    db
-      .select({ n: countExpr() })
-      .from(dimensionMappings)
-      .where(and(eq(dimensionMappings.localType, "job"), eq(dimensionMappings.localId, id))),
-  ]);
-  if (inUse) return;
+  const row = id ? await db.query.jobs.findFirst({ where: eq(jobs.id, id) }) : null;
+  if (!row || str(fd, "confirm") !== `delete ${row.jobNumber}`) return;
+  if ((await dimensionBlockers("job", id)).length > 0) return;
+  await dropMappings("job", id);
   await db.delete(jobs).where(eq(jobs.id, id));
   await done("/admin/jobs");
+  redirect("/admin/jobs");
 }
 
 /* --------------------------------------------------------------- categories */
@@ -444,36 +492,46 @@ export async function deleteJob(fd: FormData) {
 export async function upsertCategory(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = opt(fd, "id");
+  const back = id ? `/admin/categories/${id}` : "/admin/categories/new";
   const values = {
     code: str(fd, "code").toUpperCase(),
     name: str(fd, "name"),
+    description: opt(fd, "description"),
     requiresJobOrUnit: bool(fd, "requiresJobOrUnit"),
     receiptAlwaysRequired: bool(fd, "receiptAlwaysRequired"),
     sortOrder: int(fd, "sortOrder") ?? 100,
     active: bool(fd, "active"),
   };
-  if (id) await db.update(categories).set(values).where(eq(categories.id, id));
-  else await db.insert(categories).values(values);
+  if (!values.name) fail(back, "Name is required.");
+  const current = id ? await db.query.categories.findFirst({ where: eq(categories.id, id) }) : null;
+  if (id && !current) return;
+  if (!current || values.code !== current.code) {
+    if (!LABEL_RE.test(values.code)) fail(back, "Code: letters, digits, space, - _ . / (max 24).");
+    const clash = await db.query.categories.findFirst({ where: eq(categories.code, values.code) });
+    if (clash && clash.id !== id) fail(back, `The code ${values.code} is already used by ${clash.name}.`);
+  }
+  if (current) {
+    needRenameConfirm(fd, back, current.code, values.code);
+    await db.update(categories).set(values).where(eq(categories.id, current.id));
+    await done("/admin/categories");
+    revalidatePath(back);
+    return;
+  }
+  const [created] = await db.insert(categories).values(values).returning({ id: categories.id });
   await done("/admin/categories");
+  redirect(`/admin/categories/${created.id}`);
 }
 
 export async function deleteCategory(fd: FormData) {
   await requireRole("admin", "accounting");
   const id = str(fd, "id");
-  if (!id) return;
-  const inUse = await referenced([
-    db.select({ n: countExpr() }).from(allocations).where(eq(allocations.categoryId, id)),
-    db.select({ n: countExpr() }).from(expenseItems).where(eq(expenseItems.categoryId, id)),
-    db.select({ n: countExpr() }).from(pendingExpenses).where(eq(pendingExpenses.categoryId, id)),
-    db.select({ n: countExpr() }).from(merchants).where(eq(merchants.defaultCategoryId, id)),
-    db
-      .select({ n: countExpr() })
-      .from(dimensionMappings)
-      .where(and(eq(dimensionMappings.localType, "category"), eq(dimensionMappings.localId, id))),
-  ]);
-  if (inUse) return;
+  const row = id ? await db.query.categories.findFirst({ where: eq(categories.id, id) }) : null;
+  if (!row || str(fd, "confirm") !== `delete ${row.code}`) return;
+  if ((await dimensionBlockers("category", id)).length > 0) return;
+  await dropMappings("category", id);
   await db.delete(categories).where(eq(categories.id, id));
   await done("/admin/categories");
+  redirect("/admin/categories");
 }
 
 /* -------------------------------------------------------------------- cards */
@@ -550,32 +608,51 @@ export async function deleteCard(fd: FormData) {
 
 /* ------------------------------------------------------------------ mileage */
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function upsertMileageRate(fd: FormData) {
   await requireRole("admin", "payroll");
   const id = opt(fd, "id");
+  const back = id ? `/admin/mileage/${id}` : "/admin/mileage/new";
+  const rate = Number(str(fd, "ratePerMile"));
   const values = {
     effectiveDate: str(fd, "effectiveDate"),
-    ratePerMile: str(fd, "ratePerMile"),
+    ratePerMile: Number.isFinite(rate) && rate > 0 && rate < 10 ? rate.toFixed(4) : "",
     source: str(fd, "source") || "IRS",
     note: opt(fd, "note"),
   };
-  if (id) await db.update(mileageRates).set(values).where(eq(mileageRates.id, id));
-  else await db.insert(mileageRates).values(values);
+  if (!DATE_RE.test(values.effectiveDate)) fail(back, "Pick the date the rate takes effect.");
+  if (!values.ratePerMile) fail(back, "Enter the rate in dollars per mile, e.g. 0.7000.");
+  const clash = await db.query.mileageRates.findFirst({ where: eq(mileageRates.effectiveDate, values.effectiveDate) });
+  if (clash && clash.id !== id) fail(back, `A rate already starts on ${values.effectiveDate}.`);
+
+  if (id) {
+    const current = await db.query.mileageRates.findFirst({ where: eq(mileageRates.id, id) });
+    if (!current) return;
+    const moved = values.effectiveDate !== current.effectiveDate || Number(values.ratePerMile) !== Number(current.ratePerMile);
+    if (moved && str(fd, "confirmChange").toLowerCase() !== "change rate") {
+      fail(back, 'Type "change rate" to confirm changing the date or amount.');
+    }
+    await db.update(mileageRates).set(values).where(eq(mileageRates.id, id));
+    await done("/admin/mileage");
+    revalidatePath(back);
+    return;
+  }
+  const [created] = await db.insert(mileageRates).values(values).returning({ id: mileageRates.id });
   await done("/admin/mileage");
+  redirect(`/admin/mileage/${created.id}`);
 }
 
 /** Remove a rate — only when no mileage line references it (kept for the audit). */
 export async function deleteMileageRate(fd: FormData) {
   await requireRole("admin", "payroll");
   const id = str(fd, "id");
-  if (!id) return;
-  const [used] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(expenseItems)
-    .where(eq(expenseItems.mileageRateId, id));
-  if (Number(used.n) > 0) return; // in use — leave it alone
+  const row = id ? await db.query.mileageRates.findFirst({ where: eq(mileageRates.id, id) }) : null;
+  if (!row || str(fd, "confirm") !== `delete ${row.effectiveDate}`) return;
+  if ((await dimensionBlockers("mileage", id)).length > 0) return;
   await db.delete(mileageRates).where(eq(mileageRates.id, id));
   await done("/admin/mileage");
+  redirect("/admin/mileage");
 }
 
 /* ------------------------------------------------------------------- policy */

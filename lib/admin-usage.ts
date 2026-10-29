@@ -158,3 +158,69 @@ export async function cardBlockers(cardId: string): Promise<{ label: string; cou
     { label: "imported transactions", count: txns },
   ].filter((b) => b.count > 0);
 }
+
+export type DimensionKind = "location" | "unit" | "job" | "category" | "mileage";
+
+/** What stops a location / unit / job / category / mileage rate being hard-deleted. */
+export async function dimensionBlockers(kind: DimensionKind, id: string): Promise<{ label: string; count: number }[]> {
+  const n = (q: PromiseLike<{ n: number }[]>) => q.then((r) => Number(r[0]?.n ?? 0));
+  const cnt = sql<number>`count(*)`;
+  let rows: { label: string; count: number }[] = [];
+  if (kind === "location") {
+    const [people, allocs, items, exp] = await Promise.all([
+      n(db.select({ n: cnt }).from(users).where(eq(users.homeLocationId, id))),
+      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.locationId, id))),
+      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.locationId, id))),
+      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.locationId, id))),
+    ]);
+    rows = [
+      { label: "card expenses", count: exp },
+      { label: "out-of-pocket / mileage expenses", count: items },
+      { label: "coded allocations", count: allocs },
+      { label: "employees (home location)", count: people },
+    ];
+  } else if (kind === "unit") {
+    const [allocs, items, exp] = await Promise.all([
+      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.unitId, id))),
+      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.unitId, id))),
+      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.unitId, id))),
+    ]);
+    rows = [
+      { label: "card expenses", count: exp },
+      { label: "out-of-pocket / mileage expenses", count: items },
+      { label: "coded allocations", count: allocs },
+    ];
+  } else if (kind === "job") {
+    const [allocs, items, exp] = await Promise.all([
+      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.jobId, id))),
+      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.jobId, id))),
+      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.jobId, id))),
+    ]);
+    rows = [
+      { label: "card expenses", count: exp },
+      { label: "out-of-pocket / mileage expenses", count: items },
+      { label: "coded allocations", count: allocs },
+    ];
+  } else if (kind === "category") {
+    const [allocs, items, exp, merch] = await Promise.all([
+      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.categoryId, id))),
+      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.categoryId, id))),
+      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.categoryId, id))),
+      n(db.select({ n: cnt }).from(merchants).where(eq(merchants.defaultCategoryId, id))),
+    ]);
+    rows = [
+      { label: "card expenses", count: exp },
+      { label: "out-of-pocket / mileage expenses", count: items },
+      { label: "coded allocations", count: allocs },
+      { label: "merchants with this as their default", count: merch },
+    ];
+  } else {
+    rows = [
+      {
+        label: "mileage lines calculated with this rate",
+        count: await n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.mileageRateId, id))),
+      },
+    ];
+  }
+  return rows.filter((r) => r.count > 0);
+}

@@ -2,65 +2,36 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { categories } from "@/db/schema";
-import { usedCategoryIds } from "@/lib/admin-usage";
 import { requireRole } from "@/lib/current-user";
 
-import { DeleteCell, inputClass, Row, SaveButton, Section, Table } from "../_ui";
-import { deleteCategory, upsertCategory } from "../actions";
+import { ListHeader, RowLink, RowList } from "../_ui";
 
 export default async function AdminCategoriesPage() {
   await requireRole("admin", "accounting");
-  const [rows, used] = await Promise.all([
-    db.query.categories.findMany({ orderBy: [asc(categories.sortOrder)] }),
-    usedCategoryIds(),
-  ]);
+  const rows = await db.query.categories.findMany({ orderBy: [asc(categories.sortOrder), asc(categories.name)] });
 
   return (
-    <div className="space-y-8">
-      <Section title="Add category">
-        <form action={upsertCategory} className="flex flex-wrap items-end gap-2">
-          <input name="code" required placeholder="CODE" className={`${inputClass} w-28`} />
-          <input name="name" required placeholder="Name" className={inputClass} />
-          <input name="sortOrder" type="number" defaultValue={100} className={`${inputClass} w-20`} />
-          <label className="flex items-center gap-1 text-xs">
-            <input type="checkbox" name="requiresJobOrUnit" /> needs job/unit
-          </label>
-          <label className="flex items-center gap-1 text-xs">
-            <input type="checkbox" name="receiptAlwaysRequired" /> always receipt
-          </label>
-          <input type="hidden" name="active" value="on" />
-          <SaveButton label="Add" />
-        </form>
-      </Section>
-
-      <Section title={`Categories (${rows.length})`}>
-        <Table head={["Code", "Name", "Sort", "Job/unit", "Receipt", "Active", ""]}>
-          {rows.map((c) => (
-            <Row key={c.id}>
-              <td className="py-2 pr-3 font-mono">{c.code}</td>
-              <td colSpan={6}>
-                <form action={upsertCategory} className="flex flex-wrap items-center gap-2 py-1">
-                  <input type="hidden" name="id" value={c.id} />
-                  <input name="code" defaultValue={c.code} className={`${inputClass} w-28`} />
-                  <input name="name" defaultValue={c.name} className={inputClass} />
-                  <input name="sortOrder" type="number" defaultValue={c.sortOrder} className={`${inputClass} w-20`} />
-                  <label className="flex items-center gap-1 text-xs">
-                    <input type="checkbox" name="requiresJobOrUnit" defaultChecked={c.requiresJobOrUnit} /> job/unit
-                  </label>
-                  <label className="flex items-center gap-1 text-xs">
-                    <input type="checkbox" name="receiptAlwaysRequired" defaultChecked={c.receiptAlwaysRequired} /> receipt
-                  </label>
-                  <label className="flex items-center gap-1 text-xs">
-                    <input type="checkbox" name="active" defaultChecked={c.active} /> active
-                  </label>
-                  <SaveButton />
-                  <DeleteCell used={used.has(c.id)} action={deleteCategory} />
-                </form>
-              </td>
-            </Row>
-          ))}
-        </Table>
-      </Section>
+    <div className="space-y-4">
+      <ListHeader
+        title="Categories"
+        count={rows.length}
+        blurb="The expense categories people pick from. Click one to edit or delete it."
+        addHref="/admin/categories/new"
+        addLabel="+ Add category"
+      />
+      <RowList empty="No categories yet.">
+        {rows.map((c) => (
+          <RowLink key={c.id} href={`/admin/categories/${c.id}`} off={!c.active}>
+            <span className="font-mono">{c.code}</span>
+            <span className="font-medium">{c.name}</span>
+            <span className="text-xs opacity-60">
+              {[c.requiresJobOrUnit ? "needs job/unit" : null, c.receiptAlwaysRequired ? "always receipt" : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </RowLink>
+        ))}
+      </RowList>
     </div>
   );
 }
