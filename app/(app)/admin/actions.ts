@@ -36,6 +36,7 @@ import {
 import { sendEmail } from "@/lib/email";
 import { renderEmail } from "@/lib/email-template";
 import { MAIL_GROUPS, parseAddresses, resolveRecipients, type MailGroup } from "@/lib/mail-settings";
+import { forwardGeocode, mapboxConfigured } from "@/lib/mapbox";
 import { notifyWelcome } from "@/lib/notify";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -356,6 +357,7 @@ export async function upsertLocation(fd: FormData) {
     name: str(fd, "name"),
     homeEntityId: opt(fd, "homeEntityId"),
     active: bool(fd, "active"),
+    address: opt(fd, "address"),
   };
   if (!values.name) fail(back, "Name is required.");
   const current = id ? await db.query.locations.findFirst({ where: eq(locations.id, id) }) : null;
@@ -365,14 +367,24 @@ export async function upsertLocation(fd: FormData) {
     const clash = await db.query.locations.findFirst({ where: eq(locations.code, values.code) });
     if (clash && clash.id !== id) fail(back, `The code ${values.code} is already used by ${clash.name}.`);
   }
+  // Find the address on the map so mileage stops near it are named after the site.
+  let point: { latitude: string | null; longitude: string | null } = { latitude: null, longitude: null };
+  if (values.address && values.address === current?.address && current.latitude) {
+    point = { latitude: current.latitude, longitude: current.longitude };
+  } else if (values.address) {
+    const hit = await forwardGeocode(values.address);
+    if (!hit && mapboxConfigured) fail(back, "Couldn't find that address on the map. Add the city and state.");
+    if (hit) point = { latitude: hit.lat.toFixed(6), longitude: hit.lng.toFixed(6) };
+  }
+  const row = { ...values, ...point };
   if (current) {
     needRenameConfirm(fd, back, current.code, values.code);
-    await db.update(locations).set(values).where(eq(locations.id, current.id));
+    await db.update(locations).set(row).where(eq(locations.id, current.id));
     await done("/admin/locations");
     revalidatePath(back);
     return;
   }
-  const [created] = await db.insert(locations).values(values).returning({ id: locations.id });
+  const [created] = await db.insert(locations).values(row).returning({ id: locations.id });
   await done("/admin/locations");
   redirect(`/admin/locations/${created.id}`);
 }

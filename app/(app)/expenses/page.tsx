@@ -121,6 +121,11 @@ export default async function ExpensesPage() {
               + Mileage
             </Link>
           )}
+          {user.mileageEligible && (
+            <Link href="/expenses/trip" className={btn}>
+              Start trip
+            </Link>
+          )}
           <Link href="/expenses/history" className={btn}>
             History
           </Link>

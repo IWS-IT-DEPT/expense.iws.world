@@ -44,7 +44,7 @@ export default async function LocationDetailPage({
 
       <DirtyForm
         action={upsertLocation}
-        resetKey={[l.code, l.name, l.homeEntityId, l.active].join("|")}
+        resetKey={[l.code, l.name, l.homeEntityId, l.address, l.active].join("|")}
         className="space-y-4 text-sm"
       >
         <input type="hidden" name="id" value={l.id} />
@@ -71,6 +71,16 @@ export default async function LocationDetailPage({
               </option>
             ))}
           </select>
+        </Field>
+        <Field
+          label="Address"
+          hint={
+            l.latitude
+              ? "Found on the map. Mileage stops within about 250 m are named after this site."
+              : "Optional. Add the full street address (with city and state) so mileage stops here are named after the site."
+          }
+        >
+          <input name="address" defaultValue={l.address ?? ""} className={`${inputClass} w-full`} />
         </Field>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="active" defaultChecked={l.active} />

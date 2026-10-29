@@ -41,11 +41,13 @@ export function MileageForm(props: {
   mileageCategoryId?: string;
   currentRatePerMile?: string;
   initial?: MileageFormInitial;
+  /** A finished trip being turned into the one mileage line. */
+  prefill?: { tripId: string; itemDate: string; miles: string; tripFrom: string; tripTo: string };
 }) {
   const router = useRouter();
   const i = props.initial;
   const editing = !!i;
-  const [miles, setMiles] = useState(i?.miles ?? "");
+  const [miles, setMiles] = useState(i?.miles ?? props.prefill?.miles ?? "");
   const [dirty, setDirty] = useState(false);
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (prev, fd) => {
@@ -85,6 +87,7 @@ export function MileageForm(props: {
   return (
     <form action={action} onChange={() => setDirty(true)} className="space-y-4">
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
+      {props.prefill ? <input type="hidden" name="tripId" value={props.prefill.tripId} /> : null}
       {!editing ? (
         <div className="-mb-2">
           <CancelWorkflow dirty={dirty} what="mileage entry" variant="top" />
@@ -97,7 +100,7 @@ export function MileageForm(props: {
             name="itemDate"
             type="date"
             required
-            defaultValue={i?.itemDate ?? todayInTz()}
+            defaultValue={i?.itemDate ?? props.prefill?.itemDate ?? todayInTz()}
             className={inputClass}
           />
         </label>
@@ -121,7 +124,7 @@ export function MileageForm(props: {
           <span className="mb-1 block text-sm font-medium">From</span>
           <input
             name="tripFrom"
-            defaultValue={i?.tripFrom ?? ""}
+            defaultValue={i?.tripFrom ?? props.prefill?.tripFrom ?? ""}
             className={inputClass}
             placeholder="Main Office"
           />
@@ -130,7 +133,7 @@ export function MileageForm(props: {
           <span className="mb-1 block text-sm font-medium">To</span>
           <input
             name="tripTo"
-            defaultValue={i?.tripTo ?? ""}
+            defaultValue={i?.tripTo ?? props.prefill?.tripTo ?? ""}
             className={inputClass}
             placeholder="Houston Warehouse 1"
           />

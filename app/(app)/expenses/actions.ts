@@ -12,6 +12,7 @@ import {
   pendingExpenses,
   receiptUploadSessions,
   receipts,
+  trips,
 } from "@/db/schema";
 import { effectiveCostingMode, validateCoding, type CostingMode } from "@/lib/coding";
 import { canReview, requireUser } from "@/lib/current-user";
@@ -438,6 +439,14 @@ async function writeItem(
     .insert(expenseItems)
     .values({ userId: user.id, kind, status: "draft", ...values })
     .returning({ id: expenseItems.id });
+  const tripId = String(fd.get("tripId") || "");
+  if (kind === "mileage" && tripId) {
+    // The finished trip is now this one line; the stops stay on the trip as the record.
+    await db
+      .update(trips)
+      .set({ status: "finished", expenseItemId: created.id, endedAt: new Date() })
+      .where(and(eq(trips.id, tripId), eq(trips.userId, user.id), eq(trips.status, "active")));
+  }
   revalidateExpenses();
   return { ok: true, id: created.id };
 }
@@ -477,6 +486,7 @@ export async function voidExpenseItem(fd: FormData): Promise<void> {
   const recs = await db.query.receipts.findMany({ where: eq(receipts.expenseItemId, id) });
   for (const r of recs) await blobStore.delete(r.blobKey);
   await db.delete(receipts).where(eq(receipts.expenseItemId, id));
+  await db.update(trips).set({ expenseItemId: null }).where(eq(trips.expenseItemId, id));
   await db.delete(expenseItems).where(eq(expenseItems.id, id));
   revalidateExpenses();
 }

@@ -29,6 +29,7 @@ full picture. Key facts an agent needs:
   `draft → submitted → reconciled → approved` (`+ rejected`). Owned end-to-end by
   the **`payroll`** team (Entra `HR@iws.world` / `ENTRA_GROUP_HR`), + admin — not
   accounting. Guard every submitter edit on `status in ('draft','rejected')`.
+- **Mileage trips** (`/expenses/trip`): Start trip / Add stop / End trip, one GPS fix per tap (no background tracking). Stops live in `trips`/`trip_stops`; Mapbox (`lib/mapbox.ts`, `MAPBOX_ACCESS_TOKEN`) gives driving miles per leg; finishing produces ONE `expense_items` mileage line via the normal mileage form.
 - **Coding** columns (entity, location, unit|job, category, purpose) live inline
   on both tables. `entities.costingMode` drives which of unit/job is required.
   Rules in `lib/coding.ts`; the 5 selects are `<CodingFields>`;

@@ -24,6 +24,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -178,6 +179,10 @@ export const locations = pgTable("locations", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   homeEntityId: uuid("home_entity_id").references(() => entities.id),
+  /** Street address; geocoded on save so mileage stops near it are named after the site. */
+  address: text("address"),
+  latitude: numeric("latitude", { precision: 9, scale: 6 }),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -475,6 +480,47 @@ export const expenseItems = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("item_user_status_idx").on(t.userId, t.status)],
+);
+
+/**
+ * A mileage trip logged as it happens (Start trip / Add stop / End trip). One
+ * active trip per person. Finishing it produces ONE `expense_items` mileage
+ * line (`expenseItemId`) for the whole trip; the stops stay here as the record.
+ */
+export const trips = pgTable(
+  "trips",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    status: text("status").notNull().default("active"), // active | finished | cancelled
+    expenseItemId: uuid("expense_item_id").references(() => expenseItems.id),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("trip_one_active_per_user").on(t.userId).where(sql`${t.status} = 'active'`)],
+);
+
+/** A point on a trip. Stop 0 is the start; `legMiles` is the driving distance from the previous stop. */
+export const tripStops = pgTable(
+  "trip_stops",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tripId: uuid("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    label: text("label").notNull(),
+    latitude: numeric("latitude", { precision: 9, scale: 6 }).notNull(),
+    longitude: numeric("longitude", { precision: 9, scale: 6 }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Driving miles from the previous stop (Mapbox); null for stop 0 or when routing failed. */
+    legMiles: numeric("leg_miles", { precision: 8, scale: 1 }),
+    /** The person's own figure for this leg; wins over `legMiles`. */
+    legMilesOverride: numeric("leg_miles_override", { precision: 8, scale: 1 }),
+  },
+  (t) => [unique().on(t.tripId, t.seq)],
 );
 
 /** IRS standard mileage rate history. Newest effective row wins for a given date. */

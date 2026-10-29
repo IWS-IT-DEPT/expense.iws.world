@@ -35,6 +35,9 @@ export default async function NewLocationPage({ searchParams }: { searchParams: 
             ))}
           </select>
         </Field>
+        <Field label="Address" hint="Optional — full street address with city and state, so mileage stops here are named after the site.">
+          <input name="address" className={`${inputClass} w-full`} />
+        </Field>
         <SubmitButton
           type="submit"
           className="rounded-md bg-black px-3.5 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-black"
