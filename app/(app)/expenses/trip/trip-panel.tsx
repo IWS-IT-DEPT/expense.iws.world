@@ -92,9 +92,8 @@ export function TripPanel({ trip, ratePerMile, routing }: Props) {
         </button>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <p className="text-sm opacity-70">
-          Rather type the miles for a single trip?{" "}
           <Link href="/expenses/mileage" className="underline">
-            Log mileage manually
+            ← Back to mileage
           </Link>
         </p>
       </div>

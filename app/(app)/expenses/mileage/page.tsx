@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 
@@ -39,6 +40,25 @@ export default async function MileagePage({
           date.
         </p>
       </div>
+      {!finishing ? (
+        <div className="space-y-2 rounded-lg border border-black/10 p-4 dark:border-white/15">
+          <h2 className="text-sm font-semibold">
+            {trip ? "You have a trip in progress" : "Driving to more than one place?"}
+          </h2>
+          <p className="text-sm opacity-70">
+            {trip
+              ? "Pick up where you left off — add stops or end the trip."
+              : "Start a trip, tap Add stop at each place, and the miles are worked out for you."}
+          </p>
+          <Link
+            href="/expenses/trip"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white sm:w-auto dark:bg-white dark:text-black"
+          >
+            {trip ? "Continue trip" : "Start trip"}
+          </Link>
+          {!trip ? <p className="pt-1 text-xs opacity-60">Or enter a single trip by hand below.</p> : null}
+        </div>
+      ) : null}
       <MileageForm
         {...options}
         mileageCategoryId={mileageCat?.id}
