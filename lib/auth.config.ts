@@ -57,7 +57,9 @@ export const authConfig = {
       authorization: { params: { scope: "openid profile email offline_access User.Read" } },
     }),
   ],
-  pages: { signIn: "/signin" },
+  // Errors land on our sign-in page (with a plain message) instead of Auth.js's bare
+  // "Server error" page — most are a reused callback link and just need a fresh sign-in.
+  pages: { signIn: "/signin", error: "/signin" },
   session: {
     strategy: "jwt",
     maxAge: IDLE_SESSION_MAX_S,

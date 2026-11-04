@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { and, count, eq, ne } from "drizzle-orm";
 
@@ -172,10 +173,16 @@ export const getIdentityDiagnostics = cache(async () => {
   };
 });
 
+/**
+ * The signed-in app user, or off to the sign-in page. The proxy only checks that a
+ * login cookie exists; the cookie can outlive the person's app access (session cap,
+ * account turned off, removed in Microsoft 365), and throwing here showed them a
+ * bare server-error page instead of a way back in.
+ */
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user) throw new Error("Not authenticated");
-  if (!user.active) throw new Error("Account disabled");
+  if (!user) redirect("/signin?error=SessionEnded");
+  if (!user.active) redirect("/signin?error=Disabled");
   return user;
 }
 

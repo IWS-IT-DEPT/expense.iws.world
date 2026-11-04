@@ -1,13 +1,21 @@
 import { SubmitButton } from "@/app/components/submit-button";
 import Image from "next/image";
 
+import { redirect } from "next/navigation";
+
 import { signIn } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/current-user";
 
 const ERRORS: Record<string, string> = {
   NoAccount:
     "That Microsoft account hasn't been set up in IWS Expense yet. Ask IT to add you, then try again.",
   Disabled: "Your IWS Expense account is turned off. Contact IT if you think that's a mistake.",
   AccessDenied: "That Microsoft account isn't allowed to use IWS Expense.",
+  SessionEnded: "Your sign-in has ended. Sign in again to keep going.",
+  // Auth.js codes. "Configuration" is also what a reused/expired sign-in link produces
+  // (back button or refresh mid-login), so don't make it sound like the server is broken.
+  Configuration: "Sign-in didn't finish — usually from going back or refreshing during sign-in. Try again.",
+  Verification: "That sign-in link has expired. Try again.",
 };
 
 export default async function SignInPage({
@@ -16,6 +24,10 @@ export default async function SignInPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  // Already signed in (e.g. the sign-in step was replayed by Back/refresh after it
+  // succeeded): skip the error and go straight in.
+  const current = await getCurrentUser().catch(() => null);
+  if (current?.active) redirect("/expenses");
   const message = error ? (ERRORS[error] ?? "Sign-in didn't work. Try again, or contact IT.") : null;
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
