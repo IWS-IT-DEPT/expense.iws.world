@@ -1,7 +1,7 @@
 "use client";
 
 import { SubmitButton } from "@/app/components/submit-button";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { reconcileLine, rejectLine, type LineActionState } from "./actions";
@@ -17,9 +17,15 @@ export function ReconcileLine({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "correct" | "reject">("idle");
+  // React resets a form once its action finishes; keep what was typed when it was refused.
+  const failed = useRef(false);
+  const keepOnError = (e: React.FormEvent) => {
+    if (failed.current) e.preventDefault();
+  };
   const [confirmState, confirmAction, confirmPending] = useActionState<LineActionState, FormData>(
     async (p, fd) => {
       const r = await reconcileLine(p, fd);
+      failed.current = !r.ok;
       if (r.ok) router.refresh();
       return r;
     },
@@ -28,6 +34,7 @@ export function ReconcileLine({
   const [rejectState, rejectAction, rejectPending] = useActionState<LineActionState, FormData>(
     async (p, fd) => {
       const r = await rejectLine(p, fd);
+      failed.current = !r.ok;
       if (r.ok) router.refresh();
       return r;
     },
@@ -64,7 +71,7 @@ export function ReconcileLine({
       </div>
 
       {mode === "correct" && (
-        <form action={confirmAction} className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15">
+        <form action={confirmAction} onReset={keepOnError} className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15">
           <input type="hidden" name="lineId" value={lineId} />
           <label className="text-xs">
             <span className="block opacity-60">Actual amount</span>
@@ -82,7 +89,7 @@ export function ReconcileLine({
       )}
 
       {mode === "reject" && (
-        <form action={rejectAction} className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15">
+        <form action={rejectAction} onReset={keepOnError} className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-2 dark:border-white/15">
           <input type="hidden" name="lineId" value={lineId} />
           <input name="reason" required placeholder="what needs fixing?" className="flex-1 rounded border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20" />
           <SubmitButton type="submit" disabled={rejectPending} className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">

@@ -20,6 +20,8 @@ interface Props {
   trip: { id: string; totalMiles: number; missingLegs: number; stops: Stop[] } | null;
   ratePerMile: string | null;
   routing: boolean;
+  /** Sent back here from "Finish your trip" because a leg has no miles yet. */
+  needsMiles?: boolean;
 }
 
 const btn =
@@ -51,7 +53,7 @@ function currentPosition(): Promise<{ lat: number; lng: number }> {
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-export function TripPanel({ trip, ratePerMile, routing }: Props) {
+export function TripPanel({ trip, ratePerMile, routing, needsMiles }: Props) {
   const router = useRouter();
   const [busy, startBusy] = useTransition();
   const [working, setWorking] = useState<string | null>(null);
@@ -124,7 +126,13 @@ export function TripPanel({ trip, ratePerMile, routing }: Props) {
         </span>
       </div>
 
-      {trip.missingLegs > 0 ? (
+      {needsMiles && trip.missingLegs > 0 ? (
+        <p className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
+          Almost done — we couldn&apos;t work out the driving distance for every leg. Type the miles
+          for the leg{trip.missingLegs === 1 ? "" : "s"} marked &ldquo;Distance not calculated&rdquo; above, then
+          tap <strong>End the trip at the last stop</strong>.
+        </p>
+      ) : trip.missingLegs > 0 ? (
         <p className="text-sm text-amber-700 dark:text-amber-400">
           {trip.missingLegs} leg{trip.missingLegs === 1 ? "" : "s"} still need miles — type them in above.
         </p>
@@ -141,7 +149,8 @@ export function TripPanel({ trip, ratePerMile, routing }: Props) {
         </button>
         <button
           type="button"
-          disabled={disabled || trip.stops.length < 2}
+          // Ending adds the stop where you are, so the start alone is enough.
+          disabled={disabled}
           className={primary}
           onClick={() => run("Ending…", async () => addStop(await currentPosition()), () => router.push(`/expenses/mileage/manual?trip=${trip.id}`))}
         >

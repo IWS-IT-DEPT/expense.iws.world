@@ -1,7 +1,7 @@
 "use client";
 
 import { SubmitButton } from "@/app/components/submit-button";
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { registerCard, type RegisterCardState } from "./actions";
@@ -19,9 +19,12 @@ const NETWORKS = [
 
 export function RegisterCardForm() {
   const router = useRouter();
+  // Clear the fields after a card is added, but keep them when it was refused.
+  const failed = useRef(false);
   const [state, action, pending] = useActionState<RegisterCardState, FormData>(
     async (prev, fd) => {
       const r = await registerCard(prev, fd);
+      failed.current = !r.ok;
       if (r.ok) router.refresh();
       return r;
     },
@@ -29,7 +32,13 @@ export function RegisterCardForm() {
   );
 
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
+    <form
+      action={action}
+      onReset={(e) => {
+        if (failed.current) e.preventDefault();
+      }}
+      className="flex flex-wrap items-end gap-2"
+    >
       <label className="text-sm">
         <span className="mb-1 block text-xs opacity-60">Network</span>
         <select name="network" required defaultValue="" className={inputClass}>

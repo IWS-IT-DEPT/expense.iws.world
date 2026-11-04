@@ -9,9 +9,14 @@ import { loadActiveTrip } from "@/lib/trips";
 
 import { TripPanel } from "./trip-panel";
 
-export default async function TripPage() {
+export default async function TripPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ finish?: string }>;
+}) {
   const user = await requireUser();
   if (!user.mileageEligible) redirect("/expenses");
+  const { finish } = await searchParams;
 
   const [trip, latestRate] = await Promise.all([
     loadActiveTrip(user.id),
@@ -49,6 +54,7 @@ export default async function TripPage() {
         }
         ratePerMile={latestRate?.ratePerMile ?? null}
         routing={mapboxConfigured}
+        needsMiles={finish === "miles"}
       />
     </div>
   );

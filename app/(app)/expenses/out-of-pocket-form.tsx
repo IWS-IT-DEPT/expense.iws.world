@@ -89,7 +89,14 @@ export function OutOfPocketForm(props: {
   const receiptMissing = receiptRequired && staged.length === 0;
 
   return (
-    <form action={action} onChange={() => setDirty(true)} className="space-y-4">
+    <form
+      action={action}
+      onChange={() => setDirty(true)}
+      // React resets a form after its action finishes, even when the server sent back an
+      // error — which wiped everything they had typed. Keep what is on screen instead.
+      onReset={(e) => e.preventDefault()}
+      className="space-y-4"
+    >
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
 
       {!editing ? (

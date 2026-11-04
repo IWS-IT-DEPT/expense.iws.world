@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { SubmitButton } from "@/app/components/submit-button";
 import { useActionState, useState } from "react";
 import { todayInTz } from "@/lib/tz";
@@ -104,12 +106,25 @@ export function MileageForm(props: {
   }
 
   return (
-    <form action={action} onChange={() => setDirty(true)} className="space-y-4">
+    <form
+      action={action}
+      onChange={() => setDirty(true)}
+      // React resets a form after its action finishes, even when the server sent back an
+      // error — which wiped everything they had typed. Keep what is on screen instead.
+      onReset={(e) => e.preventDefault()}
+      className="space-y-4"
+    >
       {i ? <input type="hidden" name="id" value={i.id} /> : null}
       {props.prefill ? <input type="hidden" name="tripId" value={props.prefill.tripId} /> : null}
       {!editing ? (
         <div className="-mb-2">
-          <CancelWorkflow dirty={dirty} what="mileage entry" variant="top" />
+          {props.prefill ? (
+            <Link href="/expenses/trip" className="inline-flex min-h-11 items-center px-1 text-sm font-medium underline opacity-80">
+              ← Back to trip
+            </Link>
+          ) : (
+            <CancelWorkflow dirty={dirty} what="mileage entry" variant="top" />
+          )}
         </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -272,7 +287,16 @@ export function MileageForm(props: {
         >
           {pending ? "Saving…" : "Save mileage"}
         </SubmitButton>
-        <CancelWorkflow dirty={dirty} what="mileage entry" />
+        {props.prefill ? (
+          <Link
+            href="/expenses/trip"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium sm:w-auto dark:border-white/20"
+          >
+            Back to trip (it&apos;s still saved)
+          </Link>
+        ) : (
+          <CancelWorkflow dirty={dirty} what="mileage entry" />
+        )}
         </div>
       ) : dirty ? (
         <SaveBar pending={pending} />

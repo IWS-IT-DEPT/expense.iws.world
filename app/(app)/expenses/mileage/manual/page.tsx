@@ -22,7 +22,7 @@ export default async function ManualMileagePage({
   const trip = await loadActiveTrip(user.id);
   const finishing = trip && trip.id === tripParam && trip.stops.length > 1 ? trip : null;
   if (tripParam && !finishing) redirect("/expenses/trip");
-  if (finishing && finishing.missingLegs > 0) redirect("/expenses/trip");
+  if (finishing && finishing.missingLegs > 0) redirect("/expenses/trip?finish=miles");
 
   const [options, mileageCat, latestRate] = await Promise.all([
     loadCodingOptions(user.jobExempt),
@@ -35,8 +35,9 @@ export default async function ManualMileagePage({
       <div>
         <h1 className="text-lg font-semibold">{finishing ? "Finish your trip" : "Add mileage manually"}</h1>
         <p className="text-sm opacity-70">
-          Business miles in your personal vehicle. Reimbursed at the IRS standard rate for the trip
-          date.
+          {finishing
+            ? "Check the miles, fill in the coding, and tap Save mileage. Your trip stays saved until you do."
+            : "Business miles in your personal vehicle. Reimbursed at the IRS standard rate for the trip date."}
         </p>
       </div>
       <MileageForm
