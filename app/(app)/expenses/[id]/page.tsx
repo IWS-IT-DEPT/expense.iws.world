@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
 import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
-import { checkExpenseLine, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
+import { checkExpenseLine, isBlocked, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
 import { money, shortDate } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
 import { todayInTz } from "@/lib/tz";
@@ -85,13 +85,15 @@ function Header({
       ) : null}
 
       {editable ? (
-        checks.length > 0 ? (
+        isBlocked(checks) ? (
           <div className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-sm">
             <p className="font-medium">Still needed before you can submit:</p>
             <ul className="mt-1 space-y-0.5">
-              {checks.map((c, n) => (
-                <li key={n}>• {c.message}</li>
-              ))}
+              {checks
+                .filter((c) => c.severity === "block")
+                .map((c, n) => (
+                  <li key={n}>• {c.message}</li>
+                ))}
             </ul>
           </div>
         ) : (
@@ -215,7 +217,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
           <CardExpenseForm
             {...options}
             cards={cards}
-            submitReady={checks.length === 0}
+            submitReady={!isBlocked(checks)}
             initial={{
               id: card.id,
               merchant: card.merchant,
