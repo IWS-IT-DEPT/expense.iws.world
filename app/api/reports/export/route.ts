@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
   const body =
     format === "xlsx"
-      ? await buildWorkbook(lines, summary, period, view)
+      ? await buildWorkbook(lines, summary, period, view, (process.env.APP_URL || url.origin).replace(/\/$/, ""))
       : await buildPdf(lines, summary, period, scope, view);
 
   return new Response(body, {

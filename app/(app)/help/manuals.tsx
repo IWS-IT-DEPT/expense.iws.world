@@ -341,8 +341,25 @@ const accounting: Manual = {
           Switch between <strong>Turned in</strong> (everything submitted) and <strong>Approved</strong> (only
           locked charges).
         </li>
-        <li>Export to <strong>Excel</strong> or <strong>PDF</strong> from the same page.</li>
+        <li>
+          Export to <strong>Excel</strong> or <strong>PDF</strong> from the same page. The Excel Transactions
+          sheet has a <strong>Receipts</strong> count and an <strong>Open</strong> link on every line that
+          opens the charge and its receipts (sign-in required).
+        </li>
         <li>Reimbursements (mileage and out-of-pocket) are handled by Payroll and don&apos;t appear here.</li>
+      </UL>
+
+      <H>All Charges — find any charge later</H>
+      <UL>
+        <li>
+          <strong>Accounting → All Charges</strong> lists every card charge that&apos;s been turned in,
+          including approved ones from months back. Search by merchant or purpose, date range, cardholder,
+          company, status, amount, or &ldquo;Missing a receipt&rdquo;.
+        </li>
+        <li>
+          Click a charge to see it read-only with every receipt; each receipt has a <strong>Download</strong>{" "}
+          link. Receipts are kept permanently and can&apos;t be removed once a charge is submitted.
+        </li>
       </UL>
 
       <H>Settings you maintain</H>
@@ -417,6 +434,10 @@ const approver: Manual = {
           does (see the Accounting guide).
         </li>
         <li><strong>Reports</strong> — card-spend analytics and exports.</li>
+        <li>
+          <strong>All Charges</strong> — search every turned-in charge and open it with its receipts. On
+          Approvals, click a charge&apos;s date and merchant to see its receipts before approving.
+        </li>
       </UL>
       <P>
         Reimbursements (mileage and out-of-pocket) are approved by Payroll, not by approvers.
@@ -477,7 +498,10 @@ const payroll: Manual = {
           <strong>Payroll → Reports</strong> is the reimbursement dashboard: totals, mileage vs. out-of-pocket,
           and breakdowns by employee, entity and category.
         </li>
-        <li>Export to <strong>Excel</strong> or <strong>PDF</strong> for processing.</li>
+        <li>
+          Export to <strong>Excel</strong> or <strong>PDF</strong> for processing. In Excel, each line&apos;s{" "}
+          <strong>Open</strong> link shows the reimbursement and its receipts, read-only.
+        </li>
       </UL>
 
       <H>The mileage rate</H>

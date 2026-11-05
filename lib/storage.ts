@@ -61,10 +61,8 @@ class LocalBlobStore implements BlobStore {
 
 /**
  * Receipts live in a **private** Vercel Blob store (`BLOB_READ_WRITE_TOKEN`) —
- * the URL alone grants nothing. Receipts uploaded before the switch sit in the
- * old public store; their URLs still fetch without a token, so reads fall back
- * to a plain fetch until `scripts/migrate-receipts-private.ts` has moved them
- * (it rewrites `receipts.blob_key`).
+ * the URL alone grants nothing. (The old public store held only test receipts;
+ * they were deleted on 2026-11-05.)
  */
 class VercelBlobStore implements BlobStore {
   private token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -88,23 +86,14 @@ class VercelBlobStore implements BlobStore {
     const { get } = await this.lib();
     try {
       const res = await get(key, { access: "private", token: this.token });
-      if (res === null) return null;
-      if (res.statusCode === 200) {
-        return {
-          data: Buffer.from(await new Response(res.stream).arrayBuffer()),
-          contentType: res.blob.contentType,
-        };
-      }
+      if (res === null || res.statusCode !== 200) return null;
+      return {
+        data: Buffer.from(await new Response(res.stream).arrayBuffer()),
+        contentType: res.blob.contentType,
+      };
     } catch {
-      // Not in the private store — fall through to the legacy public URL.
+      return null;
     }
-    // Legacy: receipt still in the old public store.
-    const res = await fetch(key);
-    if (!res.ok) return null;
-    return {
-      data: Buffer.from(await res.arrayBuffer()),
-      contentType: res.headers.get("content-type") ?? "application/octet-stream",
-    };
   }
 
   async delete(key: string) {
@@ -112,8 +101,7 @@ class VercelBlobStore implements BlobStore {
     try {
       await del(key, { token: this.token });
     } catch {
-      // Legacy public-store blob: this token can't touch it. The orphan goes
-      // away when the old store is deleted.
+      // Never let a storage hiccup block discarding a draft; an orphan blob is harmless.
     }
   }
 }

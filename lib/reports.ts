@@ -131,6 +131,8 @@ export interface SpendLine {
   businessPurpose: string | null;
   miles: number | null;
   status: string;
+  /** receipts attached to the line */
+  receiptCount: number;
 }
 
 type CardStatus = (typeof pendingExpenses.status.enumValues)[number];
@@ -160,6 +162,7 @@ export async function loadSpend(opts: {
             entity: { columns: { code: true, brandColor: true } },
             category: { columns: { name: true } },
             location: { columns: { name: true } },
+            receipts: { columns: { id: true } },
           },
         });
 
@@ -173,6 +176,7 @@ export async function loadSpend(opts: {
             entity: { columns: { code: true, brandColor: true } },
             category: { columns: { name: true } },
             location: { columns: { name: true } },
+            receipts: { columns: { id: true } },
           },
         });
 
@@ -199,6 +203,7 @@ export async function loadSpend(opts: {
       businessPurpose: r.businessPurpose,
       miles: null,
       status: r.status,
+      receiptCount: r.receipts.length,
     });
   }
 
@@ -223,6 +228,7 @@ export async function loadSpend(opts: {
       businessPurpose: r.businessPurpose,
       miles: r.miles ? Number(r.miles) : null,
       status: r.status,
+      receiptCount: r.receipts.length,
     });
   }
 
@@ -356,6 +362,8 @@ export interface Dataset {
   rows: (string | number)[][];
   /** 0-based indexes of columns that hold dollar amounts */
   moneyColumns: number[];
+  /** per row: app path that opens the line (and its receipts), for a hyperlink column */
+  links?: string[];
 }
 
 const dollars = (cents: number) => Math.round(cents) / 100;
@@ -375,8 +383,10 @@ export function buildDataset(
         columns: [
           "Date", "Source", "Type", "Merchant / trip", personLabel, "Entity",
           "Category", "Location", "Business purpose", "Entered", "Posted", "Miles", "Status",
+          "Receipts",
         ],
         moneyColumns: [9, 10],
+        links: lines.map((l) => `/expenses/${l.id}`),
         rows: lines.map((l) => [
           l.date,
           l.source === "card" ? "Card" : "Reimbursement",
@@ -391,6 +401,7 @@ export function buildDataset(
           l.actualCents != null ? dollars(l.actualCents) : "",
           l.miles ?? "",
           l.status,
+          l.kind === "mileage" ? "" : l.receiptCount,
         ]),
       };
 

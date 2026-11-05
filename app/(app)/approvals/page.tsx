@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SubmitButton } from "@/app/components/submit-button";
 import { asc, eq } from "drizzle-orm";
 
@@ -80,9 +82,9 @@ export default async function ApprovalsPage() {
                     const posted = l.actualAmountCents ?? l.amountCents;
                     return (
                       <li key={l.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2">
-                        <span>
+                        <Link href={`/expenses/${l.id}`} className="underline-offset-2 hover:underline">
                           {shortDate(l.actualPurchaseDate ?? l.purchaseDate)} · {l.merchant}
-                        </span>
+                        </Link>
                         <span>
                           {money(posted)}
                           {posted !== l.amountCents ? (

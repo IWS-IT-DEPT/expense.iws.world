@@ -56,6 +56,11 @@ full picture. Key facts an agent needs:
   the mirror for `expense_items`. Both come from `lib/reports.ts`
   (`loadSpend({ only })`) and share `/api/reports/export`
   (`?view=card|reimbursement`). Finance does not touch reimbursements.
+- **`/charges` ("All Charges")** — accounting/approver/admin search over every
+  turned-in card charge (any age). `/expenses/[id]` opens read-only for a
+  non-owner who `canReview` (card) or `canSeePayroll` (reimbursement); only the
+  owner ever edits. The Excel export's Transactions sheet adds Receipts + an
+  Open hyperlink to `/expenses/[id]`.
 - Receipt files go through `lib/receipt-store.ts`; bytes served only via
   `/api/receipts/[id]`. Phone handoff uses HMAC tokens (`lib/upload-token.ts`).
 - Reminder emails: `app/api/cron/report-reminders` (hourly, picks a slot in

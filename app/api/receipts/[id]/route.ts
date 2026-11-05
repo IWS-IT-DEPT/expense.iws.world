@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { receipts } from "@/db/schema";
-import { canReview, getCurrentUser } from "@/lib/current-user";
+import { canReview, canSeePayroll, getCurrentUser } from "@/lib/current-user";
 import { blobStore } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -34,8 +34,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     receipt.expenseItem?.userId ??
     receipt.pendingExpense?.userId ??
     null;
+  // Card receipts → accounting/approver/admin; reimbursement receipts → payroll/admin too.
   const allowed =
-    receipt.uploadedById === user.id || ownerId === user.id || canReview(user);
+    receipt.uploadedById === user.id ||
+    ownerId === user.id ||
+    canReview(user) ||
+    (!!receipt.expenseItem && canSeePayroll(user));
   if (!allowed) return new Response("Not found", { status: 404 });
 
   const blob = await blobStore.get(receipt.blobKey);

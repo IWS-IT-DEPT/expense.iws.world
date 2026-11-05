@@ -64,6 +64,9 @@ export function ExpenseReceipts({
                 >
                   {r.filename}
                 </a>
+                <a href={`/api/receipts/${r.id}?download=1`} className="inline-block text-xs underline opacity-70">
+                  Download
+                </a>
                 {editable ? (
                   <ConfirmAction
                     label="Remove"

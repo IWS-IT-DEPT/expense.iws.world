@@ -36,6 +36,8 @@ export async function buildWorkbook(
   summary: Summary,
   period: Period,
   view: SpendView = "card",
+  /** absolute app origin, e.g. https://expense.iws.world — makes the Open links clickable */
+  baseUrl = "",
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "IWS Expense";
@@ -44,9 +46,17 @@ export async function buildWorkbook(
   for (const kind of view === "reimbursement" ? REIMBURSEMENT_SHEETS : CARD_SHEETS) {
     const ds = buildDataset(kind, lines, summary, period, view);
     const ws = wb.addWorksheet(ds.name);
-    ws.addRow(ds.columns);
+    ws.addRow(ds.links ? [...ds.columns, "Open"] : ds.columns);
     ws.getRow(1).font = { bold: true };
-    for (const r of ds.rows) ws.addRow(r);
+    ds.rows.forEach((r, n) => {
+      const row = ws.addRow(r);
+      const path = ds.links?.[n];
+      if (!path) return;
+      // Opens the expense (details + every receipt) in the app; sign-in still applies.
+      const cell = row.getCell(ds.columns.length + 1);
+      cell.value = { text: "Open", hyperlink: `${baseUrl}${path}` };
+      cell.font = { color: { argb: "FF0563C1" }, underline: true };
+    });
     ds.columns.forEach((label, i) => {
       const col = ws.getColumn(i + 1);
       const widest = Math.max(label.length, ...ds.rows.map((r) => String(r[i] ?? "").length));

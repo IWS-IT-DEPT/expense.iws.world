@@ -4,7 +4,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
-import { requireUser } from "@/lib/current-user";
+import { canReview, canSeePayroll, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
 import { money, shortDate } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
@@ -44,6 +44,7 @@ function Header({
   checks,
   submitHint,
   readOnlyNote,
+  back = { href: "/expenses", label: "My Expenses" },
 }: {
   title: string;
   status: string;
@@ -53,11 +54,12 @@ function Header({
   checks: ExpenseCheck[];
   submitHint: string;
   readOnlyNote: string;
+  back?: { href: string; label: string };
 }) {
   return (
     <div className="space-y-3">
-      <Link href="/expenses" className="inline-flex min-h-10 items-center text-sm underline opacity-70">
-        ← My Expenses
+      <Link href={back.href} className="inline-flex min-h-10 items-center text-sm underline opacity-70">
+        ← {back.label}
       </Link>
       <h1 className="text-xl font-semibold">{title}</h1>
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -138,13 +140,16 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       card: true,
       location: true,
       job: true,
+      user: { columns: { name: true } },
       receipts: recSel,
     },
   });
 
   if (card) {
-    if (card.userId !== user.id || card.status === "cancelled") notFound();
-    const editable = EDITABLE.has(card.status);
+    // Accounting / approvers / admin can open anyone's charge, read-only.
+    const owner = card.userId === user.id;
+    if ((!owner && !canReview(user)) || card.status === "cancelled") notFound();
+    const editable = owner && EDITABLE.has(card.status);
     const checks = checkExpenseLine(
       {
         kind: "card",
@@ -171,7 +176,12 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         rejectionReason={card.status === "rejected" ? card.rejectionReason : null}
         checks={checks}
         submitHint="Save any edits, then submit it to accounting below."
-        readOnlyNote={`This purchase was submitted, so it can't be edited. ${whoHasIt("card", card.status)} If something is wrong, ask them to send it back.`}
+        readOnlyNote={
+          owner
+            ? `This purchase was submitted, so it can't be edited. ${whoHasIt("card", card.status)} If something is wrong, ask them to send it back.`
+            : `${card.user?.name ?? "Someone"}'s charge — view only.`
+        }
+        back={owner ? undefined : { href: "/charges", label: "All Charges" }}
       />
     );
 
@@ -184,6 +194,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
           {header}
           <Summary
             rows={[
+              ["Status", STATUS_LABEL[card.status] ?? card.status],
+              ["Cardholder", owner ? null : card.user?.name],
               ["Merchant", card.merchant],
               ["Amount", money(card.amountCents)],
               corrected ? ["Corrected by accounting", `${money(card.actualAmountCents ?? card.amountCents)} · ${shortDate(card.actualPurchaseDate ?? card.purchaseDate)}`] : ["", ""],
@@ -242,12 +254,15 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       category: true,
       location: true,
       job: true,
+      user: { columns: { name: true } },
       receipts: recSel,
     },
   });
-  if (!item || item.userId !== user.id) notFound();
+  // Payroll / admin can open anyone's reimbursement, read-only.
+  const itemOwner = item?.userId === user.id;
+  if (!item || (!itemOwner && !canSeePayroll(user))) notFound();
 
-  const editable = EDITABLE.has(item.status);
+  const editable = itemOwner && EDITABLE.has(item.status);
 
   // Why it was sent back lives on the audit trail, not the row.
   let reason: string | null = null;
@@ -294,7 +309,12 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       rejectionReason={reason}
       checks={checks}
       submitHint="It goes to Payroll with your weekly report — submit it from This Week."
-      readOnlyNote={`This was submitted, so it can't be edited. ${whoHasIt("item", item.status)} If something is wrong, ask them to send it back.`}
+      readOnlyNote={
+        itemOwner
+          ? `This was submitted, so it can't be edited. ${whoHasIt("item", item.status)} If something is wrong, ask them to send it back.`
+          : `${item.user?.name ?? "Someone"}'s reimbursement — view only.`
+      }
+      back={itemOwner ? undefined : { href: "/payroll/reconcile", label: "Payroll" }}
     />
   );
 
@@ -304,6 +324,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         {header}
         <Summary
           rows={[
+            ["Status", STATUS_LABEL[item.status] ?? item.status],
+            ["Employee", itemOwner ? null : item.user?.name],
             ["Type", item.kind === "mileage" ? "Mileage" : "Out of pocket"],
             ["Amount", money(item.amountCents)],
             ["Date", shortDate(item.itemDate)],
