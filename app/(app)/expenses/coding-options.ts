@@ -1,11 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { effectiveCostingMode } from "@/lib/coding";
 import { cards, categories, entities, jobs, locations } from "@/db/schema";
 
 /** Option lists for `<CodingFields>`, shared by every expense form. */
-export async function loadCodingOptions(jobExempt = false) {
+/** `requiresJobCode`: the person must code a job on every expense. */
+export async function loadCodingOptions(requiresJobCode = false) {
   const [entityRows, locationRows, jobRows, categoryRows] = await Promise.all([
     db.query.entities.findMany({ where: eq(entities.active, true), orderBy: [asc(entities.code)] }),
     db.query.locations.findMany({
@@ -23,7 +23,6 @@ export async function loadCodingOptions(jobExempt = false) {
       id: e.id,
       code: e.code,
       name: e.name,
-      costingMode: effectiveCostingMode(e.costingMode, jobExempt),
     })),
     locations: locationRows.map((l) => ({ id: l.id, name: l.name, homeEntityId: l.homeEntityId })),
     jobs: jobRows.map((j) => ({
@@ -31,7 +30,8 @@ export async function loadCodingOptions(jobExempt = false) {
       entityId: j.entityId,
       label: `${j.jobNumber}${j.name ? ` — ${j.name}` : ""}`,
     })),
-    categories: categoryRows.map((c) => ({ id: c.id, name: c.name })),
+    categories: categoryRows.map((c) => ({ id: c.id, name: c.name, requiresJob: c.requiresJob })),
+    userRequiresJob: requiresJobCode,
   };
 }
 

@@ -26,6 +26,13 @@ export default async function NewCategoryPage({ searchParams }: { searchParams: 
         <Field label="Sort order" hint="Lower numbers appear first in dropdowns.">
           <input name="sortOrder" type="number" defaultValue={100} className={`${inputClass} w-24`} />
         </Field>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" name="requiresJob" className="mt-1" />
+          <span>
+            Job / project expense — requires a job code{" "}
+            <span className="text-xs opacity-60">— anyone picking this category must choose a job</span>
+          </span>
+        </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="receiptAlwaysRequired" /> A receipt is always required
         </label>

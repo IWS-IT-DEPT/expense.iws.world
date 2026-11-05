@@ -12,16 +12,18 @@ Hosted at **expense.iws.world**.
 
 Six sister companies, each with its **own QuickBooks Online company file**:
 
-| Code   | Company                                        | Costing dimension |
-| ------ | ---------------------------------------------- | ----------------- |
-| `IWS`  | International Warehousing & Shipping, LLC      | none (entity + location) |
-| `PRE`  | Precision Construction Repair                  | **job**           |
-| `PORT` | Port City Repair                               | none              |
-| `RGT`  | Rolling Green Transportation                   | none              |
-| `RGL`  | Rolling Green Logistics                        | none              |
-| `GGB`  | Gravel Grabbers, LLC                           | none              |
+| Code   | Company                                        |
+| ------ | ---------------------------------------------- |
+| `IWS`  | International Warehousing & Shipping, LLC      |
+| `PRE`  | Precision Construction Repair                  |
+| `PORT` | Port City Repair                               |
+| `RGT`  | Rolling Green Transportation                   |
+| `RGL`  | Rolling Green Logistics                        |
+| `GGB`  | Gravel Grabbers, LLC                           |
 
-Units/trucks are retired — the app no longer asks for or requires one.
+Units/trucks are retired, and no company requires a job code on its own: a job
+is asked for only on a job/project category (`categories.requires_job`) or for a
+person flagged `users.requires_job_code`.
 
 Three card programs (the entity on a charge is chosen per-transaction, **not**
 derived from the card):
@@ -37,11 +39,11 @@ full cost coding, collected by a guided wizard:
 
 1. **Who is this for?** → entity
 2. **Which site?** → location (the entity's own sites listed first; any site is selectable)
-3. **Which job?** → shown only when the entity requires one
-4. **What kind of expense?** → category
+3. **What kind of expense?** → category
+4. **Which job?** → only for a job/project category, or a person set to always code jobs
 5. **Why?** → business purpose
 
-Display tag: `RGT · Main Office · Truck 07 · Fuel`
+Display tag: `RGT · Main Office · Fuel`
 
 ### Workflow
 

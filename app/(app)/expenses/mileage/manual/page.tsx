@@ -25,7 +25,7 @@ export default async function ManualMileagePage({
   if (finishing && finishing.missingLegs > 0) redirect("/expenses/trip?finish=miles");
 
   const [options, mileageCat, latestRate] = await Promise.all([
-    loadCodingOptions(user.jobExempt),
+    loadCodingOptions(user.requiresJobCode),
     db.query.categories.findFirst({ where: eq(categories.code, "MILEAGE") }),
     db.query.mileageRates.findFirst({ orderBy: [desc(mileageRates.effectiveDate)] }),
   ]);

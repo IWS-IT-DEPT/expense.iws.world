@@ -3,7 +3,6 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
-import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
@@ -70,8 +69,8 @@ export default async function ExpensesPage() {
         jobId: r.jobId,
         cardId: r.cardId,
         receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        jobExempt: user.jobExempt,
+        categoryRequiresJob: r.category?.requiresJob,
+        userRequiresJob: user.requiresJobCode,
       }, policy);
       return { r, checks };
     });
@@ -89,8 +88,8 @@ export default async function ExpensesPage() {
         businessPurpose: r.businessPurpose,
         jobId: r.jobId,
         receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        jobExempt: user.jobExempt,
+        categoryRequiresJob: r.category?.requiresJob,
+        userRequiresJob: user.requiresJobCode,
       },
       policy,
     );

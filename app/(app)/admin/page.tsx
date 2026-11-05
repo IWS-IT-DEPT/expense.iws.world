@@ -4,7 +4,6 @@ import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { cards, categories, entities, errorLogs, jobs, locations, users } from "@/db/schema";
-import { effectiveCostingMode } from "@/lib/coding";
 import { isAdmin, requireRole } from "@/lib/current-user";
 import { getGroupConfig } from "@/lib/role-groups";
 
@@ -94,7 +93,6 @@ export default async function AdminOverviewPage() {
               />
               <span className="font-mono">{e.code}</span>
               <span className="opacity-70">{e.name}</span>
-              <span className="ml-auto text-xs opacity-50">costing: {effectiveCostingMode(e.costingMode)}</span>
             </li>
           ))}
         </ul>

@@ -29,7 +29,8 @@ export interface CardExpenseFormProps {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; requiresJob: boolean }[];
+  userRequiresJob?: boolean;
   cards: { id: string; label: string }[];
   /** true when the server says this expense passes every check and can be sent to accounting */
   submitReady?: boolean;
@@ -197,6 +198,7 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
           locations={props.locations}
           jobs={props.jobs}
           categories={props.categories}
+          userRequiresJob={props.userRequiresJob}
           initial={
             i
               ? {

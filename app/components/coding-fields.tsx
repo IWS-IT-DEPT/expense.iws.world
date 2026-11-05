@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { codingRules, type CostingMode } from "@/lib/coding";
+import { codingRules } from "@/lib/coding";
 
 /**
  * The five dependent coding selects + business-purpose textarea, shared by the
@@ -16,7 +16,6 @@ export interface CodingEntityOption {
   id: string;
   code: string;
   name: string;
-  costingMode: string;
 }
 export interface CodingScopedOption {
   id: string;
@@ -27,7 +26,9 @@ export interface CodingFieldsProps {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; requiresJob: boolean }[];
+  /** this person must code a job on every expense */
+  userRequiresJob?: boolean;
   /** when set, an intercompany hint shows if a different entity is picked */
   cardOwnerEntityId?: string;
   /** false → the four always-needed fields aren't `required` (code-later flows) */
@@ -58,6 +59,7 @@ export function CodingFields({
   locations,
   jobs,
   categories,
+  userRequiresJob,
   cardOwnerEntityId,
   required = true,
   initial,
@@ -65,8 +67,8 @@ export function CodingFields({
   const [entityId, setEntityId] = useState(initial?.entityId ?? "");
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
 
-  const entity = entities.find((e) => e.id === entityId);
-  const rules = codingRules((entity?.costingMode ?? "none") as CostingMode);
+  const category = categories.find((c) => c.id === categoryId);
+  const rules = codingRules({ categoryRequiresJob: category?.requiresJob, userRequiresJob });
 
   const sortedLocations = useMemo(() => {
     return [...locations].sort((a, b) => {
@@ -121,25 +123,7 @@ export function CodingFields({
         </select>
       </Field>
 
-      {rules.needsJob ? (
-        <Field label="3. Which job?">
-          <select
-            name="jobId"
-            required={required}
-            defaultValue={initial?.jobId ?? ""}
-            className={selectClass}
-          >
-            <option value="">Select job…</option>
-            {entityJobs.map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      ) : null}
-
-      <Field label="4. What kind of expense?">
+      <Field label="3. What kind of expense?">
         <select
           name="categoryId"
           required={required}
@@ -156,7 +140,34 @@ export function CodingFields({
         </select>
       </Field>
 
-      <Field label="5. Why? (business purpose)">
+      {rules.needsJob ? (
+        <Field label="Which job?">
+          <select
+            name="jobId"
+            required={required}
+            defaultValue={initial?.jobId ?? ""}
+            className={selectClass}
+          >
+            <option value="">Select job…</option>
+            {entityJobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.label}
+              </option>
+            ))}
+          </select>
+          {entityId && entityJobs.length === 0 ? (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              No jobs are set up for this company yet — ask Accounting to add it under Settings → Jobs.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs opacity-60">
+              {userRequiresJob ? "You code a job on every expense." : "This category is a job / project expense."}
+            </p>
+          )}
+        </Field>
+      ) : null}
+
+      <Field label="4. Why? (business purpose)">
         <textarea
           name="businessPurpose"
           required={required}

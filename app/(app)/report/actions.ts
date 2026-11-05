@@ -5,7 +5,6 @@ import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, expenseReports } from "@/db/schema";
-import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { notifyPayrollSubmitted } from "@/lib/notify";
@@ -54,8 +53,8 @@ export async function submitWeek(_prev: SubmitState, fd: FormData): Promise<Subm
           businessPurpose: r.businessPurpose,
           jobId: r.jobId,
           receiptCount: r.receipts.length,
-          costingMode: r.entity?.costingMode as CostingMode | undefined,
-          jobExempt: user.jobExempt,
+          categoryRequiresJob: r.category?.requiresJob,
+          userRequiresJob: user.requiresJobCode,
         },
         policy,
       ),

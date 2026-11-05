@@ -4,7 +4,6 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
-import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
 import { money, shortDate } from "@/lib/format";
@@ -157,8 +156,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         jobId: card.jobId,
         cardId: card.cardId,
         receiptCount: card.receipts.length,
-        costingMode: card.entity?.costingMode as CostingMode | undefined,
-        jobExempt: user.jobExempt,
+        categoryRequiresJob: card.category?.requiresJob,
+        userRequiresJob: user.requiresJobCode,
       },
       policy,
     );
@@ -203,7 +202,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       );
     }
 
-    const [options, cards] = await Promise.all([loadCodingOptions(user.jobExempt), loadUserCards(user.id)]);
+    const [options, cards] = await Promise.all([loadCodingOptions(user.requiresJobCode), loadUserCards(user.id)]);
     return (
       <div className="mx-auto max-w-xl space-y-5">
         {header}
@@ -275,8 +274,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       businessPurpose: item.businessPurpose,
       jobId: item.jobId,
       receiptCount: item.receipts.length,
-      costingMode: item.entity?.costingMode as CostingMode | undefined,
-      jobExempt: user.jobExempt,
+      categoryRequiresJob: item.category?.requiresJob,
+      userRequiresJob: user.requiresJobCode,
     },
     policy,
   );
@@ -326,7 +325,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const options = await loadCodingOptions(user.jobExempt);
+  const options = await loadCodingOptions(user.requiresJobCode);
   const codingInit = {
     entityId: item.entityId,
     locationId: item.locationId,

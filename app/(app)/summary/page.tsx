@@ -3,7 +3,6 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
-import type { CostingMode } from "@/lib/coding";
 import { canReview, canSeePayroll, isAdmin, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 import { money, weekBounds } from "@/lib/format";
@@ -44,8 +43,8 @@ export default async function DashboardPage() {
           jobId: r.jobId,
           cardId: r.cardId,
           receiptCount: r.receipts.length,
-          costingMode: r.entity?.costingMode as CostingMode | undefined,
-          jobExempt: user.jobExempt,
+          categoryRequiresJob: r.category?.requiresJob,
+          userRequiresJob: user.requiresJobCode,
         },
         policy,
       ).some((c) => c.code === "missing_receipt");

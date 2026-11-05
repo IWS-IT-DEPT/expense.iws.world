@@ -99,7 +99,7 @@ export async function updateUser(fd: FormData) {
       homeEntityId: opt(fd, "homeEntityId"),
       homeLocationId: opt(fd, "homeLocationId"),
       mileageEligible: bool(fd, "mileageEligible"),
-      jobExempt: bool(fd, "jobExempt"),
+      requiresJobCode: bool(fd, "requiresJobCode"),
       active,
     })
     .where(eq(users.id, id));
@@ -259,7 +259,6 @@ export async function checkEmailRole(
 /** Short, uppercase, label-safe: letters, digits, dash, underscore. */
 const CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,11}$/;
 
-type CostingMode = "none" | "job";
 
 export async function upsertEntity(fd: FormData) {
   await requireRole("admin", "accounting");
@@ -267,7 +266,6 @@ export async function upsertEntity(fd: FormData) {
   const common = {
     name: str(fd, "name"),
     legalName: opt(fd, "legalName"),
-    costingMode: (str(fd, "costingMode") === "job" ? "job" : "none") as CostingMode,
     brandColor: opt(fd, "brandColor"),
     active: bool(fd, "active"),
   };
@@ -458,6 +456,7 @@ export async function upsertCategory(fd: FormData) {
     code: str(fd, "code").toUpperCase(),
     name: str(fd, "name"),
     description: opt(fd, "description"),
+    requiresJob: bool(fd, "requiresJob"),
     receiptAlwaysRequired: bool(fd, "receiptAlwaysRequired"),
     sortOrder: int(fd, "sortOrder") ?? 100,
     active: bool(fd, "active"),

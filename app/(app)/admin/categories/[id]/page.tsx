@@ -41,7 +41,7 @@ export default async function CategoryDetailPage({
 
       <DirtyForm
         action={upsertCategory}
-        resetKey={[c.code, c.name, c.description, c.sortOrder, c.receiptAlwaysRequired, c.active].join("|")}
+        resetKey={[c.code, c.name, c.description, c.sortOrder, c.requiresJob, c.receiptAlwaysRequired, c.active].join("|")}
         className="space-y-4 text-sm"
       >
         <input type="hidden" name="id" value={c.id} />
@@ -65,6 +65,13 @@ export default async function CategoryDetailPage({
         <Field label="Sort order" hint="Lower numbers appear first in dropdowns.">
           <input name="sortOrder" type="number" defaultValue={c.sortOrder} className={`${inputClass} w-24`} />
         </Field>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" name="requiresJob" defaultChecked={c.requiresJob} className="mt-1" />
+          <span>
+            Job / project expense — requires a job code{" "}
+            <span className="text-xs opacity-60">— anyone picking this category must choose a job</span>
+          </span>
+        </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" name="receiptAlwaysRequired" defaultChecked={c.receiptAlwaysRequired} /> A receipt is
           always required

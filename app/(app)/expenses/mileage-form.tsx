@@ -38,7 +38,8 @@ export function MileageForm(props: {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string }[];
+  categories: { id: string; name: string; requiresJob: boolean }[];
+  userRequiresJob?: boolean;
   mileageCategoryId?: string;
   currentRatePerMile?: string;
   initial?: MileageFormInitial;
@@ -252,6 +253,7 @@ export function MileageForm(props: {
           locations={props.locations}
           jobs={props.jobs}
           categories={props.categories}
+          userRequiresJob={props.userRequiresJob}
           initial={
             i
               ? {

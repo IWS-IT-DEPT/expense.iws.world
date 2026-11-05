@@ -232,8 +232,10 @@ export const categories = pgTable("categories", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  /** When true, a job OR unit must be supplied on the allocation. */
+  /** Retired (units are gone) — see `requiresJob`. Kept for history. */
   requiresJobOrUnit: boolean("requires_job_or_unit").notNull().default(false),
+  /** A job / project expense: anyone using this category must pick a job. */
+  requiresJob: boolean("requires_job").notNull().default(false),
   receiptAlwaysRequired: boolean("receipt_always_required").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   active: boolean("active").notNull().default(true),
@@ -263,8 +265,10 @@ export const users = pgTable("users", {
   homeEntityId: uuid("home_entity_id").references(() => entities.id),
   homeLocationId: uuid("home_location_id").references(() => locations.id),
   mileageEligible: boolean("mileage_eligible").notNull().default(true),
-  /** Never asked for a job code, even where the entity requires one (see `effectiveCostingMode`). */
+  /** Retired — job codes are opt-in now (`requiresJobCode`). Kept for history. */
   jobExempt: boolean("job_exempt").notNull().default(false),
+  /** Must put a job code on every expense they log. Off = only job/project categories ask. */
+  requiresJobCode: boolean("requires_job_code").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -7,7 +7,7 @@ import { loadCodingOptions, loadUserCards } from "../coding-options";
 export default async function LogPurchasePage() {
   const user = await requireUser();
   const [options, cards, policy] = await Promise.all([
-    loadCodingOptions(user.jobExempt),
+    loadCodingOptions(user.requiresJobCode),
     loadUserCards(user.id),
     loadPolicy(),
   ]);

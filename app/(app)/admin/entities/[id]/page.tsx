@@ -5,7 +5,6 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, categories, dimensionMappings, entities, jobs, locations, users } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
-import { effectiveCostingMode } from "@/lib/coding";
 import { requireRole } from "@/lib/current-user";
 
 import { cardLabel } from "../../../expenses/coding-options";
@@ -13,11 +12,6 @@ import { DirtyForm } from "../../_dirty-form";
 import { CodeField, DeleteEntityConfirm } from "./confirm-controls";
 import { inputClass } from "../../_ui";
 import { deleteEntity, saveQboMappings, saveQboSettings, upsertEntity } from "../../actions";
-
-const modes = [
-  ["none", "None — entity + location only"],
-  ["job", "Job code required"],
-] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -96,7 +90,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
     },
   ].filter((g) => !g.hidden);
 
-  const detailsKey = [e.code, e.name, e.legalName, effectiveCostingMode(e.costingMode), e.brandColor, e.active].join("|");
+  const detailsKey = [e.code, e.name, e.legalName, e.brandColor, e.active].join("|");
   const qboKey = q ? String(q.updatedAt.getTime()) : "none";
   const mapKey = maps.map((m) => `${m.localType}${m.localId}${m.qboId}`).sort().join(",");
 
@@ -129,15 +123,6 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
           </Field>
           <Field label="Legal name">
             <input name="legalName" defaultValue={e.legalName ?? ""} className={`${inputClass} w-full`} />
-          </Field>
-          <Field label="Costing" hint="Which code this entity's expenses must carry. Choose a Job option to require job codes; individual people can be exempted on their Users page.">
-            <select name="costingMode" defaultValue={effectiveCostingMode(e.costingMode)} className={inputClass}>
-              {modes.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
           </Field>
           <Field label="Badge colour">
             <input name="brandColor" defaultValue={e.brandColor ?? ""} placeholder="#2F9E5A" className={`${inputClass} w-32`} />

@@ -30,15 +30,15 @@ full picture. Key facts an agent needs:
   the **`payroll`** team (Entra `HR@iws.world` / `ENTRA_GROUP_HR`), + admin — not
   accounting. Guard every submitter edit on `status in ('draft','rejected')`.
 - **Mileage** (`/expenses/mileage`) offers two paths: **Start trip** (`/expenses/trip`: Start / Add stop / End, one GPS fix per tap, no background tracking) or **Add mileage manually** (`/expenses/mileage/manual`, optional stops + Calculate-miles). Stops live in `trips`/`trip_stops`; Mapbox (`lib/mapbox.ts`, `MAPBOX_ACCESS_TOKEN`) gives driving miles per leg; finishing produces ONE `expense_items` mileage line via the manual form prefilled from the trip. Locations carry an optional `address` (geocoded on save) so stops near a site are named after it.
-- **Coding** columns (entity, location, job, category, purpose) live inline
-  on both tables. `entities.costingMode` says whether a job is required.
-  **Units/trucks are retired**: no UI, no rule; the `units` table, `unit_id`
-  columns, `categories.requires_job_or_unit` and the `unit`/`unit_or_job` enum
-  values remain in the DB only — `effectiveCostingMode()` folds `unit`→none,
-  `unit_or_job`→job. Rules in `lib/coding.ts`; the selects are `<CodingFields>`;
-  `lib/expense-checks.ts` says whether a line is ready to submit. Per-person
-  exemption: `users.jobExempt` (waives the job for that user). Pass `user.jobExempt`
-  into `checkExpenseLine` / `loadCodingOptions` / `parseCoding`.
+- **Coding** columns (entity, location, category, job, purpose) live inline
+  on both tables. **Job codes are opt-in**: required only when the category is a
+  job/project expense (`categories.requiresJob`) or the person always codes jobs
+  (`users.requiresJobCode`) — `codingRules()` in `lib/coding.ts`. The selects
+  are `<CodingFields>`; `lib/expense-checks.ts` says whether a line is ready to
+  submit. Pass `categoryRequiresJob` / `user.requiresJobCode` into
+  `checkExpenseLine`, `loadCodingOptions`, `parseCoding`.
+  **Retired, DB-only (no UI, no rule):** units/trucks (`units`, `unit_id`),
+  `entities.costing_mode`, `users.job_exempt`, `categories.requires_job_or_unit`.
 - **`/report` ("This Week")** is a completeness checklist for card purchases +
   the `submitWeek` batch for reimbursements.
 - **Card queue (accounting/approver/admin):** **Reconcile** (`/reconcile`)

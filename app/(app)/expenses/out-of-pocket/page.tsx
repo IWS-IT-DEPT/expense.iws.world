@@ -6,7 +6,7 @@ import { loadCodingOptions } from "../coding-options";
 
 export default async function OutOfPocketPage() {
   const user = await requireUser();
-  const [options, policy] = await Promise.all([loadCodingOptions(user.jobExempt), loadPolicy()]);
+  const [options, policy] = await Promise.all([loadCodingOptions(user.requiresJobCode), loadPolicy()]);
   return (
     <div className="mx-auto max-w-xl space-y-4">
       <div>

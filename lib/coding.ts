@@ -5,7 +5,7 @@ import { z } from "zod";
  *
  *   1. Who is this for?      -> entity
  *   2. Which site?           -> location   (entity's own sites listed first)
- *   3. Which job?            -> job, only when the entity requires it
+ *   3. Which job?            -> job, only for a job/project category or a person who always codes jobs
  *   4. What kind of expense? -> category
  *   5. Why?                  -> businessPurpose
  *
@@ -14,9 +14,8 @@ import { z } from "zod";
  */
 
 /**
- * The DB enum still carries the retired "unit" / "unit_or_job" values (trucks
- * are gone); `effectiveCostingMode` folds them away — "unit" → nothing extra,
- * "unit_or_job" → job.
+ * `entities.costing_mode` (DB enum). Retired: it no longer drives the coding
+ * rules — job codes are opt-in per category / per person (`codingRules`).
  */
 export type CostingMode = "none" | "unit" | "job" | "unit_or_job";
 
@@ -38,22 +37,20 @@ export const codingInputSchema = z.object({
 
 export type CodingInput = z.infer<typeof codingInputSchema>;
 
-/**
- * The costing mode the coding rules actually apply: retired unit modes folded
- * away, and a job-exempt person is never asked for a job code.
- */
-export function effectiveCostingMode(mode: CostingMode, jobExempt?: boolean | null): "none" | "job" {
-  const m = mode === "job" || mode === "unit_or_job" ? "job" : "none";
-  return jobExempt ? "none" : m;
-}
-
 export interface CodingRules {
   needsJob: boolean;
 }
 
-/** What the wizard must collect, given the chosen entity's costing mode. */
-export function codingRules(costingMode: CostingMode): CodingRules {
-  return { needsJob: effectiveCostingMode(costingMode) === "job" };
+/**
+ * A job code is required only when the category is a job / project expense
+ * (`categories.requiresJob`) or the person always codes jobs
+ * (`users.requiresJobCode`). Everyone else is never asked.
+ */
+export function codingRules(ctx: {
+  categoryRequiresJob?: boolean | null;
+  userRequiresJob?: boolean | null;
+}): CodingRules {
+  return { needsJob: !!ctx.categoryRequiresJob || !!ctx.userRequiresJob };
 }
 
 export interface CodingProblem {
@@ -63,15 +60,16 @@ export interface CodingProblem {
 
 /** Validates a single allocation against the entity rules. */
 export function validateCoding(ctx: {
-  costingMode: CostingMode;
+  categoryRequiresJob?: boolean | null;
+  userRequiresJob?: boolean | null;
   hasJob: boolean;
   businessPurpose: string;
 }): CodingProblem[] {
-  const rules = codingRules(ctx.costingMode);
+  const rules = codingRules(ctx);
   const problems: CodingProblem[] = [];
 
   if (rules.needsJob && !ctx.hasJob) {
-    problems.push({ field: "jobId", message: "This entity requires a job number." });
+    problems.push({ field: "jobId", message: "Pick the job this expense is for." });
   }
   if (ctx.businessPurpose.trim().length < 4) {
     problems.push({ field: "businessPurpose", message: "Add a short business purpose." });

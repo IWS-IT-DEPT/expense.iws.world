@@ -88,8 +88,9 @@ async function seed() {
 
   console.log("Seeding categories...");
   const categoryRows = [
-    { code: "FUEL", name: "Fuel", requiresJobOrUnit: true, sortOrder: 10 },
-    { code: "MAINT", name: "Vehicle Maintenance & Repair", requiresJobOrUnit: true, sortOrder: 20 },
+    { code: "FUEL", name: "Fuel", sortOrder: 10 },
+    { code: "MAINT", name: "Vehicle Maintenance & Repair", sortOrder: 20 },
+    { code: "JOB", name: "Job / Project Expense", description: "Costs for a specific job or project — requires a job code", requiresJob: true, sortOrder: 25 },
     { code: "PARTS", name: "Parts & Materials", sortOrder: 30 },
     { code: "TOOLS", name: "Tools & Small Equipment", sortOrder: 40 },
     { code: "SHOP", name: "Shop Supplies", sortOrder: 50 },

@@ -3,7 +3,6 @@ import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 
 import { db } from "@/db";
 import { expenseItems, expenseReports, pendingExpenses } from "@/db/schema";
-import type { CostingMode } from "@/lib/coding";
 import { requireUser } from "@/lib/current-user";
 import { money, shortDate, weekBounds } from "@/lib/format";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
@@ -57,8 +56,8 @@ export default async function WeeklyReportPage() {
         jobId: r.jobId,
         cardId: r.cardId,
         receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        jobExempt: user.jobExempt,
+        categoryRequiresJob: r.category?.requiresJob,
+        userRequiresJob: user.requiresJobCode,
       },
       policy,
     );
@@ -73,8 +72,8 @@ export default async function WeeklyReportPage() {
         businessPurpose: r.businessPurpose,
         jobId: r.jobId,
         receiptCount: r.receipts.length,
-        costingMode: r.entity?.costingMode as CostingMode | undefined,
-        jobExempt: user.jobExempt,
+        categoryRequiresJob: r.category?.requiresJob,
+        userRequiresJob: user.requiresJobCode,
       },
       policy,
     );

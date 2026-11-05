@@ -57,7 +57,7 @@ export default async function UserDetailPage({
       : u.role;
   const roleOptions = userRole.enumValues.filter((r) => r !== "admin");
 
-  const formKey = [u.name, u.role, u.roleOverride, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.jobExempt, u.active].join("|");
+  const formKey = [u.name, u.role, u.roleOverride, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.requiresJobCode, u.active].join("|");
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -172,11 +172,11 @@ export default async function UserDetailPage({
           </label>
 
           <label className="flex items-start gap-2">
-            <input type="checkbox" name="jobExempt" defaultChecked={u.jobExempt} className="mt-1" />
+            <input type="checkbox" name="requiresJobCode" defaultChecked={u.requiresJobCode} className="mt-1" />
             <span>
-              Exempt from job codes{" "}
+              Requires a job code{" "}
               <span className="text-xs opacity-60">
-                — never asked for a job, even on entities that require one (set per entity under Settings → Entities)
+                — must pick a job on every expense. Off: only asked on job / project categories (Settings → Categories)
               </span>
             </span>
           </label>

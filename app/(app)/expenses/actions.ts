@@ -14,7 +14,7 @@ import {
   receipts,
   trips,
 } from "@/db/schema";
-import { effectiveCostingMode, validateCoding, type CostingMode } from "@/lib/coding";
+import { validateCoding } from "@/lib/coding";
 import { canReview, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { normalizeMerchant } from "@/lib/merchant";
@@ -59,7 +59,7 @@ interface Coding {
 async function parseCoding(
   fd: FormData,
   mode: "optional" | "required",
-  jobExempt: boolean,
+  userRequiresJob: boolean,
 ): Promise<Coding> {
   const entityId = String(fd.get("entityId") || "") || null;
   const locationId = String(fd.get("locationId") || "") || null;
@@ -88,7 +88,8 @@ async function parseCoding(
   if (!entity || !category) return { ...blank, error: "Invalid entity or category." };
 
   const problems = validateCoding({
-    costingMode: effectiveCostingMode(entity.costingMode as CostingMode, jobExempt),
+    categoryRequiresJob: category.requiresJob,
+    userRequiresJob,
     hasJob: !!jobId,
     businessPurpose,
   });
@@ -123,7 +124,7 @@ export async function createCardExpense(_prev: FormState, fd: FormData): Promise
     if (!card || card.userId !== user.id) return { error: "That isn't one of your cards." };
   }
 
-  const coding = await parseCoding(fd, "optional", user.jobExempt);
+  const coding = await parseCoding(fd, "optional", user.requiresJobCode);
   if (coding.error) return { error: coding.error };
 
   const [created] = await db
@@ -170,7 +171,7 @@ export async function updateCardExpense(_prev: FormState, fd: FormData): Promise
     if (!card || card.userId !== user.id) return { error: "That isn't one of your cards." };
   }
 
-  const coding = await parseCoding(fd, "optional", user.jobExempt);
+  const coding = await parseCoding(fd, "optional", user.requiresJobCode);
   if (coding.error) return { error: coding.error };
 
   await db
@@ -261,8 +262,8 @@ export async function submitCardExpense(fd: FormData): Promise<void> {
       jobId: row.jobId,
       cardId: row.cardId,
       receiptCount: row.receipts.length,
-      costingMode: row.entity?.costingMode as CostingMode | undefined,
-      jobExempt: user.jobExempt,
+      categoryRequiresJob: row.category?.requiresJob,
+      userRequiresJob: user.requiresJobCode,
     },
     policy,
   );
@@ -318,8 +319,8 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
               jobId: r.jobId,
               cardId: r.cardId,
               receiptCount: r.receipts.length,
-              costingMode: r.entity?.costingMode as CostingMode | undefined,
-              jobExempt: user.jobExempt,
+              categoryRequiresJob: r.category?.requiresJob,
+              userRequiresJob: user.requiresJobCode,
             },
             policy,
           ),
@@ -361,7 +362,7 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
 async function writeItem(
   fd: FormData,
   kind: "out_of_pocket" | "mileage",
-  user: { id: string; jobExempt: boolean },
+  user: { id: string; requiresJobCode: boolean },
   existingId: string | null,
 ): Promise<FormState> {
   if (existingId) {
@@ -373,7 +374,7 @@ async function writeItem(
   const itemDate = String(fd.get("itemDate") || "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(itemDate)) return { error: "Pick a date." };
 
-  const coding = await parseCoding(fd, "required", user.jobExempt);
+  const coding = await parseCoding(fd, "required", user.requiresJobCode);
   if (coding.error) return { error: coding.error };
 
   let amountCents: number;

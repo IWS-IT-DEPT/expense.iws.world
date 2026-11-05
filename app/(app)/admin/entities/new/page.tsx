@@ -6,11 +6,6 @@ import { requireRole } from "@/lib/current-user";
 import { inputClass } from "../../_ui";
 import { upsertEntity } from "../../actions";
 
-const modes = [
-  ["none", "None — entity + location only"],
-  ["job", "Job"],
-] as const;
-
 export default async function NewEntityPage() {
   await requireRole("admin", "accounting");
   return (
@@ -35,15 +30,6 @@ export default async function NewEntityPage() {
         </Field>
         <Field label="Legal name" hint="Optional — as it appears on the QuickBooks company file.">
           <input name="legalName" className={`${inputClass} w-full`} />
-        </Field>
-        <Field label="Costing" hint="Decides whether the coding dropdowns require a job.">
-          <select name="costingMode" defaultValue="none" className={inputClass}>
-            {modes.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
         </Field>
         <Field label="Badge colour" hint="Hex, e.g. #2F9E5A. Optional.">
           <input name="brandColor" placeholder="#2F9E5A" className={`${inputClass} w-32`} />
