@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { asc, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { cards, categories, entities, errorLogs, jobs, locations, units, users } from "@/db/schema";
+import { cards, categories, entities, errorLogs, jobs, locations, users } from "@/db/schema";
+import { effectiveCostingMode } from "@/lib/coding";
 import { isAdmin, requireRole } from "@/lib/current-user";
 import { getGroupConfig } from "@/lib/role-groups";
 
@@ -18,7 +19,6 @@ export default async function AdminOverviewPage() {
     Promise.all([
       db.select({ n: sql<number>`count(*)` }).from(users),
       db.select({ n: sql<number>`count(*)` }).from(locations),
-      db.select({ n: sql<number>`count(*)` }).from(units),
       db.select({ n: sql<number>`count(*)` }).from(jobs),
       db.select({ n: sql<number>`count(*)` }).from(categories),
       db.select({ n: sql<number>`count(*) filter (where ${cards.active})` }).from(cards),
@@ -28,7 +28,7 @@ export default async function AdminOverviewPage() {
         .where(sql`${errorLogs.resolvedAt} is null`),
     ]),
   ]);
-  const [nUsers, nLoc, nUnit, nJob, nCat, nCards, nErrors] = counts.map((c) => c[0].n);
+  const [nUsers, nLoc, nJob, nCat, nCards, nErrors] = counts.map((c) => c[0].n);
 
   return (
     <div className="space-y-8">
@@ -60,7 +60,6 @@ export default async function AdminOverviewPage() {
         <Card href="/admin/users" label="Users" value={nUsers} />
         <Card href="/admin/cards" label="Registered cards" value={nCards} />
         <Card href="/admin/locations" label="Locations" value={nLoc} />
-        <Card href="/admin/units" label="Units" value={nUnit} />
         <Card href="/admin/jobs" label="Jobs" value={nJob} />
         <Card href="/admin/categories" label="Categories" value={nCat} />
       </section>
@@ -95,7 +94,7 @@ export default async function AdminOverviewPage() {
               />
               <span className="font-mono">{e.code}</span>
               <span className="opacity-70">{e.name}</span>
-              <span className="ml-auto text-xs opacity-50">costing: {e.costingMode}</span>
+              <span className="ml-auto text-xs opacity-50">costing: {effectiveCostingMode(e.costingMode)}</span>
             </li>
           ))}
         </ul>

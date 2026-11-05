@@ -8,7 +8,7 @@ import { codingRules, type CostingMode } from "@/lib/coding";
  * The five dependent coding selects + business-purpose textarea, shared by the
  * transaction coding wizard (`transactions/[id]/coding-form.tsx`) and the Receipt
  * Bank pre-coding form. Emits plain form fields — `entityId`, `locationId`,
- * `unitId`, `jobId`, `categoryId`, `businessPurpose` — so any server action can
+ * `jobId`, `categoryId`, `businessPurpose` — so any server action can
  * read it straight off `FormData`.
  */
 
@@ -26,9 +26,8 @@ export interface CodingScopedOption {
 export interface CodingFieldsProps {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
-  units: CodingScopedOption[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
+  categories: { id: string; name: string }[];
   /** when set, an intercompany hint shows if a different entity is picked */
   cardOwnerEntityId?: string;
   /** false → the four always-needed fields aren't `required` (code-later flows) */
@@ -36,7 +35,6 @@ export interface CodingFieldsProps {
   initial?: {
     entityId?: string | null;
     locationId?: string | null;
-    unitId?: string | null;
     jobId?: string | null;
     categoryId?: string | null;
     businessPurpose?: string | null;
@@ -58,7 +56,6 @@ export function Field({ label, children }: { label: string; children: React.Reac
 export function CodingFields({
   entities,
   locations,
-  units,
   jobs,
   categories,
   cardOwnerEntityId,
@@ -69,11 +66,7 @@ export function CodingFields({
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
 
   const entity = entities.find((e) => e.id === entityId);
-  const category = categories.find((c) => c.id === categoryId);
-  const rules = codingRules(
-    (entity?.costingMode ?? "none") as CostingMode,
-    category ? { requiresJobOrUnit: category.requiresJobOrUnit } : null,
-  );
+  const rules = codingRules((entity?.costingMode ?? "none") as CostingMode);
 
   const sortedLocations = useMemo(() => {
     return [...locations].sort((a, b) => {
@@ -83,7 +76,6 @@ export function CodingFields({
     });
   }, [locations, entityId]);
 
-  const entityUnits = units.filter((u) => u.entityId === entityId);
   const entityJobs = jobs.filter((j) => j.entityId === entityId);
   const intercompany = !!cardOwnerEntityId && !!entityId && entityId !== cardOwnerEntityId;
 
@@ -129,35 +121,15 @@ export function CodingFields({
         </select>
       </Field>
 
-      {rules.needsUnit || rules.needsUnitOrJob ? (
-        <Field
-          label={rules.needsUnitOrJob ? "3. Which unit? (or pick a job below)" : "3. Which unit / truck?"}
-        >
-          <select
-            name="unitId"
-            required={required && rules.needsUnit}
-            defaultValue={initial?.unitId ?? ""}
-            className={selectClass}
-          >
-            <option value="">{rules.needsUnitOrJob ? "No unit" : "Select unit…"}</option>
-            {entityUnits.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      ) : null}
-
-      {rules.needsJob || rules.needsUnitOrJob ? (
-        <Field label={rules.needsUnitOrJob ? "3. …or which job?" : "3. Which job?"}>
+      {rules.needsJob ? (
+        <Field label="3. Which job?">
           <select
             name="jobId"
-            required={required && rules.needsJob}
+            required={required}
             defaultValue={initial?.jobId ?? ""}
             className={selectClass}
           >
-            <option value="">{rules.needsUnitOrJob ? "No job" : "Select job…"}</option>
+            <option value="">Select job…</option>
             {entityJobs.map((j) => (
               <option key={j.id} value={j.id}>
                 {j.label}

@@ -141,13 +141,13 @@ const cardholder: Manual = {
         <li><strong>Entity</strong> — which company is this for?</li>
         <li><strong>Location</strong> — which site? (The entity&apos;s own sites are listed first.)</li>
         <li>
-          <strong>Truck/unit or job</strong> — only shown when the company needs one (for example trucks for
-          Rolling Green and Gravel Grabbers, jobs for Precision Construction Repair). If you&apos;ve been
+          <strong>Job</strong> — only shown when the company needs one (for example Precision Construction
+          Repair). If you&apos;ve been
           excused from job codes, you won&apos;t be asked for a job even where the company normally requires
           one.
         </li>
         <li><strong>Category</strong> — what kind of expense?</li>
-        <li><strong>Business purpose</strong> — a short sentence on why. Be specific (&ldquo;Fuel for Truck 07, Houston run&rdquo;).</li>
+        <li><strong>Business purpose</strong> — a short sentence on why. Be specific (&ldquo;Fuel for the Houston delivery run&rdquo;).</li>
       </OL>
 
       <H>Receipts</H>
@@ -356,14 +356,14 @@ const accounting: Manual = {
         <li>
           <strong>Entities</strong> — the companies. Click one to open its page: edit its code, name and
           costing, set up its QuickBooks company (Realm ID, accounts, and the mapping of our categories,
-          locations, units, jobs, cards and employees to QuickBooks), or remove it. Changes only show a
+          locations, jobs, cards and employees to QuickBooks), or remove it. Changes only show a
           Save bar once you&apos;ve edited something. Renaming a code or deleting an entity makes you type a
           confirmation first; an entity with expense history can&apos;t be deleted — untick{" "}
           <strong>Active</strong> to retire it instead.
         </li>
         <li>
           <strong>Locations</strong> (add each site&apos;s street address so mileage stops at that site are named
-          after it — the address is looked up on save) and <strong>Units</strong> (trucks) / <strong>Jobs</strong>.
+          after it — the address is looked up on save) and <strong>Jobs</strong>.
         </li>
         <li><strong>Categories</strong> — expense types.</li>
         <li><strong>Cards</strong> — view and edit any cardholder&apos;s registered cards.</li>
@@ -558,13 +558,12 @@ const admin: Manual = {
       <UL>
         <li>
           Which <em>companies</em> require a job code is set on each entity&apos;s page under{" "}
-          <strong>Settings → Entities → Costing</strong>: choose <strong>Job code required</strong> (or{" "}
-          <strong>Unit or job code required</strong>). It applies to everyone logging for that company.
+          <strong>Settings → Entities → Costing</strong>: choose <strong>Job code required</strong>. It applies to everyone logging for that company.
         </li>
         <li>
           To excuse particular <em>people</em>, open them under <strong>Settings → Users</strong> and tick{" "}
           <strong>Exempt from job codes</strong>. They are never asked for a job, even on companies that require
-          one. Categories flagged &ldquo;requires job or unit&rdquo; still apply to them.
+          one.
         </li>
       </UL>
 
@@ -574,7 +573,7 @@ const admin: Manual = {
           <strong>Overview</strong> — access-control summary and entities at a glance.
         </li>
         <li>
-          <strong>Entities, Locations, Units, Jobs, Categories, Cards</strong> — the shared coding lists
+          <strong>Entities, Locations, Jobs, Categories, Cards</strong> — the shared coding lists
           (see the Accounting guide). Retire rows with <strong>Active</strong>; <strong>Delete</strong> appears
           only if nothing uses the row.
         </li>

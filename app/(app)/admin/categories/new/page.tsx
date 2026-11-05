@@ -27,9 +27,6 @@ export default async function NewCategoryPage({ searchParams }: { searchParams: 
           <input name="sortOrder" type="number" defaultValue={100} className={`${inputClass} w-24`} />
         </Field>
         <label className="flex items-center gap-2">
-          <input type="checkbox" name="requiresJobOrUnit" /> Needs a job or unit
-        </label>
-        <label className="flex items-center gap-2">
           <input type="checkbox" name="receiptAlwaysRequired" /> A receipt is always required
         </label>
         <SubmitButton

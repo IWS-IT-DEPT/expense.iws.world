@@ -28,9 +28,8 @@ const inputClass =
 export interface CardExpenseFormProps {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
-  units: CodingScopedOption[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
+  categories: { id: string; name: string }[];
   cards: { id: string; label: string }[];
   /** true when the server says this expense passes every check and can be sent to accounting */
   submitReady?: boolean;
@@ -45,7 +44,6 @@ export interface CardExpenseFormProps {
     notes: string | null;
     entityId: string | null;
     locationId: string | null;
-    unitId: string | null;
     jobId: string | null;
     categoryId: string | null;
     businessPurpose: string | null;
@@ -197,7 +195,6 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
           required={false}
           entities={props.entities}
           locations={props.locations}
-          units={props.units}
           jobs={props.jobs}
           categories={props.categories}
           initial={
@@ -205,7 +202,6 @@ export function CardExpenseForm(props: CardExpenseFormProps) {
               ? {
                   entityId: i.entityId,
                   locationId: i.locationId,
-                  unitId: i.unitId,
                   jobId: i.jobId,
                   categoryId: i.categoryId,
                   businessPurpose: i.businessPurpose,

@@ -8,9 +8,7 @@ import { upsertEntity } from "../../actions";
 
 const modes = [
   ["none", "None — entity + location only"],
-  ["unit", "Unit (trucks / equipment)"],
   ["job", "Job"],
-  ["unit_or_job", "Unit or job"],
 ] as const;
 
 export default async function NewEntityPage() {
@@ -38,7 +36,7 @@ export default async function NewEntityPage() {
         <Field label="Legal name" hint="Optional — as it appears on the QuickBooks company file.">
           <input name="legalName" className={`${inputClass} w-full`} />
         </Field>
-        <Field label="Costing" hint="Decides whether the coding dropdowns require a truck/unit or a job.">
+        <Field label="Costing" hint="Decides whether the coding dropdowns require a job.">
           <select name="costingMode" defaultValue="none" className={inputClass}>
             {modes.map(([v, l]) => (
               <option key={v} value={v}>

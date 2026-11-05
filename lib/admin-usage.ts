@@ -22,7 +22,6 @@ import {
   qboDimensions,
   qboExports,
   transactions,
-  units,
   users,
 } from "@/db/schema";
 
@@ -46,7 +45,6 @@ const mappingIds = (localType: string) =>
 export function usedEntityIds(): Promise<Set<string>> {
   return collect([
     db.selectDistinct({ id: locations.homeEntityId }).from(locations),
-    db.selectDistinct({ id: units.entityId }).from(units),
     db.selectDistinct({ id: jobs.entityId }).from(jobs),
     db.selectDistinct({ id: cardAccounts.owningEntityId }).from(cardAccounts),
     db.selectDistinct({ id: users.homeEntityId }).from(users),
@@ -67,15 +65,6 @@ export function usedLocationIds(): Promise<Set<string>> {
     db.selectDistinct({ id: expenseItems.locationId }).from(expenseItems),
     db.selectDistinct({ id: pendingExpenses.locationId }).from(pendingExpenses),
     mappingIds("location"),
-  ]);
-}
-
-export function usedUnitIds(): Promise<Set<string>> {
-  return collect([
-    db.selectDistinct({ id: allocations.unitId }).from(allocations),
-    db.selectDistinct({ id: expenseItems.unitId }).from(expenseItems),
-    db.selectDistinct({ id: pendingExpenses.unitId }).from(pendingExpenses),
-    mappingIds("unit"),
   ]);
 }
 
@@ -113,10 +102,9 @@ export function usedCardIds(): Promise<Set<string>> {
 export async function entityBlockers(entityId: string): Promise<{ label: string; count: number }[]> {
   const n = (q: PromiseLike<{ n: number }[]>) => q.then((r) => Number(r[0]?.n ?? 0));
   const cnt = sql<number>`count(*)`;
-  const [locs, unitN, jobN, cardAcc, people, allocs, items, cardExp, exports_, connected] =
+  const [locs, jobN, cardAcc, people, allocs, items, cardExp, exports_, connected] =
     await Promise.all([
       n(db.select({ n: cnt }).from(locations).where(eq(locations.homeEntityId, entityId))),
-      n(db.select({ n: cnt }).from(units).where(eq(units.entityId, entityId))),
       n(db.select({ n: cnt }).from(jobs).where(eq(jobs.entityId, entityId))),
       n(db.select({ n: cnt }).from(cardAccounts).where(eq(cardAccounts.owningEntityId, entityId))),
       n(db.select({ n: cnt }).from(users).where(eq(users.homeEntityId, entityId))),
@@ -137,7 +125,6 @@ export async function entityBlockers(entityId: string): Promise<{ label: string;
     { label: "coded allocations", count: allocs },
     { label: "QuickBooks exports", count: exports_ },
     { label: "locations (home entity)", count: locs },
-    { label: "units", count: unitN },
     { label: "jobs", count: jobN },
     { label: "card accounts", count: cardAcc },
     { label: "employees (home entity)", count: people },
@@ -159,9 +146,9 @@ export async function cardBlockers(cardId: string): Promise<{ label: string; cou
   ].filter((b) => b.count > 0);
 }
 
-export type DimensionKind = "location" | "unit" | "job" | "category" | "mileage";
+export type DimensionKind = "location" | "job" | "category" | "mileage";
 
-/** What stops a location / unit / job / category / mileage rate being hard-deleted. */
+/** What stops a location / job / category / mileage rate being hard-deleted. */
 export async function dimensionBlockers(kind: DimensionKind, id: string): Promise<{ label: string; count: number }[]> {
   const n = (q: PromiseLike<{ n: number }[]>) => q.then((r) => Number(r[0]?.n ?? 0));
   const cnt = sql<number>`count(*)`;
@@ -178,17 +165,6 @@ export async function dimensionBlockers(kind: DimensionKind, id: string): Promis
       { label: "out-of-pocket / mileage expenses", count: items },
       { label: "coded allocations", count: allocs },
       { label: "employees (home location)", count: people },
-    ];
-  } else if (kind === "unit") {
-    const [allocs, items, exp] = await Promise.all([
-      n(db.select({ n: cnt }).from(allocations).where(eq(allocations.unitId, id))),
-      n(db.select({ n: cnt }).from(expenseItems).where(eq(expenseItems.unitId, id))),
-      n(db.select({ n: cnt }).from(pendingExpenses).where(eq(pendingExpenses.unitId, id))),
-    ]);
-    rows = [
-      { label: "card expenses", count: exp },
-      { label: "out-of-pocket / mileage expenses", count: items },
-      { label: "coded allocations", count: allocs },
     ];
   } else if (kind === "job") {
     const [allocs, items, exp] = await Promise.all([

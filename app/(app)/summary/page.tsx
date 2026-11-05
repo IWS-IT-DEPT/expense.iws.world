@@ -41,13 +41,11 @@ export default async function DashboardPage() {
           locationId: r.locationId,
           categoryId: r.categoryId,
           businessPurpose: r.businessPurpose,
-          unitId: r.unitId,
           jobId: r.jobId,
           cardId: r.cardId,
           receiptCount: r.receipts.length,
           costingMode: r.entity?.costingMode as CostingMode | undefined,
           jobExempt: user.jobExempt,
-          categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
         },
         policy,
       ).some((c) => c.code === "missing_receipt");

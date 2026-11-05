@@ -25,7 +25,7 @@ export default async function AdminCategoriesPage() {
             <span className="font-mono">{c.code}</span>
             <span className="font-medium">{c.name}</span>
             <span className="text-xs opacity-60">
-              {[c.requiresJobOrUnit ? "needs job/unit" : null, c.receiptAlwaysRequired ? "always receipt" : null]
+              {[c.receiptAlwaysRequired ? "always receipt" : null]
                 .filter(Boolean)
                 .join(" · ")}
             </span>

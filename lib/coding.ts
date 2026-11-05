@@ -5,28 +5,31 @@ import { z } from "zod";
  *
  *   1. Who is this for?      -> entity
  *   2. Which site?           -> location   (entity's own sites listed first)
- *   3. Which truck / job?    -> unit or job, only when the entity requires it
+ *   3. Which job?            -> job, only when the entity requires it
  *   4. What kind of expense? -> category
  *   5. Why?                  -> businessPurpose
  *
  * The result is a structured `CodingInput` plus a human-readable tag such as
- *   "RGT · Main Office · Truck 07 · Fuel"
+ *   "RGT · Main Office · Fuel"
  */
 
+/**
+ * The DB enum still carries the retired "unit" / "unit_or_job" values (trucks
+ * are gone); `effectiveCostingMode` folds them away — "unit" → nothing extra,
+ * "unit_or_job" → job.
+ */
 export type CostingMode = "none" | "unit" | "job" | "unit_or_job";
 
 export interface CodingContext {
   entity: { id: string; code: string; name: string; costingMode: CostingMode };
   location: { id: string; code: string; name: string };
-  unit?: { id: string; unitNumber: string } | null;
   job?: { id: string; jobNumber: string } | null;
-  category: { id: string; code: string; name: string; requiresJobOrUnit: boolean };
+  category: { id: string; code: string; name: string };
 }
 
 export const codingInputSchema = z.object({
   entityId: z.string().uuid(),
   locationId: z.string().uuid(),
-  unitId: z.string().uuid().nullish(),
   jobId: z.string().uuid().nullish(),
   categoryId: z.string().uuid(),
   businessPurpose: z.string().trim().min(4, "Add a short business purpose"),
@@ -36,57 +39,39 @@ export const codingInputSchema = z.object({
 export type CodingInput = z.infer<typeof codingInputSchema>;
 
 /**
- * A job-exempt person is never asked for a job code. Where the entity requires
- * one ("job", or "unit or job") they're asked for nothing extra; "unit" is unaffected.
+ * The costing mode the coding rules actually apply: retired unit modes folded
+ * away, and a job-exempt person is never asked for a job code.
  */
-export function effectiveCostingMode(mode: CostingMode, jobExempt?: boolean | null): CostingMode {
-  if (!jobExempt) return mode;
-  return mode === "job" || mode === "unit_or_job" ? "none" : mode;
+export function effectiveCostingMode(mode: CostingMode, jobExempt?: boolean | null): "none" | "job" {
+  const m = mode === "job" || mode === "unit_or_job" ? "job" : "none";
+  return jobExempt ? "none" : m;
 }
 
 export interface CodingRules {
-  needsUnit: boolean;
   needsJob: boolean;
-  needsUnitOrJob: boolean;
 }
 
-/** What the wizard must collect, given the chosen entity + category. */
-export function codingRules(
-  costingMode: CostingMode,
-  category?: { requiresJobOrUnit: boolean } | null,
-): CodingRules {
-  const categoryForces = category?.requiresJobOrUnit ?? false;
-  return {
-    needsUnit: costingMode === "unit",
-    needsJob: costingMode === "job",
-    needsUnitOrJob: costingMode === "unit_or_job" || (categoryForces && costingMode === "none"),
-  };
+/** What the wizard must collect, given the chosen entity's costing mode. */
+export function codingRules(costingMode: CostingMode): CodingRules {
+  return { needsJob: effectiveCostingMode(costingMode) === "job" };
 }
 
 export interface CodingProblem {
-  field: "entityId" | "locationId" | "unitId" | "jobId" | "categoryId" | "businessPurpose";
+  field: "entityId" | "locationId" | "jobId" | "categoryId" | "businessPurpose";
   message: string;
 }
 
-/** Validates a single allocation against the entity/category rules. */
+/** Validates a single allocation against the entity rules. */
 export function validateCoding(ctx: {
   costingMode: CostingMode;
-  hasUnit: boolean;
   hasJob: boolean;
-  category?: { requiresJobOrUnit: boolean } | null;
   businessPurpose: string;
 }): CodingProblem[] {
-  const rules = codingRules(ctx.costingMode, ctx.category);
+  const rules = codingRules(ctx.costingMode);
   const problems: CodingProblem[] = [];
 
-  if (rules.needsUnit && !ctx.hasUnit) {
-    problems.push({ field: "unitId", message: "This entity requires a unit / truck." });
-  }
   if (rules.needsJob && !ctx.hasJob) {
     problems.push({ field: "jobId", message: "This entity requires a job number." });
-  }
-  if (rules.needsUnitOrJob && !ctx.hasUnit && !ctx.hasJob) {
-    problems.push({ field: "jobId", message: "Pick a job or a unit for this expense." });
   }
   if (ctx.businessPurpose.trim().length < 4) {
     problems.push({ field: "businessPurpose", message: "Add a short business purpose." });
@@ -94,10 +79,9 @@ export function validateCoding(ctx: {
   return problems;
 }
 
-/** "RGT · Main Office · Truck 07 · Fuel" */
+/** "RGT · Main Office · Fuel" */
 export function codingTag(ctx: CodingContext): string {
   const parts = [ctx.entity.code, ctx.location.name];
-  if (ctx.unit) parts.push(ctx.unit.unitNumber);
   if (ctx.job) parts.push(`Job ${ctx.job.jobNumber}`);
   parts.push(ctx.category.name);
   return parts.join(" · ");

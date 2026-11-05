@@ -2,17 +2,16 @@ import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { effectiveCostingMode } from "@/lib/coding";
-import { cards, categories, entities, jobs, locations, units } from "@/db/schema";
+import { cards, categories, entities, jobs, locations } from "@/db/schema";
 
 /** Option lists for `<CodingFields>`, shared by every expense form. */
 export async function loadCodingOptions(jobExempt = false) {
-  const [entityRows, locationRows, unitRows, jobRows, categoryRows] = await Promise.all([
+  const [entityRows, locationRows, jobRows, categoryRows] = await Promise.all([
     db.query.entities.findMany({ where: eq(entities.active, true), orderBy: [asc(entities.code)] }),
     db.query.locations.findMany({
       where: eq(locations.active, true),
       orderBy: [asc(locations.name)],
     }),
-    db.query.units.findMany({ where: eq(units.active, true), orderBy: [asc(units.unitNumber)] }),
     db.query.jobs.findMany({ where: eq(jobs.active, true), orderBy: [asc(jobs.jobNumber)] }),
     db.query.categories.findMany({
       where: eq(categories.active, true),
@@ -27,17 +26,12 @@ export async function loadCodingOptions(jobExempt = false) {
       costingMode: effectiveCostingMode(e.costingMode, jobExempt),
     })),
     locations: locationRows.map((l) => ({ id: l.id, name: l.name, homeEntityId: l.homeEntityId })),
-    units: unitRows.map((u) => ({ id: u.id, entityId: u.entityId, label: u.unitNumber })),
     jobs: jobRows.map((j) => ({
       id: j.id,
       entityId: j.entityId,
       label: `${j.jobNumber}${j.name ? ` — ${j.name}` : ""}`,
     })),
-    categories: categoryRows.map((c) => ({
-      id: c.id,
-      name: c.name,
-      requiresJobOrUnit: c.requiresJobOrUnit,
-    })),
+    categories: categoryRows.map((c) => ({ id: c.id, name: c.name })),
   };
 }
 

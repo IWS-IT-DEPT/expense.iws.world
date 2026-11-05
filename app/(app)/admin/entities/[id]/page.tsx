@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { cards, categories, dimensionMappings, entities, jobs, locations, units, users } from "@/db/schema";
+import { cards, categories, dimensionMappings, entities, jobs, locations, users } from "@/db/schema";
 import { entityBlockers } from "@/lib/admin-usage";
+import { effectiveCostingMode } from "@/lib/coding";
 import { requireRole } from "@/lib/current-user";
 
 import { cardLabel } from "../../../expenses/coding-options";
@@ -15,9 +16,7 @@ import { deleteEntity, saveQboMappings, saveQboSettings, upsertEntity } from "..
 
 const modes = [
   ["none", "None — entity + location only"],
-  ["unit", "Unit required (trucks / equipment)"],
   ["job", "Job code required"],
-  ["unit_or_job", "Unit or job code required"],
 ] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -33,14 +32,10 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
   });
   if (!e) notFound();
 
-  const [blockers, cats, locs, entUnits, entJobs, cardRows, people, maps] = await Promise.all([
+  const [blockers, cats, locs, entJobs, cardRows, people, maps] = await Promise.all([
     entityBlockers(id),
     db.query.categories.findMany({ where: eq(categories.active, true), orderBy: [asc(categories.name)] }),
     db.query.locations.findMany({ where: eq(locations.active, true), orderBy: [asc(locations.name)] }),
-    db.query.units.findMany({
-      where: and(eq(units.entityId, id), eq(units.active, true)),
-      orderBy: [asc(units.unitNumber)],
-    }),
     db.query.jobs.findMany({
       where: and(eq(jobs.entityId, id), eq(jobs.active, true)),
       orderBy: [asc(jobs.jobNumber)],
@@ -82,13 +77,6 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
       hidden: q ? !q.usesLocations : false,
     },
     {
-      key: "unit",
-      title: "Units → QuickBooks classes",
-      qbo: "Class ID",
-      rows: entUnits.map((u) => ({ id: u.id, label: u.unitNumber })),
-      hidden: q ? !q.usesClasses : false,
-    },
-    {
       key: "job",
       title: `Jobs → QuickBooks ${q?.jobsAs === "customer" ? "customers" : "projects"}`,
       qbo: q?.jobsAs === "customer" ? "Customer ID" : "Project ID",
@@ -108,7 +96,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
     },
   ].filter((g) => !g.hidden);
 
-  const detailsKey = [e.code, e.name, e.legalName, e.costingMode, e.brandColor, e.active].join("|");
+  const detailsKey = [e.code, e.name, e.legalName, effectiveCostingMode(e.costingMode), e.brandColor, e.active].join("|");
   const qboKey = q ? String(q.updatedAt.getTime()) : "none";
   const mapKey = maps.map((m) => `${m.localType}${m.localId}${m.qboId}`).sort().join(",");
 
@@ -143,7 +131,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
             <input name="legalName" defaultValue={e.legalName ?? ""} className={`${inputClass} w-full`} />
           </Field>
           <Field label="Costing" hint="Which code this entity's expenses must carry. Choose a Job option to require job codes; individual people can be exempted on their Users page.">
-            <select name="costingMode" defaultValue={e.costingMode} className={inputClass}>
+            <select name="costingMode" defaultValue={effectiveCostingMode(e.costingMode)} className={inputClass}>
               {modes.map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
@@ -218,7 +206,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
             <legend className="px-1 text-xs font-medium opacity-70">How this company uses QuickBooks</legend>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="usesClasses" defaultChecked={q?.usesClasses ?? true} />
-              Class tracking is on (units post to Classes)
+              Class tracking is on
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="usesLocations" defaultChecked={q?.usesLocations ?? true} />
@@ -325,7 +313,7 @@ export default async function EntityDetailPage({ params }: { params: Promise<{ i
             </ul>
             <p className="opacity-70">
               To stop using it, uncheck <strong>Active</strong> above and save — it disappears from all
-              dropdowns and keeps its history. Once its sites, units, jobs and people are moved or
+              dropdowns and keeps its history. Once its sites, jobs and people are moved or
               removed (and no expenses reference it), you can delete it here.
             </p>
           </div>

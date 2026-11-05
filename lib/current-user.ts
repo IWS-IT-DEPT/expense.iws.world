@@ -199,7 +199,7 @@ export function canReview(user: CurrentUser): boolean {
 
 /**
  * Who may manage the shared coding tables under Settings — entities, locations,
- * units, jobs, categories, cards. IT (`admin`) plus the finance team
+ * jobs, categories, cards. IT (`admin`) plus the finance team
  * (`accounting`). The IT-only tabs (Users, Mileage, Policy, Errors) stay
  * `requireRole("admin")`.
  */

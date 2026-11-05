@@ -53,7 +53,6 @@ export interface CheckLine {
   locationId: string | null;
   categoryId: string | null;
   businessPurpose: string | null;
-  unitId: string | null;
   jobId: string | null;
   cardId?: string | null;
   receiptCount: number;
@@ -61,7 +60,6 @@ export interface CheckLine {
   costingMode?: CostingMode;
   /** the line owner is excused from job codes */
   jobExempt?: boolean;
-  categoryRequiresJobOrUnit?: boolean;
   categoryReceiptAlwaysRequired?: boolean;
 }
 
@@ -73,20 +71,13 @@ export function checkExpenseLine(
   const checks: ExpenseCheck[] = [];
   const charge = Math.abs(line.amountCents);
 
-  const rules = codingRules(
-    effectiveCostingMode(line.costingMode ?? "none", line.jobExempt),
-    line.categoryRequiresJobOrUnit != null
-      ? { requiresJobOrUnit: line.categoryRequiresJobOrUnit }
-      : null,
-  );
+  const rules = codingRules(effectiveCostingMode(line.costingMode ?? "none", line.jobExempt));
   const codingComplete =
     !!line.entityId &&
     !!line.locationId &&
     !!line.categoryId &&
     !!line.businessPurpose?.trim() &&
-    (!rules.needsUnit || !!line.unitId) &&
-    (!rules.needsJob || !!line.jobId) &&
-    (!rules.needsUnitOrJob || !!line.unitId || !!line.jobId);
+    (!rules.needsJob || !!line.jobId);
 
   if (!codingComplete) {
     checks.push({ code: "uncoded", severity: "block", message: "Coding isn't complete." });

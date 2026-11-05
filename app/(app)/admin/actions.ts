@@ -17,7 +17,6 @@ import {
   policySettings,
   qboConnections,
   qboDimensions,
-  units,
   userRole,
   users,
 } from "@/db/schema";
@@ -260,7 +259,7 @@ export async function checkEmailRole(
 /** Short, uppercase, label-safe: letters, digits, dash, underscore. */
 const CODE_RE = /^[A-Z0-9][A-Z0-9_-]{0,11}$/;
 
-type CostingMode = "none" | "unit" | "job" | "unit_or_job";
+type CostingMode = "none" | "job";
 
 export async function upsertEntity(fd: FormData) {
   await requireRole("admin", "accounting");
@@ -268,7 +267,7 @@ export async function upsertEntity(fd: FormData) {
   const common = {
     name: str(fd, "name"),
     legalName: opt(fd, "legalName"),
-    costingMode: str(fd, "costingMode") as CostingMode,
+    costingMode: (str(fd, "costingMode") === "job" ? "job" : "none") as CostingMode,
     brandColor: opt(fd, "brandColor"),
     active: bool(fd, "active"),
   };
@@ -401,57 +400,6 @@ export async function deleteLocation(fd: FormData) {
   redirect("/admin/locations");
 }
 
-/* -------------------------------------------------------------------- units */
-
-const UNIT_TYPES = ["truck", "tractor", "trailer", "equipment", "other"] as const;
-
-export async function upsertUnit(fd: FormData) {
-  await requireRole("admin", "accounting");
-  const id = opt(fd, "id");
-  const back = id ? `/admin/units/${id}` : "/admin/units/new";
-  const type = str(fd, "type");
-  const values = {
-    unitNumber: str(fd, "unitNumber"),
-    description: opt(fd, "description"),
-    type: (UNIT_TYPES as readonly string[]).includes(type) ? (type as (typeof UNIT_TYPES)[number]) : "other",
-    active: bool(fd, "active"),
-  };
-  if (!values.unitNumber) fail(back, "Unit number is required.");
-  const current = id ? await db.query.units.findFirst({ where: eq(units.id, id) }) : null;
-  if (id && !current) return;
-  // A unit belongs to one entity for life: its QuickBooks mappings are per entity.
-  const entityId = current ? current.entityId : str(fd, "entityId");
-  if (!entityId) fail(back, "Pick the entity this unit belongs to.");
-  if (!current || values.unitNumber !== current.unitNumber) {
-    const clash = await db.query.units.findFirst({
-      where: and(eq(units.entityId, entityId), eq(units.unitNumber, values.unitNumber)),
-    });
-    if (clash && clash.id !== id) fail(back, `That entity already has a unit "${values.unitNumber}".`);
-  }
-  if (current) {
-    needRenameConfirm(fd, back, current.unitNumber, values.unitNumber);
-    await db.update(units).set(values).where(eq(units.id, current.id));
-    await done("/admin/units");
-    revalidatePath(back);
-    return;
-  }
-  const [created] = await db.insert(units).values({ ...values, entityId }).returning({ id: units.id });
-  await done("/admin/units");
-  redirect(`/admin/units/${created.id}`);
-}
-
-export async function deleteUnit(fd: FormData) {
-  await requireRole("admin", "accounting");
-  const id = str(fd, "id");
-  const row = id ? await db.query.units.findFirst({ where: eq(units.id, id) }) : null;
-  if (!row || str(fd, "confirm") !== `delete ${row.unitNumber}`) return;
-  if ((await dimensionBlockers("unit", id)).length > 0) return;
-  await dropMappings("unit", id);
-  await db.delete(units).where(eq(units.id, id));
-  await done("/admin/units");
-  redirect("/admin/units");
-}
-
 /* --------------------------------------------------------------------- jobs */
 
 export async function upsertJob(fd: FormData) {
@@ -510,7 +458,6 @@ export async function upsertCategory(fd: FormData) {
     code: str(fd, "code").toUpperCase(),
     name: str(fd, "name"),
     description: opt(fd, "description"),
-    requiresJobOrUnit: bool(fd, "requiresJobOrUnit"),
     receiptAlwaysRequired: bool(fd, "receiptAlwaysRequired"),
     sortOrder: int(fd, "sortOrder") ?? 100,
     active: bool(fd, "active"),

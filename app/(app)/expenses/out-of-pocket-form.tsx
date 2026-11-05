@@ -26,7 +26,6 @@ export interface ItemFormInitial {
   paymentMethod: string | null;
   entityId: string | null;
   locationId: string | null;
-  unitId: string | null;
   jobId: string | null;
   categoryId: string | null;
   businessPurpose: string | null;
@@ -35,9 +34,8 @@ export interface ItemFormInitial {
 export function OutOfPocketForm(props: {
   entities: CodingEntityOption[];
   locations: { id: string; name: string; homeEntityId: string | null }[];
-  units: CodingScopedOption[];
   jobs: CodingScopedOption[];
-  categories: { id: string; name: string; requiresJobOrUnit: boolean }[];
+  categories: { id: string; name: string }[];
   initial?: ItemFormInitial;
   receiptThresholdCents?: number;
 }) {
@@ -159,7 +157,6 @@ export function OutOfPocketForm(props: {
         <CodingFields
           entities={props.entities}
           locations={props.locations}
-          units={props.units}
           jobs={props.jobs}
           categories={props.categories}
           initial={
@@ -167,7 +164,6 @@ export function OutOfPocketForm(props: {
               ? {
                   entityId: i.entityId,
                   locationId: i.locationId,
-                  unitId: i.unitId,
                   jobId: i.jobId,
                   categoryId: i.categoryId,
                   businessPurpose: i.businessPurpose,

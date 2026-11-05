@@ -16,10 +16,12 @@ Six sister companies, each with its **own QuickBooks Online company file**:
 | ------ | ---------------------------------------------- | ----------------- |
 | `IWS`  | International Warehousing & Shipping, LLC      | none (entity + location) |
 | `PRE`  | Precision Construction Repair                  | **job**           |
-| `PORT` | Port City Repair                               | **unit**          |
-| `RGT`  | Rolling Green Transportation                   | **unit** (trucks) |
+| `PORT` | Port City Repair                               | none              |
+| `RGT`  | Rolling Green Transportation                   | none              |
 | `RGL`  | Rolling Green Logistics                        | none              |
-| `GGB`  | Gravel Grabbers, LLC                           | **unit** (trucks) |
+| `GGB`  | Gravel Grabbers, LLC                           | none              |
+
+Units/trucks are retired — the app no longer asks for or requires one.
 
 Three card programs (the entity on a charge is chosen per-transaction, **not**
 derived from the card):
@@ -35,7 +37,7 @@ full cost coding, collected by a guided wizard:
 
 1. **Who is this for?** → entity
 2. **Which site?** → location (the entity's own sites listed first; any site is selectable)
-3. **Which truck / job?** → unit or job, shown only when the entity requires it
+3. **Which job?** → shown only when the entity requires one
 4. **What kind of expense?** → category
 5. **Why?** → business purpose
 
@@ -147,13 +149,13 @@ any Microsoft account can sign in.
 | Role | Source | Access |
 | ---- | ------ | ------ |
 | `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`), approvals and Payroll |
-| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Units, Jobs, Categories, Cards) |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Jobs, Categories, Cards) |
 | `payroll` | Entra group `HR@iws.world` | `/payroll/*` — reconcile, approve and report on mileage + out-of-pocket reimbursements; plus **Settings → Mileage** (the IRS rate) |
 | `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
 | `cardholder` | default | own expenses + weekly report + `/cards` |
 
 **Settings** (`/admin`, the tab labelled "Settings") holds the shared coding
-tables. IT sees every tab; finance sees Entities / Locations / Units / Jobs /
+tables. IT sees every tab; finance sees Entities / Locations / Jobs /
 Categories / Cards; payroll sees only Mileage (the IRS rate). Users, Policy,
 Errors and the Overview stay IT-only. Rows retire with the `active` checkbox; the
 `Delete` button appears only when nothing references the row.

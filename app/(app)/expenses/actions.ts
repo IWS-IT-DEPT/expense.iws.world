@@ -49,7 +49,6 @@ function parseAmountCents(raw: string): number | null {
 interface Coding {
   entityId: string | null;
   locationId: string | null;
-  unitId: string | null;
   jobId: string | null;
   categoryId: string | null;
   businessPurpose: string | null;
@@ -64,7 +63,6 @@ async function parseCoding(
 ): Promise<Coding> {
   const entityId = String(fd.get("entityId") || "") || null;
   const locationId = String(fd.get("locationId") || "") || null;
-  const unitId = String(fd.get("unitId") || "") || null;
   const jobId = String(fd.get("jobId") || "") || null;
   const categoryId = String(fd.get("categoryId") || "") || null;
   const businessPurpose = String(fd.get("businessPurpose") || "").trim() || null;
@@ -72,7 +70,6 @@ async function parseCoding(
   const blank: Coding = {
     entityId: null,
     locationId: null,
-    unitId: null,
     jobId: null,
     categoryId: null,
     businessPurpose: null,
@@ -92,14 +89,12 @@ async function parseCoding(
 
   const problems = validateCoding({
     costingMode: effectiveCostingMode(entity.costingMode as CostingMode, jobExempt),
-    hasUnit: !!unitId,
     hasJob: !!jobId,
-    category,
     businessPurpose,
   });
   if (problems.length) return { ...blank, error: problems[0].message };
 
-  return { entityId, locationId, unitId, jobId, categoryId, businessPurpose };
+  return { entityId, locationId, jobId, categoryId, businessPurpose };
 }
 
 async function ownsEditableCardExpense(id: string, userId: string) {
@@ -144,7 +139,6 @@ export async function createCardExpense(_prev: FormState, fd: FormData): Promise
       status: "draft",
       entityId: coding.entityId,
       locationId: coding.locationId,
-      unitId: coding.unitId,
       jobId: coding.jobId,
       categoryId: coding.categoryId,
       businessPurpose: coding.businessPurpose,
@@ -190,7 +184,6 @@ export async function updateCardExpense(_prev: FormState, fd: FormData): Promise
       notes,
       entityId: coding.entityId,
       locationId: coding.locationId,
-      unitId: coding.unitId,
       jobId: coding.jobId,
       categoryId: coding.categoryId,
       businessPurpose: coding.businessPurpose,
@@ -265,13 +258,11 @@ export async function submitCardExpense(fd: FormData): Promise<void> {
       locationId: row.locationId,
       categoryId: row.categoryId,
       businessPurpose: row.businessPurpose,
-      unitId: row.unitId,
       jobId: row.jobId,
       cardId: row.cardId,
       receiptCount: row.receipts.length,
       costingMode: row.entity?.costingMode as CostingMode | undefined,
       jobExempt: user.jobExempt,
-      categoryRequiresJobOrUnit: row.category?.requiresJobOrUnit,
     },
     policy,
   );
@@ -324,13 +315,11 @@ export async function submitAllReadyCardExpenses(): Promise<void> {
               locationId: r.locationId,
               categoryId: r.categoryId,
               businessPurpose: r.businessPurpose,
-              unitId: r.unitId,
               jobId: r.jobId,
               cardId: r.cardId,
               receiptCount: r.receipts.length,
               costingMode: r.entity?.costingMode as CostingMode | undefined,
               jobExempt: user.jobExempt,
-              categoryRequiresJobOrUnit: r.category?.requiresJobOrUnit,
             },
             policy,
           ),
@@ -421,7 +410,6 @@ async function writeItem(
     amountCents,
     entityId: coding.entityId!,
     locationId: coding.locationId!,
-    unitId: coding.unitId,
     jobId: coding.jobId,
     categoryId: coding.categoryId!,
     businessPurpose: coding.businessPurpose!,
