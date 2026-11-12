@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { cache } from "react";
 import { and, count, eq, ne } from "drizzle-orm";
 
@@ -188,7 +188,8 @@ export async function requireUser(): Promise<CurrentUser> {
 
 export async function requireRole(...roles: Role[]): Promise<CurrentUser> {
   const user = await requireUser();
-  if (!roles.includes(user.role)) throw new Error("Forbidden");
+  // Renders app/(app)/forbidden.tsx ("you don't have access") instead of a server error.
+  if (!roles.includes(user.role)) forbidden();
   return user;
 }
 

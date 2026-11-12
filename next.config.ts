@@ -7,6 +7,8 @@ const CSP = ["base-uri 'self'", "object-src 'none'", "frame-ancestors 'none'"].j
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Lets requireRole() call forbidden(), which renders app/(app)/forbidden.tsx (a readable 403).
+  experimental: { authInterrupts: true },
   async headers() {
     // The receipt scanner needs the camera. Same-origin only.
     const cameraPolicy = { key: "Permissions-Policy", value: "camera=(self), microphone=()" };

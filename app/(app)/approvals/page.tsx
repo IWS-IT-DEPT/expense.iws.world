@@ -12,7 +12,7 @@ import { EntityBadge } from "../../components/entity-badge";
 import { approveCardExpenses, sendBackCardExpense } from "./actions";
 
 export default async function ApprovalsPage() {
-  await requireRole("approver", "admin");
+  await requireRole("accounting", "approver", "admin");
 
   const cardLines = await db.query.pendingExpenses.findMany({
     where: eq(pendingExpenses.status, "reconciled"),

@@ -19,7 +19,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ROLE_HELP: Record<string, string> = {
   cardholder: "Everyone's default: their own expenses, weekly report and cards.",
   approver: "Reconcile and give final approval to card charges.",
-  accounting: "Reconcile card charges, card reports, and the shared coding lists.",
+  accounting: "Reconcile and approve card charges, card reports, and the shared coding lists.",
   payroll: "Reconcile, approve and report on mileage and out-of-pocket reimbursements.",
   admin: "Everything, including Users and Settings.",
 };

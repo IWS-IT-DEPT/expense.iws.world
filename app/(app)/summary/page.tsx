@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   const policy = await loadPolicy();
   const { start, end } = weekBounds(new Date());
-  const isApprover = user.role === "approver" || isAdmin(user);
+  const isApprover = user.role === "accounting" || user.role === "approver" || isAdmin(user);
 
   const myCards = await db.query.pendingExpenses.findMany({
     where: eq(pendingExpenses.userId, user.id),

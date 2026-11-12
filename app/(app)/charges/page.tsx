@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden } from "next/navigation";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -47,7 +47,7 @@ function cents(s?: string): number | null {
  */
 export default async function ChargesPage({ searchParams }: { searchParams: Promise<Params> }) {
   const me = await requireUser();
-  if (!canReview(me)) notFound();
+  if (!canReview(me)) forbidden();
   const p = await searchParams;
 
   // Accounting's corrected date / amount win where set.

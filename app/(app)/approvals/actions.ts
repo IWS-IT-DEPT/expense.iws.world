@@ -20,7 +20,7 @@ function revalidate() {
 
 /** Approver locks reconciled card charges. `ids` (comma-separated) or all. */
 export async function approveCardExpenses(fd: FormData): Promise<void> {
-  const user = await requireRole("approver", "admin");
+  const user = await requireRole("accounting", "approver", "admin");
   const raw = String(fd.get("ids") || "").trim();
   const ids = raw ? raw.split(",").filter(Boolean) : null;
 
@@ -62,7 +62,7 @@ export async function approveCardExpenses(fd: FormData): Promise<void> {
 }
 
 export async function sendBackCardExpense(fd: FormData): Promise<void> {
-  const user = await requireRole("approver", "admin");
+  const user = await requireRole("accounting", "approver", "admin");
   const id = String(fd.get("id") || "");
   const reason = String(fd.get("reason") || "").trim() || "Sent back by approver";
 

@@ -54,7 +54,7 @@ a weekly report.
 ```
 CARD PURCHASE:  cardholder logs it + coding + receipt → submits it →
                 accounting reconciles vs. the statement (confirm / correct) →
-                approver approves → ready for the books / QBO
+                accounting or approver approves → ready for the books / QBO
 
 OOP / MILEAGE:  cardholder logs items through the week → submits the weekly
                 reimbursement report → approver approves → payroll
@@ -83,7 +83,7 @@ batch gate for card charges.
   cardholder + card, each with coding + receipts. Confirm each (recording
   `actualAmountCents` / `actualPurchaseDate` if the statement differs) or send it
   back.
-- **Approvals** (`/approvals`, approver/admin): reconciled card charges grouped by
+- **Approvals** (`/approvals`, accounting/approver/admin): reconciled card charges grouped by
   cardholder — **approve all** or per-charge send-back. Books total uses
   `COALESCE(actualAmountCents, amountCents)`.
 - **Reports** (`/reports`, accounting/approver/admin): card-spend analytics only —
@@ -151,7 +151,7 @@ any Microsoft account can sign in.
 | Role | Source | Access |
 | ---- | ------ | ------ |
 | `admin` | Entra group `IT@iws.world` | everything, incl. all of **Settings** (`/admin/*`), approvals and Payroll |
-| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Jobs, Categories, Cards) |
+| `accounting` | Entra group `IWS-Finance@iws.world` | `/reconcile`, `/approvals`, `/reports` (card spend only), and the shared **Settings** tabs (Entities, Locations, Jobs, Categories, Cards) |
 | `payroll` | Entra group `HR@iws.world` | `/payroll/*` — reconcile, approve and report on mileage + out-of-pocket reimbursements; plus **Settings → Mileage** (the IRS rate) |
 | `approver` | set manually on `/admin/users` | `/reconcile`, `/approvals` |
 | `cardholder` | default | own expenses + weekly report + `/cards` |

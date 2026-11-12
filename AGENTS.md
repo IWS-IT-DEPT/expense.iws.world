@@ -41,7 +41,7 @@ full picture. Key facts an agent needs:
   `entities.costing_mode`, `users.job_exempt`, `categories.requires_job_or_unit`.
 - **`/report` ("This Week")** is a completeness checklist for card purchases +
   the `submitWeek` batch for reimbursements.
-- **Card queue (accounting/approver/admin):** **Reconcile** (`/reconcile`)
+- **Card queue (accounting/approver/admin — all three do both steps):** **Reconcile** (`/reconcile`)
   confirms each submitted card charge vs. the statement (may set
   `actualAmountCents`/`actualPurchaseDate`), per-charge; **Approve**
   (`/approvals`) locks reconciled card charges (`approveCardExpenses`, bulk).
@@ -70,6 +70,7 @@ full picture. Key facts an agent needs:
   transactions; write sequential statements.
 - Auth: **Auth.js v5 + Entra**. `lib/auth.config.ts` is edge-safe (no DB);
   `lib/current-user.ts` does the session→`users` lookup and role checks.
+- **Nav must match guards.** A tab is shown only to roles its page allows (`requireRole` → `forbidden()` renders `app/(app)/forbidden.tsx`, a plain "no access" page). When you change who may open a page, change the zone/tab in `app/(app)/layout.tsx` (or `admin/layout.tsx`) to match.
 - Run `npm run typecheck` (includes `next typegen`) and `npm run lint` before finishing.
 - Don't run `npm run db:migrate` / `db:seed` against the production Neon DB
   without the user's say-so.
