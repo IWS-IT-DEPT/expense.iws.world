@@ -4,6 +4,8 @@ declare module "next-auth" {
   interface Session {
     /** Unix seconds when this session was established (for the absolute cap). */
     authAt?: number;
+    /** Signed in with an emailed code rather than Microsoft 365. */
+    viaCode?: boolean;
     user: {
       /** Microsoft Entra object id. */
       oid?: string;
@@ -22,5 +24,6 @@ declare module "next-auth/jwt" {
     groupsOverage?: boolean;
     /** Unix seconds when the user signed in — drives the absolute session cap. */
     authAt?: number;
+    viaCode?: boolean;
   }
 }

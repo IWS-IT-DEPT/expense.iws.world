@@ -269,9 +269,37 @@ export const users = pgTable("users", {
   jobExempt: boolean("job_exempt").notNull().default(false),
   /** Must put a job code on every expense they log. Off = only job/project categories ask. */
   requiresJobCode: boolean("requires_job_code").notNull().default(false),
+  /**
+   * BambooHR employee id — the permanent link to their HR record. Survives email changes
+   * and termination (Bamboo keeps the same id), so never re-derive it from email.
+   */
+  bambooEmployeeId: text("bamboo_employee_id").unique(),
+  /**
+   * May sign in with a one-time code emailed to `email` instead of Microsoft 365 — for
+   * people without an M365 account. Admin-granted per person; never honored for an
+   * address on an allowed M365 domain (those must go through Entra / MFA).
+   */
+  emailLogin: boolean("email_login").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** One-time sign-in codes for `users.emailLogin` people. Only an HMAC of the code is stored. */
+export const loginCodes = pgTable(
+  "login_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("login_codes_user_idx").on(t.userId, t.createdAt)],
+);
 
 /* ------------------------------------------------------------- card data ---- */
 
@@ -479,6 +507,11 @@ export const expenseItems = pgTable(
     tripTo: text("trip_to"),
 
     reimbursementBatchId: uuid("reimbursement_batch_id").references(() => reimbursementBatches.id),
+    /** BambooHR table-row id once this approved line has been recorded on the employee's record. */
+    bambooRowId: text("bamboo_row_id"),
+    bambooSyncedAt: timestamp("bamboo_synced_at", { withTimezone: true }),
+    /** Why the last Bamboo push failed (no HR data in it); cleared on success. */
+    bambooSyncError: text("bamboo_sync_error"),
     status: reportStatus("status").notNull().default("draft"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -570,6 +603,8 @@ export const receipts = pgTable(
     contentType: text("content_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     ocrText: text("ocr_text"),
+    /** BambooHR file id once copied into the employee's Documents folder. */
+    bambooFileId: text("bamboo_file_id"),
     uploadedById: uuid("uploaded_by_id")
       .notNull()
       .references(() => users.id),

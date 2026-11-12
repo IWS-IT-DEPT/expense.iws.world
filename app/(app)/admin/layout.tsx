@@ -7,6 +7,7 @@ const tabs: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin", label: "Overview", roles: [] },
   { href: "/admin/users", label: "Users", roles: [] },
   { href: "/admin/roles", label: "Roles & groups", roles: [] },
+  { href: "/admin/bamboo", label: "BambooHR", roles: [] },
   { href: "/admin/entities", label: "Entities", roles: ["accounting"] },
   { href: "/admin/locations", label: "Locations", roles: ["accounting"] },
   { href: "/admin/jobs", label: "Jobs", roles: ["accounting"] },

@@ -7,6 +7,7 @@ import { userRole, users } from "@/db/schema";
 
 import { auth } from "./auth";
 import { getAccountStatus, getUserGroupIds, graphConfigured } from "./graph";
+import { mustUseM365 } from "./login-code";
 import { getGroupConfig, roleFromGroupIds, type GroupConfig } from "./role-groups";
 
 export type Role = (typeof userRole.enumValues)[number];
@@ -93,6 +94,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   }
 
   if (existing) {
+    // A code-based session ends the moment an admin revokes email login (or the address
+    // moves onto an M365 domain), not when the session eventually times out.
+    if (session.viaCode && (!existing.emailLogin || !existing.active || mustUseM365(existing.email))) return null;
+
     const patch: Partial<typeof users.$inferInsert> = {};
     if (!existing.entraOid && session.user.oid) patch.entraOid = session.user.oid;
 

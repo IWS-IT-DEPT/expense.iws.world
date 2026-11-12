@@ -1,5 +1,6 @@
 import { SubmitButton } from "@/app/components/submit-button";
 import Image from "next/image";
+import Link from "next/link";
 
 import { redirect } from "next/navigation";
 
@@ -63,6 +64,11 @@ export default async function SignInPage({
             Sign in with Microsoft 365
           </SubmitButton>
         </form>
+        <p className="mt-5 text-sm">
+          <Link href="/signin/code" className="underline opacity-70">
+            No Microsoft 365 account? Sign in with an email code
+          </Link>
+        </p>
       </div>
     </main>
   );

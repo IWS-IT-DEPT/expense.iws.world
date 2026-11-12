@@ -113,6 +113,20 @@
       "when": 1793901298807,
       "tag": "0015_opt_in_job_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794503040196,
+      "tag": "0016_bamboo_link_email_login",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794503714477,
+      "tag": "0017_bamboo_sync_tracking",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { approvals, expenseItems, expenseReports } from "@/db/schema";
+import { syncReportToBamboo } from "@/lib/bamboo-sync";
 import { requireRole } from "@/lib/current-user";
 import { money } from "@/lib/format";
 import { notifyApproved, notifySentBack } from "@/lib/notify";
@@ -151,6 +152,13 @@ export async function approveReport(fd: FormData): Promise<void> {
     action: "approve",
     actorId: user.id,
   });
+  // Record it on their BambooHR file. Never blocks or undoes the approval: failures are
+  // saved on the lines and can be retried from Settings → BambooHR.
+  try {
+    await syncReportToBamboo(reportId);
+  } catch (err) {
+    console.error("[bamboo-sync] report", reportId, err instanceof Error ? err.message : err);
+  }
   await notifyApproved(report.userId, "your reimbursement report");
   revalidate();
 }

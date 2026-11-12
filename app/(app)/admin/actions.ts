@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
+  expenseItems,
   cards,
   categories,
   dimensionMappings,
@@ -21,7 +22,11 @@ import {
   users,
 } from "@/db/schema";
 import { cardBlockers, dimensionBlockers, entityBlockers } from "@/lib/admin-usage";
+import { matchByName } from "@/lib/bamboo-match";
+import { syncReportToBamboo } from "@/lib/bamboo-sync";
+import { listBambooDirectory } from "@/lib/bamboohr";
 import { requireRole } from "@/lib/current-user";
+import { mustUseM365 } from "@/lib/login-code";
 import { getUserGroupIds } from "@/lib/graph";
 import {
   GROUP_ROLES,
@@ -89,6 +94,10 @@ export async function updateUser(fd: FormData) {
   const deactivating = existing.active && !active;
   if (deactivating && str(fd, "confirmEmail").toLowerCase() !== existing.email) return;
 
+  // Email-code sign-in is only for people without M365: never for an M365-domain address,
+  // and never for an admin (admin access must go through Entra and its MFA).
+  const emailLogin = bool(fd, "emailLogin") && role !== "admin" && !mustUseM365(existing.email);
+
   const name = str(fd, "name");
   await db
     .update(users)
@@ -96,6 +105,7 @@ export async function updateUser(fd: FormData) {
       ...(name ? { name } : {}),
       role,
       roleOverride,
+      emailLogin,
       homeEntityId: opt(fd, "homeEntityId"),
       homeLocationId: opt(fd, "homeLocationId"),
       mileageEligible: bool(fd, "mileageEligible"),
@@ -133,7 +143,13 @@ export async function inviteUser(fd: FormData) {
 
   const [created] = await db
     .insert(users)
-    .values({ email, name: opt(fd, "name") ?? email, role, roleOverride })
+    .values({
+      email,
+      name: opt(fd, "name") ?? email,
+      role,
+      roleOverride,
+      emailLogin: bool(fd, "emailLogin") && !mustUseM365(email),
+    })
     .returning({ id: users.id });
 
   // Group-driven roles are settled from Microsoft 365 BEFORE the email says what they are
@@ -167,6 +183,82 @@ export async function recheckRole(fd: FormData) {
   const synced = await syncUserRoleFromM365(id);
   revalidatePath(`/admin/users/${id}`);
   redirect(`/admin/users/${id}?${new URLSearchParams({ rolesrc: synced.source, role: synced.role }).toString()}`);
+}
+
+/* -------------------------------------------------------------------- bamboo */
+
+/** Link every unambiguous first+last-name match. Recomputed here — the browser's preview isn't trusted. */
+export async function applyBambooNameMatches() {
+  await requireRole("admin");
+  const [people, rows] = await Promise.all([
+    listBambooDirectory(),
+    db.query.users.findMany({ columns: { id: true, name: true, email: true, bambooEmployeeId: true } }),
+  ]);
+  const { matches } = matchByName(rows, people);
+  for (const m of matches) {
+    // `isNull` guard: never overwrite a link someone set by hand in the meantime.
+    await db
+      .update(users)
+      .set({ bambooEmployeeId: m.bambooId })
+      .where(and(eq(users.id, m.userId), isNull(users.bambooEmployeeId)));
+  }
+  revalidatePath("/admin/bamboo");
+  redirect(`/admin/bamboo?linked=${matches.length}`);
+}
+
+/** Pair one user with one Bamboo employee by hand (for names the automatic pass can't settle). */
+export async function linkBambooEmployee(fd: FormData) {
+  await requireRole("admin");
+  const userId = str(fd, "userId");
+  const bambooId = str(fd, "bambooId");
+  if (!userId || !/^\d+$/.test(bambooId)) return;
+
+  const people = await listBambooDirectory();
+  if (!people.some((p) => p.id === bambooId)) return;
+  const taken = await db.query.users.findFirst({
+    where: eq(users.bambooEmployeeId, bambooId),
+    columns: { id: true },
+  });
+  if (taken) return;
+
+  await db.update(users).set({ bambooEmployeeId: bambooId }).where(eq(users.id, userId));
+  revalidatePath("/admin/bamboo");
+  redirect("/admin/bamboo?linked=1");
+}
+
+export async function unlinkBambooEmployee(fd: FormData) {
+  await requireRole("admin");
+  const userId = str(fd, "userId");
+  if (!userId) return;
+  await db.update(users).set({ bambooEmployeeId: null }).where(eq(users.id, userId));
+  revalidatePath("/admin/bamboo");
+  redirect("/admin/bamboo?unlinked=1");
+}
+
+/** Retry the BambooHR push for approved reimbursement lines that haven't gone through yet. */
+export async function retryBambooSync() {
+  await requireRole("admin");
+  const pending = await db
+    .selectDistinct({ reportId: expenseItems.reportId })
+    .from(expenseItems)
+    .where(and(eq(expenseItems.status, "approved"), isNull(expenseItems.bambooRowId), isNotNull(expenseItems.reportId)))
+    .limit(25);
+  let rows = 0;
+  let files = 0;
+  let failed = 0;
+  for (const p of pending) {
+    if (!p.reportId) continue;
+    try {
+      const r = await syncReportToBamboo(p.reportId);
+      rows += r.rows;
+      files += r.files;
+      failed += r.failed;
+    } catch {
+      failed++;
+    }
+  }
+  revalidatePath("/admin/bamboo");
+  redirect(`/admin/bamboo?synced=${rows}&files=${files}&failed=${failed}`);
 }
 
 const GUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;

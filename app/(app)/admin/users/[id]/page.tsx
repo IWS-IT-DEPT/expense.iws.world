@@ -5,6 +5,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cards, entities, expenseItems, locations, pendingExpenses, userRole, users } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
+import { mustUseM365 } from "@/lib/login-code";
 import { getGroupConfig } from "@/lib/role-groups";
 import { shortDate } from "@/lib/format";
 
@@ -56,8 +57,10 @@ export default async function UserDetailPage({
       ? "auto"
       : u.role;
   const roleOptions = userRole.enumValues.filter((r) => r !== "admin");
+  // Email-code sign-in is for people WITHOUT a Microsoft 365 account — never an M365 address or an admin.
+  const codeLoginBlocked = mustUseM365(u.email) || u.role === "admin";
 
-  const formKey = [u.name, u.role, u.roleOverride, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.requiresJobCode, u.active].join("|");
+  const formKey = [u.name, u.role, u.roleOverride, u.homeEntityId, u.homeLocationId, u.mileageEligible, u.requiresJobCode, u.emailLogin, u.active].join("|");
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -102,7 +105,12 @@ export default async function UserDetailPage({
         {(
           [
             ["Role", `${u.role}${u.roleOverride ? " (set manually)" : ""} — ${ROLE_HELP[u.role]}`],
-            ["Signed in before", u.entraOid ? "Yes" : "Not yet (added in advance)"],
+            [
+              "Sign-in method",
+              u.emailLogin ? "Emailed code (no Microsoft 365)" : "Microsoft 365",
+            ],
+            ["Signed in before", u.entraOid ? "Yes" : u.emailLogin ? "Uses email codes" : "Not yet (added in advance)"],
+            ["BambooHR", u.bambooEmployeeId ? `Linked · employee #${u.bambooEmployeeId}` : "Not linked"],
             ["Added", shortDate(u.createdAt)],
             ["Registered cards", String(cardCount.n)],
             ["Card expenses", String(expenseCount.n)],
@@ -168,6 +176,24 @@ export default async function UserDetailPage({
             <span>
               Can log mileage{" "}
               <span className="text-xs opacity-60">— shows the + Mileage button on their My Expenses page</span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              name="emailLogin"
+              defaultChecked={u.emailLogin}
+              disabled={codeLoginBlocked}
+              className="mt-1"
+            />
+            <span>
+              Sign in with an emailed code{" "}
+              <span className="text-xs opacity-60">
+                — for people without a Microsoft 365 account. A 6-digit code goes to {u.email} each time they sign in,
+                so make sure that&apos;s an address only they read.{" "}
+                {codeLoginBlocked ? "Not available for Microsoft 365 addresses or admins." : ""}
+              </span>
             </span>
           </label>
 

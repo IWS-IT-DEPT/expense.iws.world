@@ -82,7 +82,10 @@ export const authConfig = {
       return !!auth?.user;
     },
     jwt({ token, profile, account }) {
-      if (account) token.authAt = Math.floor(Date.now() / 1000);
+      if (account) {
+        token.authAt = Math.floor(Date.now() / 1000);
+        token.viaCode = account.provider === "email-code";
+      }
 
       // On initial sign-in, pull oid + the "groups" claim. Entra puts groups in
       // the id_token (Token configuration -> groups claim), which isn't always
@@ -116,6 +119,7 @@ export const authConfig = {
         session.user.groupsOverage = !!token.groupsOverage;
       }
       if (typeof token.authAt === "number") session.authAt = token.authAt;
+      if (token.viaCode) session.viaCode = true;
       return session;
     },
   },

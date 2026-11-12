@@ -1,10 +1,12 @@
 import { eq, or } from "drizzle-orm";
 import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
 import { authConfig, emailFromProfile } from "./auth.config";
+import { verifyLoginCode } from "./login-code";
 
 const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
   .split(",")
@@ -19,9 +21,30 @@ const BOOTSTRAP_ADMINS = (process.env.BOOTSTRAP_ADMIN_EMAILS ?? "")
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  providers: [
+    ...authConfig.providers,
+    // Emailed one-time code, for people an admin flagged `emailLogin` (no M365 account).
+    // authorize() has already checked the code, the flag and that the user is active.
+    Credentials({
+      id: "email-code",
+      name: "Email code",
+      credentials: { email: {}, code: {} },
+      async authorize(credentials, request) {
+        const ip =
+          request.headers.get("x-real-ip") ??
+          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          "unknown";
+        const user = await verifyLoginCode(String(credentials?.email ?? ""), String(credentials?.code ?? ""), ip);
+        return user ? { id: user.id, email: user.email, name: user.name } : null;
+      },
+    }),
+  ],
   callbacks: {
     ...authConfig.callbacks,
     async signIn(params) {
+      // Email-code sign-ins were fully vetted in authorize(); they have no M365 profile/tenant to check.
+      if (params.account?.provider === "email-code") return true;
+
       // 1. tenant + allowed-domain checks (edge-safe, in auth.config)
       if (!(await authConfig.callbacks.signIn(params as never))) return false;
 

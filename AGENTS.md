@@ -68,6 +68,18 @@ full picture. Key facts an agent needs:
 - **Money is integer cents** everywhere (`amountCents`). Rates/miles use `numeric`.
 - DB is **Neon Postgres via the `neon-http` driver** — no interactive
   transactions; write sequential statements.
+- **BambooHR** (`lib/bamboohr.ts`, read-only; `BAMBOOHR_SUBDOMAIN`/`BAMBOOHR_API_KEY`).
+  `users.bamboo_employee_id` is the permanent HR link — never re-derive it from email
+  (employees use personal emails; ex-employees keep their Bamboo record). Linked by
+  unique first+last name in `lib/bamboo-match.ts` via **Settings → BambooHR**; near-misses
+  are picked by hand. `approveReport` then pushes each approved line to the employee's Bamboo
+  custom tables (`customExpenseTracking` / `customMileageReimbursement`) and its receipts to the
+  "Receipts & Reimbursements" folder (`BAMBOOHR_RECEIPTS_CATEGORY_ID`, 25) via `lib/bamboo-sync.ts`.
+  Best-effort and idempotent (`expense_items.bamboo_row_id`, `receipts.bamboo_file_id`); never
+  blocks approval; retry from Settings → BambooHR. App → Bamboo only.
+- **Sign-in without M365:** `users.email_login` lets an admin-flagged person sign in with a
+  6-digit code emailed to their address (`lib/login-code.ts`, `/signin/code`). Never for an
+  M365-domain address, bootstrap admin or admin role; sessions end if the flag is revoked.
 - Auth: **Auth.js v5 + Entra**. `lib/auth.config.ts` is edge-safe (no DB);
   `lib/current-user.ts` does the session→`users` lookup and role checks.
 - **Nav must match guards.** A tab is shown only to roles its page allows (`requireRole` → `forbidden()` renders `app/(app)/forbidden.tsx`, a plain "no access" page). When you change who may open a page, change the zone/tab in `app/(app)/layout.tsx` (or `admin/layout.tsx`) to match.

@@ -19,10 +19,10 @@ const APP_URL = (process.env.APP_URL ?? "").replace(/\/$/, "");
 
 async function userEmail(
   userId: string,
-): Promise<{ email: string; name: string; role: string } | null> {
+): Promise<{ email: string; name: string; role: string; emailLogin: boolean } | null> {
   const u = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { email: true, name: true, role: true },
+    columns: { email: true, name: true, role: true, emailLogin: true },
   });
   return u ?? null;
 }
@@ -153,7 +153,9 @@ export async function notifyWelcome(userId: string): Promise<boolean> {
     paragraphs: [
       "You've been added to IWS Expense, where you log company-card purchases, out-of-pocket expenses and mileage — receipts included.",
       `Your role: ${role.title}. ${role.text}`,
-      `Sign in at ${host} with your Microsoft 365 work account (the same one you use for email). Then put the app on your phone so it's one tap away:`,
+      u.emailLogin
+        ? `Sign in at ${host} by choosing "No Microsoft 365 account? Sign in with an email code" — we'll email a 6-digit code to this address each time. Then put the app on your phone so it's one tap away:`
+        : `Sign in at ${host} with your Microsoft 365 work account (the same one you use for email). Then put the app on your phone so it's one tap away:`,
     ],
     sections: [
       {
@@ -162,7 +164,9 @@ export async function notifyWelcome(userId: string): Promise<boolean> {
           `Open ${host} in Safari. (If you tapped a link inside Outlook or Teams, choose "Open in Safari" first.)`,
           "Tap the Share button — the square with an arrow.",
           'Scroll down and tap "Add to Home Screen", then "Add".',
-          "Open IWS Expense from your home screen and sign in with Microsoft.",
+          u.emailLogin
+            ? "Open IWS Expense from your home screen and sign in with an email code."
+            : "Open IWS Expense from your home screen and sign in with Microsoft.",
         ],
       },
       {

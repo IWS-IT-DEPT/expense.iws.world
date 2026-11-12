@@ -15,8 +15,8 @@ export default async function NewUserPage() {
       </Link>
       <h2 className="text-base font-semibold">Add a user</h2>
       <p className="text-sm opacity-70">
-        This sets someone up before their first sign-in. They still sign in with their Microsoft 365
-        account — and only email addresses on an allowed company domain can sign in at all.
+        This sets someone up before their first sign-in. They sign in with their Microsoft 365
+        account (company-domain addresses only) — or, if they have none, with an emailed code.
       </p>
       <form action={inviteUser} className="space-y-4 text-sm">
         <label className="block">
@@ -41,6 +41,16 @@ export default async function NewUserPage() {
             the matching Microsoft 365 group; it stays even if their groups say otherwise. <strong>Admin can&apos;t be
             assigned here</strong> — it comes only from membership of the Microsoft 365 group mapped to Admin. The setup
             email describes the role they end up with.
+          </span>
+        </label>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" name="emailLogin" className="mt-1" />
+          <span>
+            No Microsoft 365 account — sign in with an emailed code{" "}
+            <span className="text-xs opacity-60">
+              — use their personal email above. A 6-digit code is emailed to it each time they sign in. Not allowed
+              for company-domain addresses.
+            </span>
           </span>
         </label>
         <label className="flex items-start gap-2">
