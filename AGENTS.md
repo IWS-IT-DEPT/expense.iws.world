@@ -77,6 +77,11 @@ full picture. Key facts an agent needs:
   "Receipts & Reimbursements" folder (`BAMBOOHR_RECEIPTS_CATEGORY_ID`, 25) via `lib/bamboo-sync.ts`.
   Best-effort and idempotent (`expense_items.bamboo_row_id`, `receipts.bamboo_file_id`); never
   blocks approval; retry from Settings → BambooHR. App → Bamboo only.
+- **`/payroll/requests` ("All Requests")** — payroll/admin search over every turned-in
+  `expense_item` (any age), the mirror of `/charges`. Opens `/expenses/[id]` read-only.
+- **TEMPORARY test tool:** Settings → "Delete test data" (`admin/test-cleanup`) permanently
+  deletes a reimbursement report + its Bamboo rows/files. Only exists while
+  `ENABLE_TEST_DELETE=true`; unset it in Vercel to retire the tool (then delete the folder).
 - **Sign-in without M365:** `users.email_login` lets an admin-flagged person sign in with a
   6-digit code emailed to their address (`lib/login-code.ts`, `/signin/code`). Never for an
   M365-domain address, bootstrap admin or admin role; sessions end if the flag is revoked.

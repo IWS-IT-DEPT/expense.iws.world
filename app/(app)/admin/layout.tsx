@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { isAdmin, requireRole, type Role } from "@/lib/current-user";
 
+import { testDeleteEnabled } from "./test-cleanup/enabled";
+
 /** `roles` lists the non-admin roles that also see the tab; admin sees all. */
 const tabs: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin", label: "Overview", roles: [] },
@@ -17,6 +19,8 @@ const tabs: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/policy", label: "Policy", roles: [] },
   { href: "/admin/email", label: "Email", roles: [] },
   { href: "/admin/errors", label: "Errors", roles: [] },
+  // TEMPORARY: only while ENABLE_TEST_DELETE=true.
+  ...(testDeleteEnabled ? [{ href: "/admin/test-cleanup", label: "Delete test data", roles: [] as Role[] }] : []),
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

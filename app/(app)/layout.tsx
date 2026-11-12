@@ -58,6 +58,7 @@ const PAYROLL_ZONE: Zone = {
     { href: "/payroll/reconcile", label: "Reconcile" },
     { href: "/payroll/approvals", label: "Approvals" },
     { href: "/payroll/reports", label: "Reports" },
+    { href: "/payroll/requests", label: "All Requests" },
   ],
 };
 

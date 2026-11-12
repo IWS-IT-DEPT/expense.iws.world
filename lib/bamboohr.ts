@@ -105,6 +105,26 @@ async function bambooSend(path: string, init: { body: BodyInit; headers?: Record
 /** Last path segment of a Location header — Bamboo returns the new row/file id there. */
 const idFromLocation = (res: Response) => res.headers.get("location")?.split("/").filter(Boolean).pop() ?? null;
 
+/** Delete something this app created. A 404 counts as success (already gone). */
+async function bambooDelete(path: string): Promise<void> {
+  if (!bambooConfigured) throw new BambooError("BambooHR isn't configured.");
+  const res = await fetch(`https://api.bamboohr.com/api/gateway.php/${SUBDOMAIN}/v1/${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Basic ${Buffer.from(`${API_KEY}:x`).toString("base64")}`, Accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok && res.status !== 404) throw new BambooError(`BambooHR refused the delete (${res.status})`, res.status);
+}
+
+export const deleteBambooTableRow = (employeeId: string, tableAlias: string, rowId: string) =>
+  bambooDelete(
+    `employees/${encodeURIComponent(employeeId)}/tables/${encodeURIComponent(tableAlias)}/${encodeURIComponent(rowId)}`,
+  );
+
+export const deleteBambooEmployeeFile = (employeeId: string, fileId: string) =>
+  bambooDelete(`employees/${encodeURIComponent(employeeId)}/files/${encodeURIComponent(fileId)}`);
+
 /** Add a row to an employee's custom table. Values are keyed by field alias. Returns the new row id. */
 export async function addBambooTableRow(
   employeeId: string,
