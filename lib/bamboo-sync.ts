@@ -99,7 +99,12 @@ export async function syncReportToBamboo(reportId: string): Promise<SyncSummary>
 
         if (mileage) {
           const miles = item.miles ? Number(item.miles) : 0;
-          if (!put(fields, base, "Miles", miles ? String(miles) : null) && miles) extra.push(`${miles} mi`);
+          // Bamboo's Miles field may be whole-number only; send it rounded and keep the exact figure in the text.
+          const milesType = fields.find((f) => f.name.toLowerCase() === "miles")?.type;
+          const milesValue = milesType === "int" ? String(Math.round(miles)) : String(miles);
+          if (!put(fields, base, "Miles", miles ? milesValue : null) || (milesType === "int" && miles % 1 !== 0)) {
+            extra.push(`${miles} mi`);
+          }
           if (miles > 0) put(fields, base, "Allowance (per Mile)", (item.amountCents / 100 / miles).toFixed(4));
           const route = [item.tripFrom, item.tripTo].filter(Boolean).join(" → ");
           text = [route, item.businessPurpose, ...extra].filter(Boolean).join(" · ");
