@@ -26,16 +26,18 @@ export async function GET(req: Request) {
 
   const format = url.searchParams.get("format") === "pdf" ? "pdf" : "xlsx";
   const rangeParam = url.searchParams.get("range") ?? "month";
-  const range: RangeKind = (["week", "month", "quarter"] as const).includes(rangeParam as RangeKind)
+  const range: RangeKind = (["week", "month", "quarter", "year", "all", "custom"] as const).includes(rangeParam as RangeKind)
     ? (rangeParam as RangeKind)
     : "month";
   const scope: SpendScope = url.searchParams.get("scope") === "approved" ? "approved" : "turned_in";
-  const period = resolvePeriod(range, url.searchParams.get("start") ?? undefined);
-  const prev = resolvePeriod(range, period.prevStart);
+  const period = resolvePeriod(range, url.searchParams.get("start") ?? undefined, {
+    from: url.searchParams.get("from"),
+    to: url.searchParams.get("to"),
+  });
 
   const only = view === "reimbursement" ? "reimbursement" : "card";
   const lines = await loadSpend({ start: period.start, end: period.end, scope, only });
-  const prevLines = await loadSpend({ start: prev.start, end: prev.end, scope, only });
+  const prevLines = period.prevRange ? await loadSpend({ ...period.prevRange, scope, only }) : [];
   const summary = summarize(lines, prevLines);
 
   const body =

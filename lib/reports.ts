@@ -3,7 +3,7 @@
  *
  * Two tables hold real spend: `pending_expenses` (card purchases) and
  * `expense_items` (out-of-pocket + mileage). This module normalizes both into a
- * single `SpendLine`, resolves week / month / quarter periods, and produces the
+ * single `SpendLine`, resolves week / month / quarter / year / all-time / custom periods, and produces the
  * aggregates the dashboard, the .xlsx workbook and the PDF all share.
  */
 import { inArray } from "drizzle-orm";
@@ -14,7 +14,7 @@ import { entityColor } from "@/lib/brand";
 import { weekBounds } from "@/lib/format";
 import { todayInTz } from "@/lib/tz";
 
-export type RangeKind = "week" | "month" | "quarter";
+export type RangeKind = "week" | "month" | "quarter" | "year" | "all" | "custom";
 export type SpendScope = "turned_in" | "approved";
 
 const MONTH_LONG = [
@@ -50,15 +50,58 @@ export interface Period {
   /** yyyy-mm-dd, inclusive */
   end: string;
   label: string;
-  /** anchor date for the previous period (feed back into resolvePeriod) */
-  prevStart: string;
-  /** anchor for the next period, or null when it would be in the future */
+  /** anchor date for the previous period (feed back into resolvePeriod); null for custom / all time */
+  prevStart: string | null;
+  /** anchor for the next period, or null when it would be in the future or doesn't apply */
   nextStart: string | null;
+  /** the window this one is compared with, or null when there's nothing to compare to (all time) */
+  prevRange: { start: string; end: string } | null;
 }
 
-export function resolvePeriod(range: RangeKind, anchor?: string): Period {
-  const base =
-    anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? parseYmd(anchor) : parseYmd(todayInTz());
+const ALL_START = "0001-01-01";
+const ALL_END = "9999-12-31";
+const isYmd = (s?: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(parseYmd(s).getTime());
+
+function fmtFull(d: Date): string {
+  return `${fmtDay(d)}, ${d.getUTCFullYear()}`;
+}
+
+export function resolvePeriod(
+  range: RangeKind,
+  anchor?: string,
+  custom?: { from?: string | null; to?: string | null },
+): Period {
+  const today = todayInTz();
+
+  if (range === "all") {
+    return { range, start: ALL_START, end: ALL_END, label: "All time", prevStart: null, nextStart: null, prevRange: null };
+  }
+
+  if (range === "custom") {
+    const t = parseYmd(today);
+    let from = isYmd(custom?.from) ? parseYmd(custom!.from!) : new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1));
+    let to = isYmd(custom?.to) ? parseYmd(custom!.to!) : t;
+    if (from > to) [from, to] = [to, from];
+    // Keep the window sane so charts and exports stay bounded.
+    const floor = new Date(Date.UTC(1990, 0, 1));
+    const ceil = new Date(Date.UTC(2100, 11, 31));
+    if (from < floor) from = floor;
+    if (to > ceil) to = ceil;
+    if (from > to) from = to;
+    const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+    const prevEnd = addDaysUTC(from, -1);
+    return {
+      range,
+      start: ymd(from),
+      end: ymd(to),
+      label: ymd(from) === ymd(to) ? fmtFull(from) : `${fmtFull(from)} – ${fmtFull(to)}`,
+      prevStart: null,
+      nextStart: null,
+      prevRange: { start: ymd(addDaysUTC(prevEnd, -(days - 1))), end: ymd(prevEnd) },
+    };
+  }
+
+  const base = isYmd(anchor) ? parseYmd(anchor) : parseYmd(today);
 
   let start: Date;
   let end: Date;
@@ -73,11 +116,15 @@ export function resolvePeriod(range: RangeKind, anchor?: string): Period {
     start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
     end = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0));
     label = `${MONTH_LONG[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
-  } else {
+  } else if (range === "quarter") {
     const q = Math.floor(base.getUTCMonth() / 3);
     start = new Date(Date.UTC(base.getUTCFullYear(), q * 3, 1));
     end = new Date(Date.UTC(base.getUTCFullYear(), q * 3 + 3, 0));
     label = `Q${q + 1} ${start.getUTCFullYear()}`;
+  } else {
+    start = new Date(Date.UTC(base.getUTCFullYear(), 0, 1));
+    end = new Date(Date.UTC(base.getUTCFullYear(), 11, 31));
+    label = String(start.getUTCFullYear());
   }
 
   const prevStart =
@@ -85,16 +132,28 @@ export function resolvePeriod(range: RangeKind, anchor?: string): Period {
       ? addDaysUTC(start, -7)
       : range === "month"
         ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1))
-        : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 3, 1));
+        : range === "quarter"
+          ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 3, 1))
+          : new Date(Date.UTC(start.getUTCFullYear() - 1, 0, 1));
 
   const nextStart =
     range === "week"
       ? addDaysUTC(start, 7)
       : range === "month"
         ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1))
-        : new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 3, 1));
+        : range === "quarter"
+          ? new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 3, 1))
+          : new Date(Date.UTC(start.getUTCFullYear() + 1, 0, 1));
 
-  const today = todayInTz();
+  const prevPeriodEnd =
+    range === "week"
+      ? addDaysUTC(prevStart, 6)
+      : range === "month"
+        ? new Date(Date.UTC(prevStart.getUTCFullYear(), prevStart.getUTCMonth() + 1, 0))
+        : range === "quarter"
+          ? new Date(Date.UTC(prevStart.getUTCFullYear(), prevStart.getUTCMonth() + 3, 0))
+          : new Date(Date.UTC(prevStart.getUTCFullYear(), 11, 31));
+
   return {
     range,
     start: ymd(start),
@@ -102,11 +161,40 @@ export function resolvePeriod(range: RangeKind, anchor?: string): Period {
     label,
     prevStart: ymd(prevStart),
     nextStart: ymd(nextStart) <= today ? ymd(nextStart) : null,
+    prevRange: { start: ymd(prevStart), end: ymd(prevPeriodEnd) },
   };
 }
 
 export function periodTitle(range: RangeKind): string {
-  return range === "week" ? "week" : range === "month" ? "month" : "quarter";
+  return range === "week"
+    ? "week"
+    : range === "month"
+      ? "month"
+      : range === "quarter"
+        ? "quarter"
+        : range === "year"
+          ? "year"
+          : "period";
+}
+
+/** Query-string params that reproduce this exact period (used by tabs, arrows and exports). */
+export function periodQuery(period: Period): URLSearchParams {
+  const sp = new URLSearchParams({ range: period.range });
+  if (period.range === "custom") {
+    sp.set("from", period.start);
+    sp.set("to", period.end);
+  } else if (period.range !== "all") {
+    sp.set("start", period.start);
+  }
+  return sp;
+}
+
+/** "▲ 4.2% vs last month" style hint for the headline card. */
+export function deltaHint(deltaPct: number | null, period: Period): string {
+  if (period.range === "all") return "all time";
+  if (deltaPct == null) return "no prior data";
+  const arrow = `${deltaPct >= 0 ? "▲" : "▼"} ${Math.abs(deltaPct).toFixed(1)}%`;
+  return period.range === "custom" ? `${arrow} vs the previous period of the same length` : `${arrow} vs last ${periodTitle(period.range)}`;
 }
 
 /* ------------------------------------------------------------- spend lines -- */
@@ -269,34 +357,65 @@ export interface TimeBucket {
   total: number;
 }
 
-export function timeBuckets(period: Period, lines: SpendLine[]): TimeBucket[] {
-  const spans: { label: string; start: Date; end: Date }[] = [];
-  const s = parseYmd(period.start);
-  const e = parseYmd(period.end);
+type Gran = "day" | "weekday" | "week" | "month" | "year";
 
-  if (period.range === "week") {
+function pickGranularity(period: Period, days: number): Gran {
+  if (period.range === "week") return "weekday";
+  if (period.range === "month") return "week";
+  if (period.range === "quarter" || period.range === "year") return "month";
+  // custom / all time: choose by how long the window is
+  if (days <= 31) return "day";
+  if (days <= 150) return "week";
+  if (days <= 1100) return "month";
+  return "year";
+}
+
+export function timeBuckets(period: Period, lines: SpendLine[]): TimeBucket[] {
+  let s = parseYmd(period.start);
+  let e = parseYmd(period.end);
+
+  if (period.range === "all") {
+    if (lines.length === 0) return [];
+    // lines are sorted by date
+    s = parseYmd(lines[0].date);
+    e = parseYmd(lines[lines.length - 1].date);
+  }
+
+  const days = Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1;
+  const gran = pickGranularity(period, days);
+  const multiYear = s.getUTCFullYear() !== e.getUTCFullYear();
+  const spans: { label: string; start: Date; end: Date }[] = [];
+
+  if (gran === "weekday") {
     for (let i = 0; i < 7; i++) {
       const d = addDaysUTC(s, i);
       spans.push({ label: WD_SHORT[d.getUTCDay()], start: d, end: d });
     }
-  } else if (period.range === "month") {
-    // Monday-aligned weekly buckets clipped to the month
+  } else if (gran === "day") {
+    for (let d = s; d <= e; d = addDaysUTC(d, 1)) {
+      spans.push({ label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, start: d, end: d });
+    }
+  } else if (gran === "week") {
+    // Monday-aligned weekly buckets
     const firstDow = (s.getUTCDay() + 6) % 7;
-    let cur = addDaysUTC(s, -firstDow);
+    for (let cur = addDaysUTC(s, -firstDow); cur <= e; cur = addDaysUTC(cur, 7)) {
+      spans.push({ label: `${cur.getUTCMonth() + 1}/${cur.getUTCDate()}`, start: cur, end: addDaysUTC(cur, 6) });
+    }
+  } else if (gran === "month") {
+    let cur = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), 1));
     while (cur <= e) {
-      const end = addDaysUTC(cur, 6);
+      const me = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 0));
+      const yy = String(cur.getUTCFullYear()).slice(2);
       spans.push({
-        label: `${cur.getUTCMonth() + 1}/${cur.getUTCDate()}`,
+        label: multiYear ? `${MONTH_SHORT[cur.getUTCMonth()]} ’${yy}` : MONTH_SHORT[cur.getUTCMonth()],
         start: cur,
-        end,
+        end: me,
       });
-      cur = addDaysUTC(cur, 7);
+      cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
     }
   } else {
-    for (let m = 0; m < 3; m++) {
-      const ms = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + m, 1));
-      const me = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + m + 1, 0));
-      spans.push({ label: MONTH_SHORT[ms.getUTCMonth()], start: ms, end: me });
+    for (let y = s.getUTCFullYear(); y <= e.getUTCFullYear(); y++) {
+      spans.push({ label: String(y), start: new Date(Date.UTC(y, 0, 1)), end: new Date(Date.UTC(y, 11, 31)) });
     }
   }
 
