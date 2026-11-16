@@ -127,6 +127,13 @@
       "when": 1794503714477,
       "tag": "0017_bamboo_sync_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794843090791,
+      "tag": "0018_mileage_odometer",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import { approvals, expenseItems, pendingExpenses } from "@/db/schema";
 import { requireUser } from "@/lib/current-user";
 import { money } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
+import { loadActiveTrip } from "@/lib/trips";
 import { todayInTz } from "@/lib/tz";
 import { checkExpenseLine, loadPolicy } from "@/lib/expense-checks";
 
@@ -17,6 +18,8 @@ import { btn, EDITABLE, Empty, Row, Section } from "./expense-row";
 export default async function ExpensesPage() {
   const user = await requireUser();
   const policy = await loadPolicy();
+
+  const openTrip = user.mileageEligible ? await loadActiveTrip(user.id) : null;
 
   const [cardRows, itemRows] = await Promise.all([
     db.query.pendingExpenses.findMany({
@@ -102,6 +105,15 @@ export default async function ExpensesPage() {
 
   return (
     <div className="space-y-8">
+      {openTrip ? (
+        <Link
+          href="/expenses/mileage"
+          className="block rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-sm"
+        >
+          <strong>Mileage trip in progress</strong> — started at odometer{" "}
+          {openTrip.odometerStart.toLocaleString("en-US")}. Tap to end it.
+        </Link>
+      ) : null}
       <div className="space-y-3">
         <h1 className="text-lg font-semibold">My Expenses</h1>
         <div className="grid gap-2 sm:flex sm:flex-wrap">

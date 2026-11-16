@@ -20,6 +20,7 @@ import { checkExpenseLine, isBlocked, loadPolicy } from "@/lib/expense-checks";
 import { normalizeMerchant } from "@/lib/merchant";
 import { notifyAccountingSubmitted } from "@/lib/notify";
 import { rateForDate, mileageAmountCents } from "@/lib/mileage";
+import { checkOdometer } from "@/lib/odometer";
 import { blobStore } from "@/lib/storage";
 import { signUploadToken, type UploadPurpose } from "@/lib/upload-token";
 
@@ -365,10 +366,11 @@ async function writeItem(
   user: { id: string; requiresJobCode: boolean },
   existingId: string | null,
 ): Promise<FormState> {
+  let existing: Awaited<ReturnType<typeof ownsEditableItem>> = null;
   if (existingId) {
-    const row = await ownsEditableItem(existingId, user.id);
-    if (!row) return { error: "Not found or already submitted." };
-    if (row.kind !== kind) return { error: "Wrong kind." };
+    existing = await ownsEditableItem(existingId, user.id);
+    if (!existing) return { error: "Not found or already submitted." };
+    if (existing.kind !== kind) return { error: "Wrong kind." };
   }
 
   const itemDate = String(fd.get("itemDate") || "");
@@ -390,17 +392,33 @@ async function writeItem(
     }
     extra.paymentMethod = pm;
   } else {
-    const miles = Number(String(fd.get("miles") || ""));
-    if (!Number.isFinite(miles) || miles <= 0) return { error: "Enter the miles driven." };
+    // Odometer is the record. Lines saved before odometers existed keep their typed miles.
+    const legacy = !!existing && existing.odometerStart === null;
+    let miles: number;
+    if (legacy) {
+      miles = Number(String(fd.get("miles") || ""));
+      if (!Number.isFinite(miles) || miles <= 0) return { error: "Enter the miles driven." };
+    } else {
+      const odo = checkOdometer(
+        String(fd.get("odometerStart") || ""),
+        String(fd.get("odometerEnd") || ""),
+        String(fd.get("personalMiles") || ""),
+        String(fd.get("personalMilesNote") || ""),
+      );
+      if (!odo.ok) return { error: odo.error };
+      miles = odo.business;
+      extra.odometerStart = Number(String(fd.get("odometerStart")).replace(/,/g, "")).toFixed(1);
+      extra.odometerEnd = Number(String(fd.get("odometerEnd")).replace(/,/g, "")).toFixed(1);
+      extra.personalMiles = odo.personal > 0 ? odo.personal.toFixed(1) : null;
+      extra.personalMilesNote = odo.personal > 0 ? String(fd.get("personalMilesNote")).trim() : null;
+    }
     try {
       const rate = await rateForDate(itemDate);
       amountCents = mileageAmountCents(miles, rate.ratePerMile);
       extra.miles = miles.toFixed(1);
       extra.mileageRateId = rate.id;
       extra.tripFrom = String(fd.get("tripFrom") || "").trim() || null;
-      const to = String(fd.get("tripTo") || "").trim();
-      const via = fd.getAll("stop").map((v) => String(v).trim()).filter(Boolean);
-      extra.tripTo = (via.length ? `${to} (via ${via.join("; ")})` : to) || null;
+      extra.tripTo = String(fd.get("tripTo") || "").trim() || null;
     } catch {
       return { error: `No mileage rate is configured for ${itemDate} — ask an admin to add one.` };
     }

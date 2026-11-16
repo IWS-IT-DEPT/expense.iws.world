@@ -107,7 +107,15 @@ export async function syncReportToBamboo(reportId: string): Promise<SyncSummary>
           }
           if (miles > 0) put(fields, base, "Allowance (per Mile)", (item.amountCents / 100 / miles).toFixed(4));
           const route = [item.tripFrom, item.tripTo].filter(Boolean).join(" → ");
-          text = [route, item.businessPurpose, ...extra].filter(Boolean).join(" · ");
+          const odo =
+            item.odometerStart !== null && item.odometerEnd !== null
+              ? `Odometer ${Number(item.odometerStart)} → ${Number(item.odometerEnd)}`
+              : "";
+          const personal =
+            item.personalMiles && Number(item.personalMiles) > 0
+              ? `${item.personalMiles} personal mi deducted${item.personalMilesNote ? ` (${item.personalMilesNote})` : ""}`
+              : "";
+          text = [route, item.businessPurpose, odo, personal, ...extra].filter(Boolean).join(" · ");
           put(fields, base, "Destination", text);
           put(fields, lists, "Approval", APPROVED);
         } else {

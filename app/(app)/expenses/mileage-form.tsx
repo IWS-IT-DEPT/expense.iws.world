@@ -14,8 +14,8 @@ import {
   type CodingEntityOption,
   type CodingScopedOption,
 } from "@/app/components/coding-fields";
+import { checkOdometer } from "@/lib/odometer";
 
-import { calculateRoute } from "./trip/actions";
 import { createMileage, updateExpenseItem, type FormState } from "./actions";
 
 const inputClass =
@@ -24,7 +24,12 @@ const inputClass =
 export interface MileageFormInitial {
   id: string;
   itemDate: string;
+  /** Reimbursed miles. Only edited directly for lines saved before odometers existed. */
   miles: string | null;
+  odometerStart: string | null;
+  odometerEnd: string | null;
+  personalMiles: string | null;
+  personalMilesNote: string | null;
   tripFrom: string | null;
   tripTo: string | null;
   entityId: string | null;
@@ -43,32 +48,27 @@ export function MileageForm(props: {
   mileageCategoryId?: string;
   currentRatePerMile?: string;
   initial?: MileageFormInitial;
-  /** A finished trip being turned into the one mileage line. */
-  prefill?: { tripId: string; itemDate: string; miles: string; tripFrom: string; tripTo: string };
+  /** Their last ending odometer, shown as a hint for the next starting reading. */
+  lastOdometerEnd?: number | null;
+  /** A started trip being finished: the starting reading and place are already saved. */
+  prefill?: { tripId: string; itemDate: string; odometerStart: string; tripFrom: string };
 }) {
   const router = useRouter();
   const i = props.initial;
   const editing = !!i;
-  const [miles, setMiles] = useState(i?.miles ?? props.prefill?.miles ?? "");
+  // Lines saved before odometers existed only have a miles figure; keep editing them that way.
+  const legacy = editing && i.odometerStart === null;
+  const [odoStart, setOdoStart] = useState(i?.odometerStart ?? props.prefill?.odometerStart ?? "");
+  const [odoEnd, setOdoEnd] = useState(i?.odometerEnd ?? "");
+  const [personal, setPersonal] = useState(i?.personalMiles ?? "");
+  const [personalNote, setPersonalNote] = useState(i?.personalMilesNote ?? "");
+  const [legacyMiles, setLegacyMiles] = useState(i?.miles ?? "");
   const [dirty, setDirty] = useState(false);
-  // New hand-entered trips can list stops along the way; edits and finished trips already carry theirs.
-  const withStops = !editing && !props.prefill;
-  const [stops, setStops] = useState<string[]>([]);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [calc, setCalc] = useState<{ working: boolean; error?: string; legs?: number[] }>({ working: false });
 
-  async function calculate() {
-    setCalc({ working: true });
-    const r = await calculateRoute([from, ...stops, to]);
-    if (r.ok) {
-      setMiles(r.total.toFixed(1));
-      setDirty(true);
-      setCalc({ working: false, legs: r.legs });
-    } else {
-      setCalc({ working: false, error: r.error });
-    }
-  }
+  // Live read-back so a mistyped digit is obvious before saving.
+  const odo = checkOdometer(odoStart, odoEnd, personal, personalNote || "x");
+  const businessMiles = legacy ? Number(legacyMiles) : odo.ok ? odo.business : 0;
+
   const [state, action, pending] = useActionState<FormState, FormData>(
     async (prev, fd) => {
       const r = await (editing ? updateExpenseItem : createMileage)(prev, fd);
@@ -82,8 +82,8 @@ export function MileageForm(props: {
   );
 
   const estimate =
-    props.currentRatePerMile && Number(miles) > 0
-      ? (Number(miles) * Number(props.currentRatePerMile)).toLocaleString("en-US", {
+    props.currentRatePerMile && businessMiles > 0
+      ? (businessMiles * Number(props.currentRatePerMile)).toLocaleString("en-US", {
           style: "currency",
           currency: "USD",
         })
@@ -118,16 +118,20 @@ export function MileageForm(props: {
       {!editing ? (
         <div className="-mb-2">
           {props.prefill ? (
-            <Link href="/expenses/trip" className="inline-flex min-h-11 items-center px-1 text-sm font-medium underline opacity-80">
-              ← Back to trip
+            <Link
+              href="/expenses/mileage"
+              className="inline-flex min-h-11 items-center px-1 text-sm font-medium underline opacity-80"
+            >
+              ← Back to mileage
             </Link>
           ) : (
             <CancelWorkflow dirty={dirty} what="mileage entry" variant="top" />
           )}
         </div>
       ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
+        <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm font-medium">Date</span>
           <input
             name="itemDate"
@@ -137,114 +141,135 @@ export function MileageForm(props: {
             className={inputClass}
           />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Miles</span>
-          <input
-            name="miles"
-            required
-            inputMode="decimal"
-            step="0.1"
-            value={miles}
-            onChange={(e) => setMiles(e.target.value)}
-            placeholder="42.0"
-            className={inputClass}
-          />
-          {estimate ? (
-            <span className="mt-1 block text-xs opacity-60">≈ {estimate} (estimated)</span>
-          ) : null}
-        </label>
-        {withStops ? (
-          <div className="space-y-3 sm:col-span-2">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">From</span>
-              <input
-                name="tripFrom"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className={inputClass}
-                placeholder="Main Office"
-              />
-            </label>
-            {stops.map((s, n) => (
-              <div key={n} className="flex items-end gap-2">
-                <label className="block flex-1">
-                  <span className="mb-1 block text-sm font-medium">Stop {n + 1}</span>
-                  <input
-                    name="stop"
-                    value={s}
-                    onChange={(e) => setStops(stops.map((v, k) => (k === n ? e.target.value : v)))}
-                    className={inputClass}
-                    placeholder="Customer site or address"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setStops(stops.filter((_, k) => k !== n))}
-                  className="min-h-9 rounded-md border border-black/15 px-3 text-sm dark:border-white/20"
-                  aria-label={`Remove stop ${n + 1}`}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setStops([...stops, ""])}
-              className="text-sm underline"
-              disabled={stops.length >= 10}
-            >
-              + Add a stop
-            </button>
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">To</span>
-              <input
-                name="tripTo"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className={inputClass}
-                placeholder="Houston Warehouse 1"
-              />
-            </label>
-            <div className="space-y-1">
-              <button
-                type="button"
-                onClick={calculate}
-                disabled={calc.working || !from.trim() || !to.trim()}
-                className="min-h-10 rounded-md border border-black/15 px-3 text-sm font-medium disabled:opacity-50 dark:border-white/20"
-              >
-                {calc.working ? "Calculating…" : "Calculate miles from these places"}
-              </button>
-              {calc.legs ? (
-                <p className="text-xs opacity-70">
-                  Driving: {calc.legs.map((l) => `${l.toFixed(1)} mi`).join(" + ")}. You can adjust the miles above.
-                </p>
-              ) : null}
-              {calc.error ? <p className="text-xs text-red-600">{calc.error}</p> : null}
-            </div>
-          </div>
+
+        {legacy ? (
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-sm font-medium">Miles</span>
+            <input
+              name="miles"
+              required
+              inputMode="decimal"
+              value={legacyMiles}
+              onChange={(e) => setLegacyMiles(e.target.value)}
+              className={inputClass}
+            />
+            <span className="mt-1 block text-xs opacity-60">
+              This entry was saved before odometer readings were collected.
+            </span>
+          </label>
         ) : (
           <>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">From</span>
+              <span className="mb-1 block text-sm font-medium">Starting odometer</span>
               <input
-                name="tripFrom"
-                defaultValue={i?.tripFrom ?? props.prefill?.tripFrom ?? ""}
+                name="odometerStart"
+                required
+                inputMode="decimal"
+                value={odoStart}
+                onChange={(e) => setOdoStart(e.target.value)}
+                placeholder="45210"
                 className={inputClass}
-                placeholder="Main Office"
               />
+              {props.lastOdometerEnd != null && !props.prefill && !editing ? (
+                <span className="mt-1 block text-xs opacity-60">
+                  Your last entry ended at {props.lastOdometerEnd.toLocaleString("en-US")}.
+                </span>
+              ) : null}
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">To</span>
+              <span className="mb-1 block text-sm font-medium">Ending odometer</span>
               <input
-                name="tripTo"
-                defaultValue={i?.tripTo ?? props.prefill?.tripTo ?? ""}
+                name="odometerEnd"
+                required
+                inputMode="decimal"
+                value={odoEnd}
+                onChange={(e) => setOdoEnd(e.target.value)}
+                placeholder="45262"
                 className={inputClass}
-                placeholder="Houston Warehouse 1"
+                autoFocus={!!props.prefill}
               />
             </label>
           </>
         )}
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">From</span>
+          <input
+            name="tripFrom"
+            defaultValue={i?.tripFrom ?? props.prefill?.tripFrom ?? ""}
+            className={inputClass}
+            placeholder="Main Office"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">To / route</span>
+          <input
+            name="tripTo"
+            defaultValue={i?.tripTo ?? ""}
+            className={inputClass}
+            placeholder="Houston Warehouse 1, then Katy site"
+          />
+        </label>
       </div>
+
+      {!legacy ? (
+        <details
+          className="rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
+          open={!!(i?.personalMiles && Number(i.personalMiles) > 0)}
+        >
+          <summary className="cursor-pointer font-medium">Any personal miles in this stretch?</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <p className="text-xs opacity-70 sm:col-span-2">
+              The odometer already counts every mile you drove, including work detours. Only fill this in
+              for miles that weren&apos;t for business (a personal errand, say) — they&apos;re taken off.
+            </p>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Personal miles</span>
+              <input
+                name="personalMiles"
+                inputMode="decimal"
+                value={personal}
+                onChange={(e) => setPersonal(e.target.value)}
+                placeholder="0"
+                className={inputClass}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">What were they for?</span>
+              <input
+                name="personalMilesNote"
+                value={personalNote}
+                onChange={(e) => setPersonalNote(e.target.value)}
+                className={inputClass}
+                placeholder="Stopped at the pharmacy"
+              />
+            </label>
+          </div>
+        </details>
+      ) : null}
+
+      {!legacy ? (
+        <div className="rounded-lg bg-black/5 px-3 py-2 text-sm dark:bg-white/10">
+          {odo.ok ? (
+            <>
+              <strong>{businessMiles.toFixed(1)} business miles</strong>
+              {odo.personal > 0 ? (
+                <span className="opacity-70">
+                  {" "}
+                  ({odo.driven.toFixed(1)} driven − {odo.personal.toFixed(1)} personal)
+                </span>
+              ) : null}
+              {estimate ? <span className="opacity-60"> · ≈ {estimate} (estimated)</span> : null}
+            </>
+          ) : odoStart && odoEnd ? (
+            <span className="text-amber-700 dark:text-amber-400">{odo.error}</span>
+          ) : (
+            <span className="opacity-60">Enter both odometer readings to see your miles.</span>
+          )}
+        </div>
+      ) : estimate ? (
+        <p className="text-xs opacity-60">≈ {estimate} (estimated)</p>
+      ) : null}
 
       <fieldset className="space-y-4 rounded-lg border border-black/10 p-3 dark:border-white/15">
         <legend className="px-1 text-xs font-medium uppercase tracking-wide opacity-60">Coding</legend>
@@ -278,23 +303,23 @@ export function MileageForm(props: {
 
       {!editing ? (
         <div className="space-y-2">
-        <SubmitButton
-          type="submit"
-          disabled={pending}
-          className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
-        >
-          {pending ? "Saving…" : "Save mileage"}
-        </SubmitButton>
-        {props.prefill ? (
-          <Link
-            href="/expenses/trip"
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium sm:w-auto dark:border-white/20"
+          <SubmitButton
+            type="submit"
+            disabled={pending}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-black px-5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto dark:bg-white dark:text-black"
           >
-            Back to trip (it&apos;s still saved)
-          </Link>
-        ) : (
-          <CancelWorkflow dirty={dirty} what="mileage entry" />
-        )}
+            {pending ? "Saving…" : "Save mileage"}
+          </SubmitButton>
+          {props.prefill ? (
+            <Link
+              href="/expenses/mileage"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium sm:w-auto dark:border-white/20"
+            >
+              Back (your trip is still saved)
+            </Link>
+          ) : (
+            <CancelWorkflow dirty={dirty} what="mileage entry" />
+          )}
         </div>
       ) : dirty ? (
         <SaveBar pending={pending} />

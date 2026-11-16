@@ -22,21 +22,31 @@ export function ExpenseReceipts({
   purpose,
   targetId,
   editable = true,
+  title = "Receipts",
+  optionalHint,
 }: {
   receipts: Rec[];
   purpose: "pending" | "item";
   targetId: string;
   editable?: boolean;
+  /** Heading word; odometer photos on a mileage line reuse the receipt plumbing. */
+  title?: string;
+  optionalHint?: string;
 }) {
   const router = useRouter();
   const del = purpose === "pending" ? deleteCardExpenseReceipt : deleteExpenseItemReceipt;
 
   return (
     <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/15">
-      <h2 className="text-sm font-semibold">Receipts ({receipts.length})</h2>
+      <h2 className="text-sm font-semibold">
+        {title} ({receipts.length})
+      </h2>
+      {optionalHint ? <p className="-mt-1 text-xs opacity-60">{optionalHint}</p> : null}
 
       {receipts.length === 0 ? (
-        <p className="text-sm opacity-60">{editable ? "No receipt added yet." : "No receipt on this expense."}</p>
+        <p className="text-sm opacity-60">
+          {editable ? "None added yet." : `No ${title.toLowerCase()} on this expense.`}
+        </p>
       ) : (
         <ul className="space-y-3">
           {receipts.map((r) => (
@@ -90,7 +100,15 @@ export function ExpenseReceipts({
         <ReceiptUploadButton
           purpose={purpose}
           targetId={targetId}
-          label={receipts.length > 0 ? "Add another receipt" : "Add / scan receipt"}
+          label={
+            title === "Receipts"
+              ? receipts.length > 0
+                ? "Add another receipt"
+                : "Add / scan receipt"
+              : receipts.length > 0
+                ? "Add another photo"
+                : "Add a photo"
+          }
           className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-black/15 px-4 text-sm font-medium hover:bg-black/5 sm:w-auto dark:border-white/20 dark:hover:bg-white/10"
         />
       ) : null}

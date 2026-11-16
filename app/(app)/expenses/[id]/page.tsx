@@ -8,6 +8,8 @@ import { canReview, canSeePayroll, requireUser } from "@/lib/current-user";
 import { checkExpenseLine, isBlocked, loadPolicy, type ExpenseCheck } from "@/lib/expense-checks";
 import { money, shortDate } from "@/lib/format";
 import { daysOverdue } from "@/lib/overdue";
+import { loadMileageFlags } from "@/lib/mileage-flags";
+import { MileageFlagChips } from "@/app/components/mileage-flag-chips";
 import { todayInTz } from "@/lib/tz";
 
 import { CardExpenseForm } from "../card-expense-form";
@@ -319,9 +321,18 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   );
 
   if (!editable) {
+    // Review flags are for Payroll only — never shown to the person who owns the line.
+    const reviewFlags =
+      !itemOwner && item.kind === "mileage" ? (await loadMileageFlags([item.userId])).get(item.id) : undefined;
     return (
       <div className="mx-auto max-w-xl space-y-5">
         {header}
+        {reviewFlags?.length ? (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3">
+            <p className="mb-1 text-sm font-medium">For review</p>
+            <MileageFlagChips flags={reviewFlags} detailed />
+          </div>
+        ) : null}
         <Summary
           rows={[
             ["Status", STATUS_LABEL[item.status] ?? item.status],
@@ -329,7 +340,14 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             ["Type", item.kind === "mileage" ? "Mileage" : "Out of pocket"],
             ["Amount", money(item.amountCents)],
             ["Date", shortDate(item.itemDate)],
-            ["Miles", item.kind === "mileage" ? item.miles : null],
+            ["Business miles", item.kind === "mileage" ? item.miles : null],
+            ["Odometer", item.odometerStart !== null && item.odometerEnd !== null ? `${Number(item.odometerStart).toLocaleString("en-US")} → ${Number(item.odometerEnd).toLocaleString("en-US")}` : null],
+            [
+              "Personal miles taken off",
+              item.personalMiles && Number(item.personalMiles) > 0
+                ? `${item.personalMiles}${item.personalMilesNote ? ` (${item.personalMilesNote})` : ""}`
+                : null,
+            ],
             ["From", item.tripFrom],
             ["To", item.tripTo],
             ["Paid with", item.paymentMethod ? (PAYMENT_LABEL[item.paymentMethod] ?? item.paymentMethod) : null],
@@ -340,8 +358,14 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             ["Purpose", item.businessPurpose],
           ]}
         />
-        {item.kind !== "mileage" ? (
-          <ExpenseReceipts receipts={item.receipts} purpose="item" targetId={item.id} editable={false} />
+        {item.kind !== "mileage" || item.receipts.length > 0 ? (
+          <ExpenseReceipts
+            receipts={item.receipts}
+            purpose="item"
+            targetId={item.id}
+            editable={false}
+            title={item.kind === "mileage" ? "Odometer photos" : undefined}
+          />
         ) : null}
       </div>
     );
@@ -359,15 +383,30 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto max-w-xl space-y-5">
       {header}
-      {item.kind !== "mileage" ? (
-        <ExpenseReceipts receipts={item.receipts} purpose="item" targetId={item.id} />
-      ) : null}
+      <ExpenseReceipts
+        receipts={item.receipts}
+        purpose="item"
+        targetId={item.id}
+        title={item.kind === "mileage" ? "Odometer photos" : undefined}
+        optionalHint={item.kind === "mileage" ? "Optional — a photo of the odometer at the start and end." : undefined}
+      />
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Details</h2>
         {item.kind === "mileage" ? (
           <MileageForm
             {...options}
-            initial={{ id: item.id, itemDate: item.itemDate, miles: item.miles, tripFrom: item.tripFrom, tripTo: item.tripTo, ...codingInit }}
+            initial={{
+              id: item.id,
+              itemDate: item.itemDate,
+              miles: item.miles,
+              odometerStart: item.odometerStart,
+              odometerEnd: item.odometerEnd,
+              personalMiles: item.personalMiles,
+              personalMilesNote: item.personalMilesNote,
+              tripFrom: item.tripFrom,
+              tripTo: item.tripTo,
+              ...codingInit,
+            }}
           />
         ) : (
           <OutOfPocketForm

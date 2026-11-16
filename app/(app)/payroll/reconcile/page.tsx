@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { expenseItems } from "@/db/schema";
 import { requireRole } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
+import { loadMileageFlags } from "@/lib/mileage-flags";
+import { MileageFlagChips } from "@/app/components/mileage-flag-chips";
 
 import { reconcileItems } from "../actions";
 import { ItemReconcileActions } from "../reconcile-actions";
@@ -51,6 +53,8 @@ export default async function PayrollReconcilePage() {
       receipts: { columns: { id: true, contentType: true } },
     },
   });
+
+  const flags = await loadMileageFlags(items.filter((i) => i.kind === "mileage").map((i) => i.user.id));
 
   const byUser = new Map<string, { name: string; lines: typeof items }>();
   for (const i of items) {
@@ -109,6 +113,14 @@ export default async function PayrollReconcilePage() {
                               i.tripFrom || i.tripTo
                                 ? ` · ${i.tripFrom ?? "?"} → ${i.tripTo ?? "?"}`
                                 : ""
+                            }${
+                              i.odometerStart !== null && i.odometerEnd !== null
+                                ? ` · odometer ${Number(i.odometerStart).toLocaleString("en-US")}–${Number(i.odometerEnd).toLocaleString("en-US")}`
+                                : ""
+                            }${
+                              i.personalMiles && Number(i.personalMiles) > 0
+                                ? ` · −${i.personalMiles} personal${i.personalMilesNote ? ` (${i.personalMilesNote})` : ""}`
+                                : ""
                             }`
                           : "Out of pocket"}
                       </span>
@@ -119,6 +131,11 @@ export default async function PayrollReconcilePage() {
                       {i.category?.name}
                       {i.businessPurpose ? ` — ${i.businessPurpose}` : ""}
                     </div>
+                    {i.kind === "mileage" && flags.get(i.id)?.length ? (
+                      <div className="mt-2">
+                        <MileageFlagChips flags={flags.get(i.id)} detailed />
+                      </div>
+                    ) : null}
                     {i.kind !== "mileage" && (
                       <div className="mt-2">
                         <ReceiptStrip receipts={i.receipts} />

@@ -501,7 +501,13 @@ export const expenseItems = pgTable(
     paymentMethod: text("payment_method"), // personal_card | cash | personal_check
 
     // mileage only
+    /** Business miles = odometerEnd − odometerStart − personalMiles (the figure that is reimbursed). */
     miles: numeric("miles", { precision: 8, scale: 1 }),
+    odometerStart: numeric("odometer_start", { precision: 9, scale: 1 }),
+    odometerEnd: numeric("odometer_end", { precision: 9, scale: 1 }),
+    /** Non-business miles inside the odometer span, deducted from the reimbursed miles. */
+    personalMiles: numeric("personal_miles", { precision: 8, scale: 1 }),
+    personalMilesNote: text("personal_miles_note"),
     mileageRateId: uuid("mileage_rate_id").references(() => mileageRates.id),
     tripFrom: text("trip_from"),
     tripTo: text("trip_to"),
@@ -520,9 +526,10 @@ export const expenseItems = pgTable(
 );
 
 /**
- * A mileage trip logged as it happens (Start trip / Add stop / End trip). One
- * active trip per person. Finishing it produces ONE `expense_items` mileage
- * line (`expenseItemId`) for the whole trip; the stops stay here as the record.
+ * A mileage trip started on the road: the starting odometer is saved now, the
+ * ending odometer later. One active trip per person. Finishing it produces ONE
+ * `expense_items` mileage line (`expenseItemId`). `trip_stops` is the retired GPS
+ * stop log (DB-only, no UI).
  */
 export const trips = pgTable(
   "trips",
@@ -535,6 +542,9 @@ export const trips = pgTable(
     expenseItemId: uuid("expense_item_id").references(() => expenseItems.id),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
+    /** Odometer reading and place recorded when the trip was started (null on pre-odometer GPS trips). */
+    odometerStart: numeric("odometer_start", { precision: 9, scale: 1 }),
+    startedFrom: text("started_from"),
   },
   (t) => [uniqueIndex("trip_one_active_per_user").on(t.userId).where(sql`${t.status} = 'active'`)],
 );

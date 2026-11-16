@@ -29,7 +29,19 @@ full picture. Key facts an agent needs:
   `draft → submitted → reconciled → approved` (`+ rejected`). Owned end-to-end by
   the **`payroll`** team (Entra `HR@iws.world` / `ENTRA_GROUP_HR`), + admin — not
   accounting. Guard every submitter edit on `status in ('draft','rejected')`.
-- **Mileage** (`/expenses/mileage`) offers two paths: **Start trip** (`/expenses/trip`: Start / Add stop / End, one GPS fix per tap, no background tracking) or **Add mileage manually** (`/expenses/mileage/manual`, optional stops + Calculate-miles). Stops live in `trips`/`trip_stops`; Mapbox (`lib/mapbox.ts`, `MAPBOX_ACCESS_TOKEN`) gives driving miles per leg; finishing produces ONE `expense_items` mileage line via the manual form prefilled from the trip. Locations carry an optional `address` (geocoded on save) so stops near a site are named after it.
+- **Mileage** is **odometer-based** (`/expenses/mileage`): **Start trip** saves the starting reading
+  (`trips.odometer_start` + `started_from`; one open trip per user), then **End trip** (or **Log a
+  finished trip**, both `/expenses/mileage/manual`) takes the ending reading and produces ONE
+  `expense_items` mileage line. `miles` (reimbursed) = `odometer_end − odometer_start − personal_miles`;
+  rules live in `lib/odometer.ts` (`checkOdometer`, shared by the form and `writeItem`). Detours need
+  no special handling — the odometer counts them; personal miles are the only deduction and need a note.
+  **Review flags are payroll-only** (`lib/mileage-flags.ts`, computed on read, never stored, never shown
+  to the owner): odometer-range overlap within one person's history, and both readings ending in 0.
+  Surfaced on `/payroll/reconcile`, `/payroll/requests`, non-owner `/expenses/[id]`, and the
+  **`/payroll/mileage`** (Mileage Audit) page. Thresholds like miles/day are a management policy call — not built.
+  Optional odometer photos reuse the item-receipt plumbing. Pre-odometer lines (`odometer_start` null)
+  stay editable by typed miles. **Retired, DB-only:** `trip_stops`, GPS/Mapbox routing (Mapbox now only
+  geocodes `locations.address`).
 - **Coding** columns (entity, location, category, job, purpose) live inline
   on both tables. **Job codes are opt-in**: required only when the category is a
   job/project expense (`categories.requiresJob`) or the person always codes jobs

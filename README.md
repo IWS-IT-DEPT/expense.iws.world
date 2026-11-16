@@ -66,11 +66,12 @@ batch gate for card charges.
 - **Cards** (`/cards`): a cardholder self-registers each card — network + last 4 +
   nickname. No admin approval, no link to a card program.
 - **Expenses** (`/expenses`): the `+ Log a Purchase / Out of Pocket / Mileage`
-  buttons. **Mileage** (`/expenses/mileage`) offers *Start trip* (tap to log each
-  stop: one GPS fix per tap, Mapbox driving miles per leg, `/expenses/trip`) or
-  *Add mileage manually* (`/expenses/mileage/manual`, with optional stops and a
-  Calculate-miles button). Both end as ONE `expense_items` mileage line; stops are
-  kept in `trips` / `trip_stops`. Card lines can be drafted uncoded; coding + receipt are required to
+  buttons. **Mileage** (`/expenses/mileage`) is logged from the **odometer**: *Start trip*
+  saves the starting reading (`trips.odometer_start`, one open trip per person),
+  *End trip* / *Log a finished trip* (`/expenses/mileage/manual`) takes the ending
+  reading. Business miles = end − start − optional personal miles (with a note); the
+  reimbursed `miles` is that figure. Odometer photos are optional (receipt plumbing).
+  Lines saved before odometers keep a typed-miles edit path. Card lines can be drafted uncoded; coding + receipt are required to
   submit. `lib/expense-checks.ts` is the readiness rule set. A ready card
   purchase has a **submit** button on the row / edit page; `submitCardExpense`
   sends it straight to `/reconcile`.
@@ -225,8 +226,8 @@ Privileged Role Administrator / Global Admin to grant admin consent in step 3).
    automatically; the app uses Vercel Blob whenever that token is present).
 3. Set the other env vars (see `.env.example`) for Production + Preview —
    including `RESEND_API_KEY`, `MAIL_FROM`, `CRON_SECRET`, `APP_TZ` for the
-   weekly-report reminder emails, and `MAPBOX_ACCESS_TOKEN` (mileage trip driving
-   distance + address lookup; without it trips still work but miles are typed).
+   weekly-report reminder emails, and optionally `MAPBOX_ACCESS_TOKEN` (address
+   lookup for Locations; mileage itself needs no map service).
 4. Add `expense.iws.world` as a domain: in **GoDaddy DNS** add a `CNAME`,
    host `expense`, value `cname.vercel-dns.com`. TLS is automatic.
 5. Add the production redirect URI to the Entra app registration.
@@ -271,8 +272,8 @@ lib/
   coding.ts        coding rules, validation, display tag
   expense-checks.ts  "is this line ready to submit / clean" rule set
   mileage.ts       IRS rate lookup + amount
-  mapbox.ts        Mapbox driving distance + geocoding (server only)
-  trips.ts         in-progress mileage trip + stops loader
+  mapbox.ts        Mapbox geocoding for location addresses (server only)
+  trips.ts         open mileage trip loader; odometer.ts = shared odometer rules
   storage.ts       receipt blob store (Vercel Blob / local)
   receipt-store.ts validate + store a receipt file (shared by both upload routes)
   upload-token.ts  HMAC signed one-time links for the phone handoff

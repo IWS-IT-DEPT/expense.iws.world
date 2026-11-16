@@ -184,50 +184,42 @@ const cardholder: Manual = {
 
       <H>Mileage</H>
       <P>
-        Click <strong>+ Mileage</strong>. You have two ways to log it:
+        Mileage is logged from your car&apos;s <strong>odometer</strong>. Click <strong>+ Mileage</strong>, then
+        either:
       </P>
-      <H>Option 1 — Start trip (tap at each stop)</H>
+      <H>Start now, finish later</H>
       <OL>
         <li>
-          Tap <strong>Start trip</strong> when you leave. The app notes where you are.
+          Before you drive, tap <strong>+ Mileage</strong>, type your <strong>starting odometer</strong> (and
+          where you&apos;re starting from, if you like) and tap <strong>Start trip</strong>.
         </li>
         <li>
-          At each place you stop, open the app and tap <strong>Add stop here</strong>. The driving miles from
-          the previous stop are worked out and the running total is shown. Rename a stop if you like
-          (&ldquo;Smith job site&rdquo;), or type your own miles for a leg if the route was different.
+          When you&apos;re done, open <strong>+ Mileage</strong> again (or tap the amber banner on My Expenses)
+          and tap <strong>End trip</strong>. Type your <strong>ending odometer</strong>, where you went, add the
+          coding and save.
         </li>
         <li>
-          When you&apos;re done, tap <strong>End trip here</strong> (or{" "}
-          <strong>End the trip at the last stop</strong> if you already added where you finished). The whole trip
-          opens as <em>one</em> mileage entry with the total miles filled in. Add the coding and save.
-        </li>
-        <li>
-          The app only reads your location at the moment you tap a button — never in the background or while
-          the app is closed. The first time, allow location when your phone asks. If location is off or not
-          working, use <strong>Or add a stop by address</strong>.
-        </li>
-        <li>
-          Left a trip open? Go to <strong>+ Mileage</strong> and tap <strong>Continue trip</strong>. You can
-          only have one trip open at a time; <strong>Discard this trip</strong> throws it away.
+          Only one trip can be open at a time. <strong>Discard this trip</strong> throws a started trip away.
         </li>
       </OL>
-      <H>Option 2 — Add mileage manually</H>
+      <H>Already finished</H>
       <OL>
-        <li>Tap <strong>Add mileage manually</strong>.</li>
+        <li>Tap <strong>+ Mileage</strong> then <strong>Log a finished trip</strong>.</li>
         <li>
-          Enter the <strong>date</strong>, where you went <strong>from</strong> and <strong>to</strong>, and
-          use <strong>+ Add a stop</strong> for any places in between. Each place can be an address or the
-          name of a company location (like &ldquo;Main Office&rdquo;).
-        </li>
-        <li>
-          Tap <strong>Calculate miles from these places</strong> to fill in the driving miles, or just type
-          the miles yourself. Then add the coding and save.
+          Enter the <strong>date</strong>, the <strong>starting</strong> and <strong>ending</strong> odometer,
+          where you went, and the coding. The form shows your business miles and the estimated dollars as you type.
         </li>
       </OL>
+      <H>Detours and personal miles</H>
       <P>
-        Either way you get a single mileage entry, and the dollar amount is worked out from the IRS rate in
-        effect on that date — you never type a rate. Stops you passed through are shown on the entry as
-        &ldquo;(via …)&rdquo;.
+        The odometer counts every mile you drove, so work detours, extra stops and wrong turns are already
+        included &mdash; just type the two readings. The only time to do anything extra is when part of that
+        stretch wasn&apos;t business (a personal errand): open <strong>Any personal miles in this stretch?</strong>,
+        enter those miles and what they were for, and they&apos;re taken off before pay.
+      </P>
+      <P>
+        After saving, you can add a photo of the odometer at the start and end (optional). The dollar amount is
+        worked out from the IRS rate in effect on that date &mdash; you never type a rate.
       </P>
 
       <H>The weekly report (This Week)</H>
@@ -376,8 +368,7 @@ const accounting: Manual = {
           <strong>Active</strong> to retire it instead.
         </li>
         <li>
-          <strong>Locations</strong> (add each site&apos;s street address so mileage stops at that site are named
-          after it — the address is looked up on save) and <strong>Jobs</strong>.
+          <strong>Locations</strong> (a street address is optional) and <strong>Jobs</strong>.
         </li>
         <li>
           <strong>Categories</strong> — expense types. Tick <strong>Job / project expense — requires a job
@@ -482,6 +473,17 @@ const payroll: Manual = {
         reimbursements&rdquo; and noted in the audit trail. Final approval of the report has to come from someone
         else.
       </Note>
+
+      <H>Mileage flags and the Mileage Audit</H>
+      <P>
+        Mileage lines are logged from the odometer. Reconcile, All Requests and the line&apos;s detail page mark a
+        mileage line with a <strong>⚑</strong> when its odometer readings <strong>overlap another trip</strong> by
+        the same person, or when <strong>both readings end in 0</strong> (possibly estimated). A flag is a
+        question to ask, not a finding — people can drive more than one vehicle. <strong>Payroll → Mileage
+        Audit</strong> shows each employee&apos;s trips, business and personal miles, average and longest trip and
+        busiest day, and every line with its readings, so anything unusual can be questioned. Employees never see
+        flags.
+      </P>
 
       <H>2. Approvals — release for payment</H>
       <UL>
@@ -650,12 +652,6 @@ const admin: Manual = {
         </li>
         <li>
           <strong>Mileage won&apos;t save.</strong> No IRS rate exists on or before that date — add one.
-        </li>
-        <li>
-          <strong>Trip miles aren&apos;t calculated.</strong> Driving distance and street addresses come from
-          Mapbox (the <code>MAPBOX_ACCESS_TOKEN</code> setting). If it&apos;s missing, expired or over its
-          limit, people can still log trips by typing the miles for each leg. If &ldquo;Add stop&rdquo; says it
-          can&apos;t read their location, location is blocked for the app in their phone settings.
         </li>
         <li>
           <strong>Nobody can approve something.</strong> Nobody can approve their own expenses; make

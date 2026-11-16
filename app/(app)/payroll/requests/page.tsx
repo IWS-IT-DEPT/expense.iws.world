@@ -6,6 +6,8 @@ import { db } from "@/db";
 import { entities, expenseItems, receipts, users } from "@/db/schema";
 import { canSeePayroll, requireUser } from "@/lib/current-user";
 import { money, shortDate } from "@/lib/format";
+import { loadMileageFlags } from "@/lib/mileage-flags";
+import { MileageFlagChips } from "@/app/components/mileage-flag-chips";
 
 import { EntityBadge } from "../../../components/entity-badge";
 import { STATUS_LABEL, btn } from "../../expenses/expense-row";
@@ -105,6 +107,7 @@ export default async function PayrollRequestsPage({ searchParams }: { searchPara
         to: expenseItems.tripTo,
         miles: expenseItems.miles,
         status: expenseItems.status,
+        userId: expenseItems.userId,
         userName: users.name,
         entityCode: entities.code,
         entityColor: entities.brandColor,
@@ -119,6 +122,7 @@ export default async function PayrollRequestsPage({ searchParams }: { searchPara
       .offset((page - 1) * PAGE_SIZE),
   ]);
 
+  const flags = await loadMileageFlags(rows.filter((r) => r.kind === "mileage").map((r) => r.userId));
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = (n: number) => {
     const u = new URLSearchParams();
@@ -246,6 +250,11 @@ export default async function PayrollRequestsPage({ searchParams }: { searchPara
                     </span>
                     {mileage && route ? <span className="block truncate text-xs opacity-60">{route}</span> : null}
                     {r.purpose ? <span className="block truncate text-xs opacity-60">{r.purpose}</span> : null}
+                    {mileage && flags.get(r.id)?.length ? (
+                      <span className="mt-0.5 block">
+                        <MileageFlagChips flags={flags.get(r.id)} />
+                      </span>
+                    ) : null}
                   </span>
                   {r.entityCode ? <EntityBadge code={r.entityCode} color={r.entityColor} /> : null}
                   <span className="rounded bg-black/5 px-1.5 py-0.5 text-xs dark:bg-white/10">
